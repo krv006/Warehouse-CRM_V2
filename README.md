@@ -163,7 +163,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (96 ta).
+Barcha testlar (100 ta).
 
 ---
 

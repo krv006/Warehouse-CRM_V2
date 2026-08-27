@@ -3,7 +3,7 @@ from django.utils.timezone import now
 from rest_framework.response import Response
 from rest_framework.status import HTTP_400_BAD_REQUEST
 
-from apps.accounts.permissions import IsAdmin, IsAdminOrBugalter
+from apps.accounts.permissions import FinanceAccess, IsAdmin
 from apps.core.choices import Direction
 from apps.core.mixins import BaseModelViewSet
 from apps.core.models import ActivityLog, Notification
@@ -25,7 +25,7 @@ class CashCategoryViewSet(BaseModelViewSet):
 
     queryset = CashCategory.objects.all()
     serializer_class = CashCategorySerializer
-    permission_classes = [IsAdminOrBugalter]
+    permission_classes = [FinanceAccess]
     search_fields = ['name', 'code']
     filterset_fields = ['direction', 'is_active', 'is_system']
 
@@ -39,7 +39,7 @@ class CashTransactionViewSet(BaseModelViewSet):
         .all()
     )
     serializer_class = CashTransactionSerializer
-    permission_classes = [IsAdminOrBugalter]
+    permission_classes = [FinanceAccess]
     search_fields = ['description']
     filterset_fields = ['direction', 'category', 'currency', 'contract', 'purchase', 'loan']
     ordering_fields = ['occurred_at', 'amount']
@@ -68,7 +68,7 @@ class LoanViewSet(BaseModelViewSet):
 
     queryset = Loan.objects.select_related('created_by').prefetch_related('cash_transactions').all()
     serializer_class = LoanSerializer
-    permission_classes = [IsAdminOrBugalter]
+    permission_classes = [FinanceAccess]
     search_fields = ['lender_name']
     filterset_fields = ['status', 'currency', 'source']
     ordering_fields = ['deadline', 'amount']
@@ -115,7 +115,7 @@ class ExpenseRequestViewSet(BaseModelViewSet):
         .all()
     )
     serializer_class = ExpenseRequestSerializer
-    permission_classes = [IsAdminOrBugalter]
+    permission_classes = [FinanceAccess]
     filterset_fields = ['status', 'category', 'requested_by']
     ordering_fields = ['created_at', 'amount']
 

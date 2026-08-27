@@ -3,7 +3,7 @@
 Har bir ekran uchun: kim ko'radi, qaysi endpoint, qanday maydon, qanday holat.
 Texnik kontrakt (auth, xatolar, ranglar): [09-FRONTEND-REACT.md](09-FRONTEND-REACT.md).
 
-Belgilar: ✅ yozadi · 👁 faqat ko'radi · ⛔ ochilmaydi
+Belgilar: ✅ yozadi · 👁 faqat ko'radi · ⛔ ochilmaydi (GET ham `403`)
 
 ---
 
@@ -21,11 +21,11 @@ Xato: `401` → "Login yoki parol noto'g'ri".
 |---|:--:|:--:|:--:|:--:|
 | Dashboard | ✅ | ✅ | ✅ | ✅ |
 | Sotuv (Leads, Shartnomalar) | ✅ | ✅ | ✅ | 👁 |
-| To'ldirish (Buyurtmachi) | ✅ | ✅ | 👁 | ✅ |
-| Ombor | ✅ | ✅ | ✅ | ✅ |
+| To'ldirish (Buyurtmachi) | ✅ | ✅ | ⛔ | ✅ |
+| Ombor | ✅ | ✅ | 👁 | ✅ |
 | Configurator | ✅ | ✅ | ✅ | ✅ |
-| Kirim | ✅ | ✅ | 👁 | 👁 |
-| Kassa | ✅ | ✅ | 👁 | 👁 |
+| Kirim | ✅ | ✅ | ⛔ | 👁 |
+| Kassa | ✅ | ✅ | ⛔ | ⛔ |
 | Mijozlar | ✅ | 👁 | ✅ | ✅ |
 | ACT | ✅ | 👁 | 👁 | 👁 |
 | Foydalanuvchilar | ✅ | ⛔ | ⛔ | ⛔ |

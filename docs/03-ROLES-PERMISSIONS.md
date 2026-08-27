@@ -23,7 +23,15 @@
 | `IsAdminOrBugalter` | barcha login qilganlar | admin, bugalter |
 | `IsAdminOrSales` | barcha login qilganlar | admin, sales |
 | `IsAdminOrSupplier` | barcha login qilganlar | admin, buyurtmachi |
-| `CanManageClients` | barcha login qilganlar | bugalterdan tashqari hamma (sales, buyurtmachi, admin) |
+| `CanManageClients` | barcha login qilganlar | admin, sales, buyurtmachi |
+| `InventoryAccess` | barcha login qilganlar | admin, bugalter, buyurtmachi |
+| `FinanceAccess` | **admin, bugalter** | admin, bugalter |
+| `PurchaseAccess` | **admin, bugalter, buyurtmachi** | admin, bugalter |
+| `ProcurementAccess` | **admin, bugalter, buyurtmachi** | admin, buyurtmachi |
+| `ProcurementSharedAccess` | admin, bugalter, buyurtmachi | admin, buyurtmachi, bugalter |
+
+Hammasi `RoleAccess` asosida: `read_roles` / `write_roles` ro'yxatlari, admin esa doim o'tadi.
+Qalin yozilgan qatorlar — **sales umuman ko'ra olmaydigan** bo'limlar (TZ 8.3).
 
 Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan hech kim hech nimani ko'rmaydi.
 
@@ -31,24 +39,37 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 
 | Endpoint | O'qish | Yozish | Maxsus |
 |---|---|---|---|
+| `/api/dashboard/` | hamma | — | |
 | `/api/users/` | admin | admin | `/users/me/` — hamma |
-| `/api/clients/` | hamma | admin, sales | bugalter faqat o'qiydi |
-| `/api/categories/`, `/warehouses/`, `/products/`, `/product-specs/`, `/stocks/`, `/movements/` | hamma | hamma | ombor bo'limi umumiy |
+| `/api/activity-logs/` | **admin** | — | audit |
+| `/api/notifications/` | o'ziniki + umumiy | — | `mark-read` |
+| `/api/clients/` | hamma | admin, sales, buyurtmachi | bugalter faqat o'qiydi |
+| `/api/categories/`, `/warehouses/`, `/products/`, `/product-specs/`, `/stocks/`, `/movements/` | hamma | admin, bugalter, buyurtmachi | **sales faqat o'qiydi** |
 | `/api/acts/` | hamma | **faqat admin** | ACT ni admin kiritadi |
-| `/api/configurations/`, `/configuration-items/` | hamma | hamma | configurator hammaga ochiq |
-| `/api/purchases/`, `/purchase-items/` | hamma | admin, bugalter | `receive` — admin, bugalter |
-| `/api/leads/` | hamma | admin, sales | |
-| `/api/replenishments/` | hamma | admin, buyurtmachi | `approve`/`reject`/`pay` — admin, bugalter; `receive`/`events` — buyurtmachi va bugalter |
-| `/api/replenishment-items/` | hamma | admin, buyurtmachi | tekshiruvga yuborilgach faqat admin tahrirlaydi |
-| `/api/replenishment-approvals/`, `/replenishment-events/` | hamma | — | faqat o'qish |
-| `/api/contracts/` | hamma | admin, sales | `submit` — sales; `approve`/`reject`/`confirm-payment` — admin, bugalter |
-| `/api/contract-items/` | hamma | admin, sales | narx faqat sales va adminga ko'rinadi |
+| `/api/configurations/`, `/configuration-items/` | hamma | hamma | configurator hammaga ochiq (TZ 6.5) |
+| `/api/leads/`, `/contracts/`, `/contract-items/` | hamma | admin, sales | narx faqat sales va adminga ko'rinadi |
 | `/api/contract-payments/` | hamma | admin, bugalter | |
 | `/api/contract-approvals/` | hamma | — | faqat o'qish |
-| `/api/cash-categories/`, `/cash-transactions/`, `/loans/`, `/expense-requests/` | hamma | admin, bugalter | `expense-requests/approve|reject` — **faqat admin** |
-| `/api/activity-logs/` | **faqat admin** | — | audit |
-| `/api/notifications/` | o'ziniki + umumiy | — | `mark-read` |
-| `/api/dashboard/` | hamma | — | admin uchun to'liq manzara |
+| `/api/purchases/`, `/purchase-items/` | **admin, bugalter, buyurtmachi** | admin, bugalter | sales — 403 |
+| `/api/replenishments/` va qatorlari | **admin, bugalter, buyurtmachi** | admin, buyurtmachi | `approve`/`reject`/`pay` — admin, bugalter; `receive`/`events` — buyurtmachi va bugalter; sales — 403 |
+| `/api/cash-categories/`, `/cash-transactions/`, `/loans/`, `/expense-requests/` | **admin, bugalter** | admin, bugalter | `expense-requests/approve\|reject` — **faqat admin**; sales — 403 |
+
+### Sales roli aynan nimani ko'radi (TZ 8.3)
+
+| Bo'lim | Sales |
+|---|---|
+| Dashboard | ✅ ko'radi |
+| Mijozlar | ✅ ko'radi va qo'shadi |
+| Leads (og'zaki kelishuv) | ✅ ko'radi va yuritadi |
+| Shartnomalar | ✅ tuzadi, yuboradi, **sotuv narxini ko'radi** |
+| Configurator | ✅ to'liq ishlaydi |
+| ACT | 👁 faqat ko'radi |
+| Ombor (mahsulot, qoldiq, harakat) | 👁 **faqat ko'radi** — narx va qoldiqni bilish uchun |
+| Eslatmalar | ✅ o'ziniki |
+| Kassa, qarzlar, xarajat so'rovlari | ⛔ **403** |
+| Kirim (purchases) | ⛔ **403** |
+| To'ldirish (buyurtmachi bo'limi) | ⛔ **403** |
+| Foydalanuvchilar, Audit | ⛔ **403** |
 
 ## Shartnoma zanjiridagi rol tekshiruvi
 

@@ -1,6 +1,6 @@
 # 09 — Frontend (React) integratsiya qo'llanmasi
 
-Backend to'liq tayyor va **serverda ishlab turibdi**: **89 endpoint**, 96 test,
+Backend to'liq tayyor va **serverda ishlab turibdi**: **89 endpoint**, 100 test,
 OpenAPI sxemasi xatosiz. Ishchi manzil: https://ombor.thesofmebel.uz/api/docs/
 Bu fayl — frontend yozish uchun texnik kontrakt. Ekranlar bo'yicha batafsil topshiriq:
 [11-FRONTEND-SCREENS.md](11-FRONTEND-SCREENS.md).
@@ -83,19 +83,22 @@ Kirgan foydalanuvchi: `GET /users/me/` → `{ id, username, first_name, last_nam
 | Bo'lim | admin | bugalter | sales | buyurtmachi |
 |---|:--:|:--:|:--:|:--:|
 | Dashboard | ✅ | ✅ | ✅ | ✅ |
-| Ombor (mahsulot, qoldiq, harakat) | ✅ | ✅ | ✅ | ✅ |
+| Ombor (mahsulot, qoldiq, harakat) | ✅ | ✅ | 👁 | ✅ |
 | Configurator | ✅ | ✅ | ✅ | ✅ |
 | ACT | ✅ yozadi | 👁 | 👁 | 👁 |
 | Clients | ✅ yozadi | 👁 | ✅ yozadi | ✅ yozadi |
 | Leads / Shartnomalar | ✅ | 👁 + tasdiq | ✅ yozadi | 👁 |
-| To'ldirish (Buyurtmachi) | ✅ | 👁 + tasdiq/to'lov | 👁 | ✅ yozadi |
-| Kirim (purchases) | ✅ | ✅ | 👁 | 👁 |
-| Kassa, qarzlar | ✅ | ✅ | 👁 | 👁 |
-| Xarajat so'rovlari | ✅ tasdiq | ✅ so'raydi | 👁 | 👁 |
+| To'ldirish (Buyurtmachi) | ✅ | 👁 + tasdiq/to'lov | ⛔ | ✅ yozadi |
+| Kirim (purchases) | ✅ | ✅ | ⛔ | 👁 |
+| Kassa, qarzlar | ✅ | ✅ | ⛔ | ⛔ |
+| Xarajat so'rovlari | ✅ tasdiq | ✅ so'raydi | ⛔ | ⛔ |
 | Foydalanuvchilar | ✅ | ⛔ | ⛔ | ⛔ |
 | Audit (activity-logs) | ✅ | ⛔ | ⛔ | ⛔ |
 
-👁 = faqat o'qish (GET ishlaydi, yozishda `403`).
+👁 = faqat o'qish (GET ishlaydi, yozishda `403`) · ⛔ = GET ham `403`.
+
+**Sales uchun muhim:** kassa, qarz, xarajat, kirim va to'ldirish bo'limlari umuman
+ochilmaydi — bu menyu bandlarini sales uchun ko'rsatmang (TZ 8.3).
 
 **Muhim:** UI ruxsatni yashirish uchun ishlatiladi, lekin backend baribir tekshiradi —
 `403` javobini har doim ushlab, tushunarli xabar chiqaring.

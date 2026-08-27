@@ -1,8 +1,11 @@
 from rest_framework.exceptions import PermissionDenied, ValidationError
-from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsAdminOrBugalter, IsAdminOrSupplier
+from apps.accounts.permissions import (
+    FinanceAccess,
+    ProcurementAccess,
+    ProcurementSharedAccess,
+)
 from apps.core.mixins import BaseModelViewSet
 from apps.core.models import ActivityLog
 from apps.inventory.models import Warehouse
@@ -46,16 +49,16 @@ class ReplenishmentViewSet(BaseModelViewSet):
         .all()
     )
     serializer_class = ReplenishmentSerializer
-    permission_classes = [IsAdminOrSupplier]
+    permission_classes = [ProcurementAccess]
     search_fields = ['number', 'supplier']
     filterset_fields = ['status', 'warehouse', 'currency']
     ordering_fields = ['created_at', 'number']
 
     def get_permissions(self):
         if self.action in BUGALTER_ACTIONS:
-            return [IsAdminOrBugalter()]
+            return [FinanceAccess()]
         if self.action in SHARED_ACTIONS:
-            return [IsAuthenticated()]
+            return [ProcurementSharedAccess()]
         return super().get_permissions()
 
     def low_stock(self, request):
@@ -166,7 +169,7 @@ class ReplenishmentItemViewSet(BaseModelViewSet):
 
     queryset = ReplenishmentItem.objects.select_related('replenishment', 'product').all()
     serializer_class = ReplenishmentItemSerializer
-    permission_classes = [IsAdminOrSupplier]
+    permission_classes = [ProcurementAccess]
     filterset_fields = ['replenishment', 'product']
 
     def _check_editable(self, item):
@@ -195,6 +198,7 @@ class ReplenishmentApprovalViewSet(BaseModelViewSet):
         'replenishment', 'decided_by',
     ).all()
     serializer_class = ReplenishmentApprovalSerializer
+    permission_classes = [ProcurementAccess]
     filterset_fields = ['replenishment', 'step', 'decision']
 
 
@@ -205,4 +209,5 @@ class ReplenishmentEventViewSet(BaseModelViewSet):
         'replenishment', 'created_by',
     ).all()
     serializer_class = ReplenishmentEventSerializer
+    permission_classes = [ProcurementAccess]
     filterset_fields = ['replenishment', 'stage']

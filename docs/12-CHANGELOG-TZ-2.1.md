@@ -147,6 +147,23 @@ Parol: `Ombor2026!` · Komanda: `make docker-demo`
 
 ---
 
+## 8.1 Rol ruxsatlari qat'iylashtirildi 🔴 breaking
+
+TZ 8.3 ga muvofiq **sales** endi quyidagi bo'limlarni umuman ocha olmaydi (`403`):
+
+| Bo'lim | Avval | Endi |
+|---|---|---|
+| Kassa, qarzlar, xarajat so'rovlari | o'qiy olardi | **403** |
+| Kirim (`/purchases/`) | o'qiy olardi | **403** |
+| To'ldirish (`/replenishments/`) | o'qiy olardi | **403** |
+| Ombor (mahsulot, qoldiq, harakat) | **yoza olardi** | faqat o'qiydi |
+
+Ombor yozish endi admin, bugalter va buyurtmachida (avval barcha login qilganlarda edi).
+
+**Frontendga ta'siri:** sales menyusidan Kassa, Kirim va To'ldirish bandlarini olib tashlang;
+ombor sahifasida sales uchun "Qo'shish / Tahrirlash" tugmalarini yashiring.
+To'liq jadval: [03-ROLES-PERMISSIONS.md](03-ROLES-PERMISSIONS.md).
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -178,5 +195,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | Endpoint | 72 | **89** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 20 | **24** |
-| Testlar | 66 | **96** |
+| Testlar | 66 | **100** |
 | Rollar | 3 | **4** |

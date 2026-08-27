@@ -1,6 +1,6 @@
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsAdminOrBugalter
+from apps.accounts.permissions import PurchaseAccess
 from apps.core.mixins import BaseModelViewSet
 from apps.core.models import ActivityLog
 from apps.purchases.models import Purchase, PurchaseItem
@@ -18,7 +18,7 @@ class PurchaseViewSet(BaseModelViewSet):
         .all()
     )
     serializer_class = PurchaseSerializer
-    permission_classes = [IsAdminOrBugalter]
+    permission_classes = [PurchaseAccess]
     search_fields = ['number', 'supplier', 'invoice_number']
     filterset_fields = ['type', 'status', 'warehouse', 'currency']
     ordering_fields = ['created_at', 'ordered_at', 'expected_at']
@@ -61,5 +61,5 @@ class PurchaseViewSet(BaseModelViewSet):
 class PurchaseItemViewSet(BaseModelViewSet):
     queryset = PurchaseItem.objects.select_related('purchase', 'product').all()
     serializer_class = PurchaseItemSerializer
-    permission_classes = [IsAdminOrBugalter]
+    permission_classes = [PurchaseAccess]
     filterset_fields = ['purchase', 'product']
