@@ -9,7 +9,11 @@ from apps.configurator.serializers import (
     ConfigurationSerializer,
     ConfigurationItemSerializer,
 )
-from apps.configurator.services import build_configuration_workbook, resolve_variant
+from apps.configurator.services import (
+    build_configuration_workbook,
+    finalize_modification,
+    resolve_variant,
+)
 from apps.core.mixins import BaseModelViewSet
 from apps.core.models import ActivityLog
 
@@ -64,6 +68,37 @@ class ConfigurationViewSet(BaseModelViewSet):
             ],
         })
 
+    def changes(self, request, pk=None):
+        """GET /configurations/{id}/changes/ — zavod tarkibiga nisbatan farq.
+
+        Qo'shilganlar (ombordan olinadi) va yechib olinganlar (omborga
+        qaytadi, narxi o'zgartirilishi mumkin).
+        """
+        configuration = self.get_object()
+        changes = configuration.changes
+        return Response({
+            'configuration': configuration.number,
+            'mode': configuration.mode,
+            'added': [
+                {
+                    'component': row['component'].id,
+                    'name': row['component'].name,
+                    'quantity': row['quantity'],
+                    'available': row['component'].total_stock,
+                }
+                for row in changes['added']
+            ],
+            'removed': [
+                {
+                    'component': row['component'].id,
+                    'name': row['component'].name,
+                    'quantity': row['quantity'],
+                    'unit_price': row['unit_price'],
+                }
+                for row in changes['removed']
+            ],
+        })
+
     def finalize(self, request, pk=None):
         """POST /configurations/{id}/finalize/ — ACT bilan yakunlash."""
         configuration = self.get_object()
@@ -94,13 +129,21 @@ class ConfigurationViewSet(BaseModelViewSet):
                 status=HTTP_400_BAD_REQUEST,
             )
 
-        variant, created = resolve_variant(configuration)
+        if configuration.mode == Configuration.Mode.MODIFY:
+            # Tayyor mahsulot fizik o'zgartiriladi: ombor harakatlari + bugalterga xabar
+            variant, created = finalize_modification(
+                configuration, request.user, request.data.get('removals'),
+            )
+        else:
+            variant, created = resolve_variant(configuration)
+
         configuration.variant = variant
         configuration.status = Configuration.Status.READY
         configuration.save()
         self.log_action(
             ActivityLog.Action.UPDATE, configuration,
-            f'Yakunlandi, variant: {variant.sku} ' + ('(yangi)' if created else '(ombordan)'),
+            f'Yakunlandi ({configuration.get_mode_display()}), variant: {variant.sku} '
+            + ('(yangi)' if created else '(ombordan)'),
         )
         return Response(self.get_serializer(configuration).data)
 

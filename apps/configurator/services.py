@@ -92,3 +92,111 @@ def resolve_variant(configuration):
                 quantity=item.quantity,
             )
     return variant, True
+
+
+def finalize_modification(configuration, user, removal_overrides=None):
+    """Tayyor mahsulotni o'zgartirishni yakunlaydi (modify rejimi, TZ 6.2).
+
+    Ombor harakatlari:
+      - butun bazaviy mahsulotdan 1 dona chiqim;
+      - qo'shilgan butlovchilar ombordan chiqim;
+      - yechib olinganlar omborga kirim (narxi bilan yozib qo'yiladi);
+      - o'zgartirilgan mahsulot (variant) omborga 1 dona kirim.
+
+    removal_overrides: {component_id: narx} — yechib olingan qism narxini
+    o'zgartirish imkoniyati. Yakunda bugalterga xabar boradi.
+    """
+    from decimal import Decimal
+
+    from django.db.transaction import atomic
+    from rest_framework.exceptions import ValidationError
+
+    from apps.core.models import Notification
+    from apps.configurator.models import ConfigurationRemoval
+    from apps.inventory.models import StockMovement
+    from apps.inventory.services import apply_movement, available_quantity
+
+    if not configuration.warehouse:
+        raise ValidationError({'warehouse': "Tayyor mahsulotni o'zgartirish uchun ombor tanlanishi shart."})
+
+    warehouse = configuration.warehouse
+    base = configuration.base_product
+
+    if available_quantity(base, warehouse) < 1:
+        raise ValidationError({
+            'detail': f'Omborda tayyor {base.name} qolmagan — o\'zgartirish uchun kamida 1 dona kerak.',
+        })
+
+    changes = configuration.changes
+    shortages = [
+        f"{row['component'].name} (kerak: {row['quantity']}, omborda: {available_quantity(row['component'], warehouse)})"
+        for row in changes['added']
+        if available_quantity(row['component'], warehouse) < row['quantity']
+    ]
+    if shortages:
+        raise ValidationError({
+            'detail': "Qo'shiladigan butlovchilar omborda yetarli emas.",
+            'items': shortages,
+        })
+
+    overrides = {int(k): Decimal(str(v)) for k, v in (removal_overrides or {}).items()}
+
+    with atomic():
+        variant, created = resolve_variant(configuration)
+
+        # 1 dona butun mahsulot ishga olinadi
+        apply_movement(
+            product=base, warehouse=warehouse,
+            type=StockMovement.Type.OUT, quantity=1,
+            reason=StockMovement.Reason.CONFIGURATION,
+            reference=configuration.number, user=user,
+        )
+        # qo'shilgan butlovchilar ombordan
+        for row in changes['added']:
+            apply_movement(
+                product=row['component'], warehouse=warehouse,
+                type=StockMovement.Type.OUT, quantity=row['quantity'],
+                reason=StockMovement.Reason.CONFIGURATION,
+                reference=configuration.number, user=user,
+            )
+        # yechib olinganlar omborga qaytadi — narxi yozib qo'yiladi
+        removed_lines = []
+        for row in changes['removed']:
+            price = overrides.get(row['component'].pk, row['unit_price'])
+            ConfigurationRemoval.objects.create(
+                configuration=configuration,
+                component=row['component'],
+                quantity=row['quantity'],
+                unit_price=price,
+                note='Tayyor mahsulotdan yechib olindi',
+            )
+            apply_movement(
+                product=row['component'], warehouse=warehouse,
+                type=StockMovement.Type.IN, quantity=row['quantity'],
+                reason=StockMovement.Reason.CONFIGURATION,
+                reference=configuration.number, user=user,
+            )
+            removed_lines.append(f"{row['component'].name} x{row['quantity']} — {price}")
+
+        # o'zgartirilgan mahsulot tayyor pozitsiya sifatida omborga kiradi
+        apply_movement(
+            product=variant, warehouse=warehouse,
+            type=StockMovement.Type.IN, quantity=1,
+            reason=StockMovement.Reason.CONFIGURATION,
+            reference=configuration.number, user=user,
+        )
+
+        # TZ: yechib olinganini ACT qilib bugalterga jo'natamiz
+        act_number = configuration.act.number if configuration.act else '-'
+        Notification.objects.create(
+            title=f'{configuration.number}: tarkib o\'zgartirildi (ACT {act_number})',
+            message=(
+                'Yechib olindi va omborga qaytdi: ' + '; '.join(removed_lines)
+                if removed_lines else 'Tarkibga faqat qo\'shimcha kiritildi.'
+            ),
+            level=Notification.Level.INFO,
+            entity='Configuration',
+            object_id=str(configuration.pk),
+        )
+
+    return variant, created

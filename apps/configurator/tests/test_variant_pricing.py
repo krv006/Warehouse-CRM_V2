@@ -208,3 +208,129 @@ class BaseModelAsReadyPositionTests(APITestCase):
         }, format='json')
         ready = response.data['ready_variant']
         self.assertIsNone(ready)  # bunday kombinatsiya hali yo'q
+
+
+class ModifyModeTests(APITestCase):
+    """TZ 6.2 (modify): tayyor mahsulot olinadi, ichi o'zgartiriladi,
+    yechib olingani omborga qaytadi va bugalterga xabar boradi."""
+
+    def setUp(self):
+        from datetime import date
+
+        from apps.configurator.models import Act
+        from apps.inventory.models import ProductSpec, StockMovement, Warehouse
+        from apps.inventory.services import apply_movement
+
+        self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
+        self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
+        self.act = Act.objects.create(number='ACT-01', title='ACT', issued_at=date.today())
+
+        self.base = Product.objects.create(
+            sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
+            sale_price=Decimal('25000000'),
+        )
+        self.ram4 = Product.objects.create(
+            sku='RAM-4', name='RAM 4 GB', kind=Product.Kind.COMPONENT,
+            sale_price=Decimal('400000'),
+        )
+        self.ram8 = Product.objects.create(
+            sku='RAM-8', name='RAM 8 GB', kind=Product.Kind.COMPONENT,
+            sale_price=Decimal('700000'),
+        )
+        ProductSpec.objects.create(
+            product=self.base, component=self.ram4, label='RAM', quantity=1,
+        )
+        # Omborda: 2 dona tayyor HP 880 va 3 dona RAM 8
+        for product, quantity in [(self.base, 2), (self.ram8, 3)]:
+            apply_movement(
+                product=product, warehouse=self.warehouse,
+                type=StockMovement.Type.IN, quantity=Decimal(quantity),
+            )
+        self.client.force_authenticate(self.sales)
+
+    def _stock(self, product):
+        from apps.inventory.services import available_quantity
+
+        return available_quantity(product, self.warehouse)
+
+    def _modify_config(self):
+        """RAM 4 yechiladi, o'rniga RAM 8 qo'yiladi."""
+        response = self.client.post('/api/configurations/', {
+            'base_product': self.base.id, 'warehouse': self.warehouse.id,
+            'act': self.act.id, 'mode': 'modify',
+            'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 1}],
+        }, format='json')
+        return response.data['id']
+
+    def test_changes_endpoint_shows_diff(self):
+        config_id = self._modify_config()
+        response = self.client.get(f'/api/configurations/{config_id}/changes/')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['added'][0]['name'], 'RAM 8 GB')
+        self.assertEqual(response.data['removed'][0]['name'], 'RAM 4 GB')
+        self.assertEqual(Decimal(response.data['removed'][0]['unit_price']), Decimal('400000'))
+
+    def test_finalize_moves_stock_and_returns_removed_part(self):
+        from apps.core.models import Notification
+
+        config_id = self._modify_config()
+        response = self.client.post(f'/api/configurations/{config_id}/finalize/', {
+            'removals': {str(self.ram4.id): '350000'},  # yechilgan RAM narxi o'zgartirildi
+        }, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+
+        # Ombor: HP 880 2->1, RAM 8 3->2, RAM 4 0->1, variant 0->1
+        self.assertEqual(self._stock(self.base), Decimal('1'))
+        self.assertEqual(self._stock(self.ram8), Decimal('2'))
+        self.assertEqual(self._stock(self.ram4), Decimal('1'))
+        variant = Product.objects.get(base_model=self.base)
+        self.assertEqual(self._stock(variant), Decimal('1'))
+
+        # Yechib olingani narxi bilan yozildi (o'zgartirilgan narx)
+        removal = response.data['removals'][0]
+        self.assertEqual(removal['component_name'], 'RAM 4 GB')
+        self.assertEqual(Decimal(removal['unit_price']), Decimal('350000'))
+
+        # Bugalterga xabar: ACT bilan, yechib olinganlar ro'yxati
+        note = Notification.objects.get(entity='Configuration')
+        self.assertIn('ACT-01', note.title)
+        self.assertIn('RAM 4 GB', note.message)
+
+    def test_finalize_blocked_when_no_ready_unit_in_stock(self):
+        from apps.inventory.models import StockMovement
+        from apps.inventory.services import apply_movement
+
+        config_id = self._modify_config()
+        apply_movement(  # tayyor mahsulotni tugatamiz
+            product=self.base, warehouse=self.warehouse,
+            type=StockMovement.Type.OUT, quantity=Decimal('2'),
+        )
+        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('HP 880', str(response.data))
+
+    def test_finalize_blocked_when_added_part_missing(self):
+        from apps.inventory.models import StockMovement
+        from apps.inventory.services import apply_movement
+
+        config_id = self._modify_config()
+        apply_movement(  # RAM 8 tugadi
+            product=self.ram8, warehouse=self.warehouse,
+            type=StockMovement.Type.OUT, quantity=Decimal('3'),
+        )
+        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('RAM 8 GB', str(response.data['items']))
+
+    def test_build_mode_does_not_touch_stock(self):
+        from apps.inventory.models import StockMovement
+
+        response = self.client.post('/api/configurations/', {
+            'base_product': self.base.id, 'warehouse': self.warehouse.id,
+            'act': self.act.id,  # mode default: build
+            'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 1}],
+        }, format='json')
+        before = StockMovement.objects.count()
+        response = self.client.post(f'/api/configurations/{response.data["id"]}/finalize/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(StockMovement.objects.count(), before)  # yig'ish rejasi — harakat yo'q

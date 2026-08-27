@@ -4,7 +4,12 @@ from rest_framework.serializers import (
     SerializerMethodField,
 )
 
-from apps.configurator.models import Act, Configuration, ConfigurationItem
+from apps.configurator.models import (
+    Act,
+    Configuration,
+    ConfigurationItem,
+    ConfigurationRemoval,
+)
 
 
 class ActSerializer(ModelSerializer):
@@ -35,8 +40,25 @@ class ConfigurationItemSerializer(ModelSerializer):
         ]
 
 
+class ConfigurationRemovalSerializer(ModelSerializer):
+    """Yechib olingan butlovchi — omborga qaytgan, narxi bilan."""
+
+    component_name = ReadOnlyField(source='component.name')
+    subtotal = ReadOnlyField()
+
+    class Meta:
+        model = ConfigurationRemoval
+        fields = [
+            'id', 'configuration', 'component', 'component_name',
+            'quantity', 'unit_price', 'subtotal', 'note', 'created_at',
+        ]
+        read_only_fields = fields
+
+
 class ConfigurationSerializer(ModelSerializer):
     items = ConfigurationItemSerializer(many=True, required=False)
+    removals = ConfigurationRemovalSerializer(many=True, read_only=True)
+    mode_display = ReadOnlyField(source='get_mode_display')
     client_name = ReadOnlyField(source='client.display_name')
     base_product_name = ReadOnlyField(source='base_product.name')
     status_display = ReadOnlyField(source='get_status_display')
@@ -51,9 +73,10 @@ class ConfigurationSerializer(ModelSerializer):
         model = Configuration
         fields = [
             'id', 'number', 'client', 'client_name', 'base_product', 'base_product_name',
-            'warehouse', 'act', 'act_number', 'purchase', 'status', 'status_display',
+            'warehouse', 'act', 'act_number', 'purchase', 'mode', 'mode_display',
+            'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
-            'ready_variant', 'missing_count',
+            'ready_variant', 'missing_count', 'removals',
             'created_by', 'created_at',
         ]
         read_only_fields = ['number', 'created_by', 'purchase', 'variant']

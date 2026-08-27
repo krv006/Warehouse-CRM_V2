@@ -121,6 +121,7 @@ va `POST /replenishments/{id}/receive/` (TZ 1-bo'lim: Kirim va Chiqim).
 | GET/POST | `/acts/` | yozish faqat admin |
 | GET/POST | `/configurations/` | qatorlar (`items`) bilan birga yuboriladi |
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
+| GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
 | POST | `/configurations/{id}/finalize/` | ACT majburiy |
 | POST | `/configurations/{id}/attach/` | kirim buyurtmasiga biriktirish |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
@@ -173,6 +174,39 @@ Narxlash qoidasi (TZ 6.2):
   tayyor pozitsiya (yangi yaratilgan yoki avvaldan mavjud)
 - Tarkib **o'zgartirilmagan** bo'lsa, tayyor pozitsiya bazaviy modelning o'zi bo'ladi
   (`ready_variant.is_base_model: true`) — narx va qoldiq undan olinadi
+
+### Ikki rejim (TZ 6.2)
+
+| `mode` | Ma'nosi |
+|---|---|
+| `build` (default) | Butlovchilardan yig'ish — reja; yakunlashda ombor harakati bo'lmaydi |
+| `modify` | **Ombordagi tayyor mahsulot o'zgartiriladi** — yakunlashda haqiqiy ombor harakatlari |
+
+**Farqni ko'rish:**
+```json
+GET /api/configurations/{id}/changes/
+{
+  "configuration": "CFG-00003",
+  "mode": "modify",
+  "added":   [{"component": 9, "name": "RAM 8 GB", "quantity": 1, "available": "3.00"}],
+  "removed": [{"component": 7, "name": "RAM 4 GB", "quantity": 1, "unit_price": "400000.00"}]
+}
+```
+
+**Modify rejimida yakunlash** — yechib olingan qism narxini o'zgartirish mumkin:
+```json
+POST /api/configurations/{id}/finalize/
+{"removals": {"7": "350000"}}
+```
+
+Nima bo'ladi:
+1. Ombordan **1 dona tayyor mahsulot** chiqadi (yo'q bo'lsa — `400`)
+2. Qo'shilgan butlovchilar ombordan chiqadi (yetmasa — `400`, ro'yxati bilan)
+3. **Yechib olinganlar omborga qaytadi** — `removals[]` da narxi bilan yozilib qoladi
+4. O'zgartirilgan mahsulot (variant) omborga 1 dona kirim bo'ladi
+5. **Bugalterga xabar** boradi: ACT raqami + yechib olinganlar ro'yxati
+
+Konfiguratsiya javobida `removals[]` — yechib olingan qismlar tarixi.
 
 **Biriktirish:**
 ```json

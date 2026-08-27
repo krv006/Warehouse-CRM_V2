@@ -175,11 +175,17 @@ Unique: (`product`, `component`).
 | `act` | FK `configurator.Act` (PROTECT, null) |
 | `purchase` | FK `purchases.Purchase` (SET_NULL, null) |
 | `variant` | FK `inventory.Product` (SET_NULL) — tayyor pozitsiya |
+| `mode` | `build` (yig'ish) / `modify` (tayyor mahsulotni o'zgartirish) |
 | `status` | `draft` / `ready` / `attached` / `cancelled` |
 | `note`, `created_by` | |
 
 Property: `items_total`, `total_price`, `signature`, `matching_variant`,
-`missing_items`, `items_without_price`.
+`changes` (zavod tarkibiga nisbatan qo'shilgan/yechilganlar), `missing_items`, `items_without_price`.
+
+### `ConfigurationRemoval` — yechib olingan butlovchi (modify rejimi)
+`configuration` (CASCADE, `removals`), `component` (PROTECT), `quantity`,
+`unit_price` (yakunlashda o'zgartirilishi mumkin), `note`.
+Yechib olingan qism omborga qaytadi, bugalterga ACT bilan xabar boradi.
 
 ### `ConfigurationItem`
 `configuration` (CASCADE, `items`), `component` (FK Product, PROTECT), `label`, `quantity`, `unit_price`.

@@ -242,6 +242,29 @@ Yakunlangach `variant_sku` paydo bo'ladi — bu ombordagi yangi tayyor pozitsiya
 
 ---
 
+### 4.3 Tayyor mahsulotni o'zgartirish (modify rejimi)
+
+Yangi konfiguratsiya oynasida rejim tanlovi:
+
+- **Yig'ish** (`build`) — hozirgi oqim, reja
+- **Tayyorini o'zgartirish** (`modify`) — omborda butun mahsulot bor bo'lganda
+
+Modify oqimi:
+
+1. `POST /configurations/` — `mode: "modify"` bilan; tarkib avtomatik yuklanadi
+2. Foydalanuvchi qatorlarni o'zgartiradi (RAM 4 o'chirildi, RAM 8 qo'shildi)
+3. `GET /configurations/{id}/changes/` — ikki ro'yxat ko'rsatiladi:
+   **Qo'shiladi** (ombordan olinadi, `available` bilan) va
+   **Yechib olinadi** (omborga qaytadi, `unit_price` tahrirlanadigan input)
+4. `POST /finalize/` — `{"removals": {"<component_id>": "<narx>"}}` bilan
+5. Muvaffaqiyatda: ombor harakatlari bo'ladi, `removals[]` tarixda qoladi,
+   bugalterga eslatma tushadi
+
+Xato holatlari: tayyor mahsulot omborda yo'q — `400` (matni bilan);
+qo'shiladigan qism yetmaydi — `400` + `items[]` ro'yxati.
+
+---
+
 ## 5. Ombor
 
 **Bu bo'lim faqat ko'rish uchun** — "Qo'shish / Tahrirlash" tugmalari bo'lmaydi.

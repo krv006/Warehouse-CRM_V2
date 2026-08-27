@@ -198,6 +198,13 @@ butlovchilar va ularning miqdori. Shu sababli:
 - Model tanlanganda **zavod tarkibi avtomatik yuklanadi** (`items` yuborilmasa) —
   ichidagi barcha narsa tayyor keladi, foydalanuvchi faqat keraklisini o'zgartiradi (TZ 6.1)
 
+### Ikki rejim: yig'ish va tayyor mahsulotni o'zgartirish
+
+| Rejim | Nima bo'ladi |
+|---|---|
+| `build` | Butlovchilardan yangi mahsulot rejalashtiriladi; yetishmagani kirim orqali to'ldiriladi. Yakunlashda ombor harakati bo'lmaydi |
+| `modify` | **Ombordagi butun tayyor mahsulot olinadi** va ichi o'zgartiriladi: qo'shilgan qism ombordan chiqadi, **yechib olingani omborga qaytadi** (narxi bilan, narxni o'zgartirish mumkin), o'zgartirilgan mahsulot tayyor pozitsiya sifatida omborga kiradi. Yechib olinganlar haqida **bugalterga ACT bilan xabar** boradi |
+
 Configurator **barcha rollarga** ochiq (TZ 6.5).
 
 ---

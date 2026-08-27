@@ -15,6 +15,9 @@ urlpatterns = [
 
     path('configurations/', ConfigurationViewSet.as_view(LIST), name='configuration-list'),
     path('configurations/<int:pk>/', ConfigurationViewSet.as_view(DETAIL), name='configuration-detail'),
+    path('configurations/<int:pk>/changes/', ConfigurationViewSet.as_view({
+        'get': 'changes',
+    }), name='configuration-changes'),
     path('configurations/<int:pk>/stock-check/', ConfigurationViewSet.as_view({
         'get': 'stock_check',
     }), name='configuration-stock-check'),

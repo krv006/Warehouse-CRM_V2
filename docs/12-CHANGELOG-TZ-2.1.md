@@ -101,6 +101,15 @@ Keyingi aniqlashtirish:
   yangi variant yaratilmaydi
 - `ready_variant` endi `{id, sku, name, price, stock, is_base_model}` qaytaradi
 
+**Modify rejimi** 🆕 — tayyor mahsulotni o'zgartirish:
+
+- `Configuration.mode`: `build` (default) / `modify`
+- `GET /configurations/{id}/changes/` — qo'shilgan/yechilganlar farqi
+- `modify` da `finalize` haqiqiy ombor harakatlarini bajaradi: butun mahsulot -1,
+  qo'shilganlar ombordan, **yechilganlar omborga qaytadi** (narxi `removals` bilan
+  o'zgartiriladi), variant +1; bugalterga ACT bilan eslatma boradi
+- Javobda `removals[]` — yechib olinganlar tarixi
+
 ---
 
 ## 5. Muddat ranglari aniqlashtirildi 🟡
@@ -234,8 +243,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **87** |
+| REST endpoint | 70 | **88** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
-| Modellar | 23 | **28** |
-| Testlar | 66 | **131** |
+| Modellar | 23 | **29** |
+| Testlar | 66 | **136** |
 | Rollar | 3 | **4** |

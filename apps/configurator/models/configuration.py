@@ -12,7 +12,18 @@ from apps.core.utils import next_number
 
 
 class Configuration(TimeStampedModel):
-    """Bazaviy model ustidan yig'ilgan mijoz konfiguratsiyasi (chernovik)."""
+    """Bazaviy model ustidan yig'ilgan mijoz konfiguratsiyasi (chernovik).
+
+    Ikki xil rejim (TZ 6.2):
+      build  — butlovchilardan yangi mahsulot yig'iladi;
+      modify — ombordagi TAYYOR mahsulot olinadi, ichi o'zgartiriladi:
+               qo'shilgan qism ombordan chiqadi, yechib olingani omborga
+               qaytadi (narxi bilan) va bu haqda bugalterga xabar boradi.
+    """
+
+    class Mode(TextChoices):
+        BUILD = 'build', "Butlovchilardan yig'ish"
+        MODIFY = 'modify', "Tayyor mahsulotni o'zgartirish"
 
     class Status(TextChoices):
         DRAFT = 'draft', 'Chernovik'
@@ -43,6 +54,7 @@ class Configuration(TimeStampedModel):
         'inventory.Product', SET_NULL, related_name='source_configurations',
         null=True, blank=True,
     )
+    mode = CharField(max_length=20, choices=Mode.choices, default=Mode.BUILD)
     status = CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     note = TextField(blank=True)
     created_by = ForeignKey(
@@ -95,6 +107,33 @@ class Configuration(TimeStampedModel):
         if variant and variant.stock_price:
             return variant.stock_price
         return self.items_total
+
+    @property
+    def changes(self):
+        """Zavod tarkibiga nisbatan farq: qo'shilganlar va yechib olinganlar."""
+        spec_map = {}
+        for spec in self.base_product.specs.select_related('component'):
+            spec_map[spec.component_id] = spec_map.get(spec.component_id, 0) + spec.quantity
+
+        item_map, components = {}, {}
+        for item in self.items.select_related('component'):
+            item_map[item.component_id] = item_map.get(item.component_id, 0) + item.quantity
+            components[item.component_id] = item.component
+        for spec in self.base_product.specs.select_related('component'):
+            components.setdefault(spec.component_id, spec.component)
+
+        added, removed = [], []
+        for component_id, component in components.items():
+            diff = item_map.get(component_id, 0) - spec_map.get(component_id, 0)
+            if diff > 0:
+                added.append({'component': component, 'quantity': diff})
+            elif diff < 0:
+                removed.append({
+                    'component': component,
+                    'quantity': -diff,
+                    'unit_price': component.stock_price,
+                })
+        return {'added': added, 'removed': removed}
 
     @property
     def missing_items(self):
