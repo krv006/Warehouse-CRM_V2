@@ -104,6 +104,33 @@ docker exec edu_platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile
 > Static fayllarni **whitenoise** beradi, media fayllarni Django o'zi beradi (`SERVE_MEDIA=True`) —
 > shuning uchun proxy tomonda alohida `file_server` sozlash shart emas.
 
+### Sinov ma'lumotlari
+
+```bash
+docker compose exec web python manage.py seed_users
+```
+
+4 ta foydalanuvchi ochadi (parol: `Ombor2026!`):
+
+| Login | Rol |
+|---|---|
+| `admin` | Administrator (superuser) |
+| `bugalter` | Bugalter |
+| `sales1` | Sales |
+| `sales2` | Sales |
+
+```bash
+docker compose exec web python manage.py seed_clients
+```
+
+4 ta buyurtmachi: 2 jismoniy va 2 yuridik shaxs.
+
+Parolni o'zingiz belgilash: `seed_users --password 'Kuchli-Parol1'`.
+Mavjud foydalanuvchilar parolini qayta yozish: `--force`.
+
+> Ochiq domenda turgan tizimda demo parollarni ishga tushgach almashtiring
+> yoki keraksiz foydalanuvchilarni o'chiring.
+
 ### Kundalik ishlar
 
 > `make` o'rnatilgan bo'lsa (`sudo apt install make`), shu jadvaldagilarni

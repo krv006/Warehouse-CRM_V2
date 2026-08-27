@@ -99,6 +99,7 @@ Har bir ilovada `models/` va `tests/` — papka ko'rinishida, `urls.py` esa har 
 | `make test` | barcha testlar |
 | `make ci` | check + test (commitdan oldin) |
 | `make superuser` | admin ochish |
+| `make demo` | kassa yacheykalari + 4 ta demo user + 4 ta demo buyurtmachi |
 | `make migrations` / `make migrate` | migratsiya yozish / qo'llash |
 | `make clean` | `__pycache__` tozalash |
 
@@ -108,6 +109,7 @@ Har bir ilovada `models/` va `tests/` — papka ko'rinishida, `urls.py` esa har 
 | `make logs` | jonli loglar |
 | `make deploy` | git pull + qayta yig'ish + migratsiya |
 | `make docker-superuser` | konteyner ichida admin ochish |
+| `make docker-demo` | serverda demo user va buyurtmachilar |
 | `make backup` | bazani zaxiralaydi |
 
 ---

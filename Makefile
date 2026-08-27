@@ -11,7 +11,8 @@
 # Virtual muhit qayerda bo'lsa — o'shani topadi (Windows / Linux)
 PYTHON ?= $(if $(wildcard .venv/Scripts/python.exe),.venv/Scripts/python.exe,$(if $(wildcard .venv/bin/python),.venv/bin/python,python3))
 MANAGE := $(PYTHON) manage.py
-COMPOSE := docker compose
+CADDY_NETWORK := $(shell [ -f .env ] && grep -E '^CADDY_NETWORK=' .env | cut -d= -f2)
+COMPOSE := docker compose $(if $(CADDY_NETWORK),-f docker-compose.yml -f docker-compose.caddy.yml,)
 DOMAIN := ombor.thesofmebel.uz
 BACKUP_DIR ?= /var/backups
 
@@ -50,6 +51,17 @@ superuser: ## Admin foydalanuvchi ochadi
 .PHONY: seed
 seed: ## Kassa yacheykalarini yaratadi
 	$(MANAGE) seed_finance
+
+.PHONY: users
+users: ## Demo foydalanuvchilar (admin, bugalter, sales1, sales2)
+	$(MANAGE) seed_users
+
+.PHONY: clients
+clients: ## Demo buyurtmachilar (2 jismoniy, 2 yuridik)
+	$(MANAGE) seed_clients
+
+.PHONY: demo
+demo: seed users clients ## Kassa yacheykalari + demo user + demo buyurtmachi
 
 .PHONY: deadlines
 deadlines: ## Muddat eslatmalarini tekshiradi
@@ -123,6 +135,17 @@ docker-migrate: ## Konteyner ichida migratsiya
 .PHONY: docker-superuser
 docker-superuser: ## Konteyner ichida admin ochish
 	$(COMPOSE) exec web python manage.py createsuperuser
+
+.PHONY: docker-users
+docker-users: ## Serverda demo foydalanuvchilar
+	$(COMPOSE) exec web python manage.py seed_users
+
+.PHONY: docker-clients
+docker-clients: ## Serverda demo buyurtmachilar
+	$(COMPOSE) exec web python manage.py seed_clients
+
+.PHONY: docker-demo
+docker-demo: docker-users docker-clients ## Serverda demo user + buyurtmachi
 
 .PHONY: docker-deadlines
 docker-deadlines: ## Konteyner ichida muddat eslatmalari
