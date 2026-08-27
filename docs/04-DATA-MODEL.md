@@ -1,0 +1,262 @@
+# 04 — Ma'lumotlar modeli
+
+Barcha modellar (`User` dan tashqari) `apps.core.models.TimeStampedModel` dan meros oladi:
+`created_at`, `updated_at`, default `ordering = ['-created_at']`.
+
+## ER diagramma
+
+```mermaid
+erDiagram
+    User ||--o{ Client : "created_by"
+    Client ||--o{ Lead : ""
+    Client ||--o{ Contract : ""
+    Client ||--o{ Configuration : ""
+    Category ||--o{ Product : ""
+    Category ||--o{ Category : "parent"
+    Product ||--o{ ProductSpec : "specs"
+    Product ||--o{ Stock : ""
+    Warehouse ||--o{ Stock : ""
+    Product ||--o{ StockMovement : ""
+    Warehouse ||--o{ StockMovement : ""
+    Product ||--o{ ConfigurationItem : "component"
+    Act ||--o{ Configuration : ""
+    Configuration ||--o{ ConfigurationItem : "items"
+    Configuration ||--o{ Contract : ""
+    Purchase ||--o{ PurchaseItem : "items"
+    Purchase ||--o{ Configuration : "attached"
+    Warehouse ||--o{ Purchase : ""
+    Contract ||--o{ ContractItem : "items"
+    Contract ||--o{ ContractApproval : "approvals"
+    Contract ||--o{ ContractPayment : "payments"
+    Contract ||--o{ Purchase : ""
+    CashCategory ||--o{ CashTransaction : ""
+    CashCategory ||--o{ ExpenseRequest : ""
+    Loan ||--o{ CashTransaction : ""
+    ExpenseRequest ||--o{ CashTransaction : ""
+    Contract ||--o{ CashTransaction : ""
+    Purchase ||--o{ CashTransaction : ""
+```
+
+---
+
+## core
+
+### `TimeStampedModel` (abstract)
+| Maydon | Tur |
+|---|---|
+| `created_at` | DateTime (auto_now_add) |
+| `updated_at` | DateTime (auto_now) |
+
+### `ActivityLog`
+| Maydon | Tur | Izoh |
+|---|---|---|
+| `user` | FK `accounts.User` (SET_NULL) | kim qildi |
+| `action` | `create` / `update` / `delete` / `approve` / `reject` | |
+| `entity` | Char(100) | model nomi |
+| `object_id` | Char(50) | |
+| `description` | Text | |
+| `created_at` | DateTime | |
+
+### `Notification`
+| Maydon | Tur |
+|---|---|
+| `user` | FK `accounts.User` (SET_NULL, null = hamma uchun) |
+| `title`, `message` | Char(200), Text |
+| `level` | `info` / `warning` / `danger` |
+| `entity`, `object_id` | manba obyekt |
+| `due_date` | Date |
+| `is_read` | Bool |
+
+---
+
+## accounts
+
+### `User(AbstractUser)`
+| Maydon | Tur | Izoh |
+|---|---|---|
+| `role` | `admin` / `bugalter` / `sales` | default `sales` |
+| `phone` | Char(20) | |
+| `language` | `uz` / `ru` / `en` | default `uz` |
+
+Property: `is_admin`, `is_bugalter`, `is_sales`.
+
+---
+
+## clients
+
+### `Client`
+| Maydon | Tur | Majburiy |
+|---|---|---|
+| `type` | `individual` / `legal` | ha |
+| `full_name` | Char(200) | jismoniy uchun |
+| `passport` | Char(20), **unique** | jismoniy uchun |
+| `company_name` | Char(200), **unique** | yuridik uchun |
+| `inn` | Char(20), **unique** | yuridik uchun |
+| `director_name` | Char(200) | yuridik uchun |
+| `jshshir` | Char(20), **unique** | ikkalasi uchun |
+| `phone` | Char(20), **unique** | ha |
+| `email` | Email | yo'q |
+| `address` | Text | yuridik uchun |
+| `note` | Text | yo'q |
+| `created_by` | FK `accounts.User` | avtomatik |
+
+Property: `display_name` (yuridik → `company_name`, jismoniy → `full_name`).
+
+---
+
+## inventory
+
+### `Category`
+`name`, `parent` (FK o'ziga, SET_NULL, `related_name='children'`)
+
+### `Warehouse`
+`name`, `address`, `is_active`
+
+### `Product`
+| Maydon | Tur |
+|---|---|
+| `sku` | Char(50), unique |
+| `barcode` | Char(50) |
+| `name` | Char(200) |
+| `kind` | `machine` / `component` / `other` |
+| `category` | FK `inventory.Category` (PROTECT) |
+| `unit` | `pcs` / `kg` / `l` / `m` / `box` |
+| `cost_price`, `sale_price` | Decimal(18,2) |
+| `reorder_level` | PositiveInteger |
+| `image` | Image |
+| `is_active` | Bool |
+
+Property: `total_stock`, `is_low_stock`.
+
+### `ProductSpec` — bazaviy model tarkibi
+`product` (FK Product, CASCADE, `specs`), `component` (FK Product, PROTECT, `spec_usages`), `label`, `quantity`.
+Unique: (`product`, `component`).
+
+### `Stock`
+`product`, `warehouse`, `quantity` (Decimal 18,2). Unique: (`product`, `warehouse`).
+
+### `StockMovement`
+| Maydon | Tur |
+|---|---|
+| `product`, `warehouse` | FK (PROTECT) |
+| `type` | `in` / `out` / `adjust` |
+| `reason` | `purchase` / `sale` / `configuration` / `manual` |
+| `quantity` | Decimal(18,2) |
+| `reference`, `note` | Char |
+| `created_by` | FK User |
+
+> `adjust` — `quantity` yakuniy qoldiqni bildiradi.
+
+---
+
+## configurator
+
+### `Act`
+`number` (unique), `title`, `description`, `issued_at`, `file`, `is_active`, `created_by`.
+
+### `Configuration`
+| Maydon | Tur |
+|---|---|
+| `number` | `CFG-00001` (avtomatik) |
+| `client` | FK `clients.Client` (PROTECT, null) |
+| `base_product` | FK `inventory.Product` (PROTECT) |
+| `warehouse` | FK `inventory.Warehouse` (PROTECT, null) |
+| `act` | FK `configurator.Act` (PROTECT, null) |
+| `purchase` | FK `purchases.Purchase` (SET_NULL, null) |
+| `status` | `draft` / `ready` / `attached` / `cancelled` |
+| `note`, `created_by` | |
+
+Property: `total_price`, `missing_items`.
+
+### `ConfigurationItem`
+`configuration` (CASCADE, `items`), `component` (FK Product, PROTECT), `label`, `quantity`, `unit_price`.
+Property: `subtotal`, `available`, `shortage`, `source` (`stock` / `purchase`).
+
+---
+
+## purchases
+
+### `Purchase`
+| Maydon | Tur |
+|---|---|
+| `number` | `KIR-00001` (avtomatik) |
+| `type` | `local` / `import` / `ustav` |
+| `status` | `draft` / `ordered` / `in_transit` / `received` / `cancelled` |
+| `supplier` | Char(200) |
+| `warehouse` | FK Warehouse (PROTECT) |
+| `contract` | FK `sales.Contract` (SET_NULL, null) |
+| `currency`, `exchange_rate` | `UZS/USD/EUR/CNY`, Decimal(18,4) |
+| `lead_days` | PositiveInteger (masalan 90) |
+| `ordered_at`, `expected_at`, `received_at` | Date |
+| `customs_duty`, `tax_amount` | Decimal(18,2) — USTAF/import |
+| `invoice_number`, `note`, `created_by` | |
+
+Property: `items_total`, `total_amount`, `progress`, `days_left`, `color`.
+
+### `PurchaseItem`
+`purchase` (CASCADE, `items`), `product` (PROTECT), `quantity`, `unit_price`, `note`. Property: `subtotal`.
+
+---
+
+## sales
+
+### `Contract`
+| Maydon | Tur |
+|---|---|
+| `number` | `SHT-00001` (avtomatik) |
+| `client` | FK Client (PROTECT) |
+| `configuration` | FK Configuration (SET_NULL, null) |
+| `status` | `draft` / `pending_bugalter` / `pending_admin` / `approved` / `active` / `completed` / `rejected` / `cancelled` |
+| `currency` | default `UZS` |
+| `total_amount` | Decimal(18,2) |
+| `prepayment_percent` | Decimal(5,2), bo'sh bo'lsa avtomatik 30/15 |
+| `term_days` | PositiveInteger, default 90 |
+| `signed_at` | Date |
+| `start_date` | Date — pul tasdiqlangan kun, sanoq shundan boshlanadi |
+| `note`, `created_by` | |
+
+Property: `items_total`, `prepayment_amount`, `paid`, `balance`, `progress`, `days_left`, `color`.
+
+### `ContractItem`
+`contract` (CASCADE, `items`), `product` (PROTECT), `quantity`, `unit_price`. Property: `subtotal`.
+
+### `ContractApproval`
+`contract` (CASCADE, `approvals`), `step` (`bugalter` / `admin` / `payment`),
+`decision` (`approved` / `rejected`), `comment`, `decided_by`.
+
+### `ContractPayment`
+`contract` (CASCADE, `payments`), `amount`, `method` (`cash`/`card`/`transfer`),
+`paid_at`, `is_prepayment`, `created_by`, `approved_by`.
+
+### `Lead`
+`client` (PROTECT), `title`, `stage` (`new`/`negotiation`/`verbal`/`contract`/`lost`),
+`expected_amount`, `next_contact_at`, `note`, `contract` (SET_NULL), `created_by`.
+
+---
+
+## finance
+
+### `CashCategory`
+`code` (unique), `name`, `direction` (`in`/`out`), `is_system`, `is_active`.
+
+### `CashTransaction`
+| Maydon | Tur |
+|---|---|
+| `direction` | kategoriyadan avtomatik olinadi |
+| `category` | FK CashCategory (PROTECT) |
+| `amount` | Decimal(18,2) |
+| `currency`, `exchange_rate` | |
+| `occurred_at` | DateTime |
+| `description` | Text |
+| `contract`, `purchase`, `loan`, `expense_request` | FK (SET_NULL) — manba |
+| `created_by`, `approved_by` | FK User |
+
+Property: `amount_uzs` (= `amount * exchange_rate`).
+
+### `Loan`
+`lender_name`, `amount`, `currency`, `taken_at`, `deadline`, `status` (`active`/`closed`), `note`, `created_by`.
+Property: `term_days`, `days_left`, `color`, `repaid`, `balance`.
+
+### `ExpenseRequest`
+`category` (PROTECT), `amount`, `currency`, `purpose`, `status` (`pending`/`approved`/`rejected`),
+`comment`, `requested_by`, `decided_by`, `decided_at`.
