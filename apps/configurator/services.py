@@ -202,19 +202,65 @@ def finalize_modification(configuration, user, removal_overrides=None):
     return variant, created
 
 
-def take_request(request_obj, user):
-    """Engineer zayavkani ishga oladi."""
+def copy_factory_spec(configuration):
+    """Zavod tarkibini konfiguratsiya qatorlariga ko'chiradi (TZ 6.1).
+
+    Model tanlanganda uning ichidagi barcha narsa tayyor keladi — keyin
+    kerakli qatorlar o'zgartiriladi. Serializer ham, take_request ham
+    aynan shu funksiyani chaqiradi (mantiq bitta joyda turadi).
+    """
+    from apps.configurator.models import ConfigurationItem
+
+    for spec in configuration.base_product.specs.select_related('component'):
+        ConfigurationItem.objects.create(
+            configuration=configuration,
+            component=spec.component,
+            label=spec.label,
+            quantity=spec.quantity,
+        )
+
+
+def take_request(request_obj, user, base_product=None, warehouse=None, mode=None):
+    """Engineer zayavkani ishga oladi — chernovik konfiguratsiya avtomatik ochiladi.
+
+    Bazaviy model: so'rov tanasidagi `base_product` > zayavkada yozilgani.
+    Ikkalasi ham bo'lmasa 400 — konfiguratsiya modelsiz yaratilmaydi.
+    """
+    from django.db.transaction import atomic
     from rest_framework.exceptions import PermissionDenied, ValidationError
 
-    from apps.configurator.models import ConfigurationRequest
+    from apps.configurator.models import Configuration, ConfigurationRequest
+    from apps.inventory.models import Product
 
     if not (user.is_admin or user.is_engineer):
         raise PermissionDenied('Zayavkani faqat Engineer ishga oladi.')
     if request_obj.status != ConfigurationRequest.Status.NEW:
         raise ValidationError('Faqat yangi zayavkani ishga olish mumkin.')
-    request_obj.status = ConfigurationRequest.Status.IN_PROGRESS
-    request_obj.taken_by = user
-    request_obj.save()
+
+    base_product = base_product or request_obj.base_product
+    if base_product is None:
+        raise ValidationError({
+            'base_product': "Konfiguratsiya ochish uchun bazaviy model tanlanishi shart.",
+        })
+    if base_product.kind != Product.Kind.MACHINE:
+        raise ValidationError({'base_product': 'Faqat tayyor model tanlanadi.'})
+
+    with atomic():
+        configuration = Configuration.objects.create(
+            base_product=base_product,
+            client=request_obj.client,
+            warehouse=warehouse or request_obj.warehouse,
+            mode=mode or Configuration.Mode.BUILD,
+            note=f'{request_obj.number}: {request_obj.text}',
+            created_by=user,
+        )
+        copy_factory_spec(configuration)
+
+        request_obj.status = ConfigurationRequest.Status.IN_PROGRESS
+        request_obj.taken_by = user
+        request_obj.configuration = configuration
+        request_obj.save()
+
     return request_obj
 
 
@@ -251,3 +297,20 @@ def complete_request(request_obj, user, configuration):
         object_id=str(request_obj.pk),
     )
     return request_obj
+
+
+def notify_engineers_about_request(request_obj):
+    """Yangi zayavka haqida barcha faol engineerlarga eslatma (3-xato tuzatmasi)."""
+    from apps.accounts.models import User
+    from apps.core.models import Notification
+
+    engineers = User.objects.filter(role=User.Role.ENGINEER, is_active=True)
+    for engineer in engineers:
+        Notification.objects.create(
+            user=engineer,
+            title=f'{request_obj.number}: yangi zayavka',
+            message=(request_obj.text or '')[:500],
+            level=Notification.Level.INFO,
+            entity='ConfigurationRequest',
+            object_id=str(request_obj.pk),
+        )

@@ -17,10 +17,12 @@ class ConfigurationRequestFlowTests(APITestCase):
             sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
         )
 
-    def _request(self):
+    def _request(self, **extra):
         self.client.force_authenticate(self.sales)
         response = self.client.post('/api/configuration-requests/', {
             'text': 'Client kuchli kompyuter xohlaydi: SSD 2 TB, GPU zo\'r bo\'lsin.',
+            'base_product': self.base.id,
+            **extra,
         }, format='json')
         self.assertEqual(response.status_code, 201, response.data)
         return response.data['id']
@@ -41,9 +43,13 @@ class ConfigurationRequestFlowTests(APITestCase):
         self.assertEqual(response.data['status'], ConfigurationRequest.Status.IN_PROGRESS)
         self.assertEqual(response.data['taken_by'], self.engineer.id)
 
-        configuration = Configuration.objects.create(
-            base_product=self.base, created_by=self.engineer,
-        )
+        # take chernovik konfiguratsiyani avtomatik ochadi
+        configuration_id = response.data['configuration']
+        self.assertIsNotNone(configuration_id)
+        configuration = Configuration.objects.get(pk=configuration_id)
+        self.assertEqual(configuration.base_product, self.base)
+        self.assertEqual(configuration.status, Configuration.Status.DRAFT)
+
         response = self.client.post(
             f'/api/configuration-requests/{request_id}/complete/',
             {'configuration': configuration.id}, format='json',
@@ -53,8 +59,7 @@ class ConfigurationRequestFlowTests(APITestCase):
         self.assertEqual(response.data['configuration'], configuration.id)
 
         # Sales'ga xabar boradi — u eski jarayonni (shartnoma) boshlaydi
-        note = Notification.objects.get(entity='ConfigurationRequest')
-        self.assertEqual(note.user, self.sales)
+        note = Notification.objects.get(entity='ConfigurationRequest', user=self.sales)
         self.assertIn('tayyor', note.title)
 
     def test_sales_cannot_take_or_complete(self):

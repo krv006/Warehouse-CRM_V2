@@ -31,6 +31,15 @@ class ConfigurationRequest(TimeStampedModel):
         null=True, blank=True,
     )
     text = TextField(help_text='Client xohishi — sales yozgan matn')
+    base_product = ForeignKey(
+        'inventory.Product', PROTECT, related_name='configuration_requests',
+        null=True, blank=True,
+        help_text="Sales taxmin qilgan bazaviy model — take'da shu bo'yicha konfiguratsiya ochiladi",
+    )
+    warehouse = ForeignKey(
+        'inventory.Warehouse', PROTECT, related_name='configuration_requests',
+        null=True, blank=True,
+    )
     status = CharField(max_length=20, choices=Status.choices, default=Status.NEW)
     configuration = ForeignKey(
         'configurator.Configuration', SET_NULL, related_name='requests',

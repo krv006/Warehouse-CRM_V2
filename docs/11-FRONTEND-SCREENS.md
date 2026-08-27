@@ -198,12 +198,20 @@ Timeline ko'rinishi: `GET /replenishments/{id}/timeline/` → `events[]` + `debt
 
 ## 3.5 Zayavkalar — Sales ↔ Engineer (yangi)
 
-**Sales oynasi:** "Yangi zayavka" — client (select) + matn (textarea):
-`POST /configuration-requests/`. Ro'yxatda: `number`, `client_name`, `status_display`,
-`configuration_number` (tayyor bo'lsa havola).
+**Sales oynasi:** "Yangi zayavka" — client (select) + **bazaviy model**
+(`GET /products/?kind=machine` dan select) + ombor + matn (textarea):
+`POST /configuration-requests/` (`client`, `base_product`, `warehouse`, `text`).
+Ro'yxatda: `number`, `client_name`, `base_product_name`, `status_display`,
+`configuration_number` (tayyor bo'lsa havola). Yaratilganda engineerlarga
+notification tushadi.
 
-**Engineer oynasi:** `?status=new` ro'yxati → **Ishga olish** (`POST /{id}/take/`) →
-configuratorda tayyorlaydi → **Yakunlash** (`POST /{id}/complete/` `{configuration: id}`).
+**Engineer oynasi:** `?status=new` ro'yxati → **Ishga olish** (`POST /{id}/take/`) —
+backend chernovik konfiguratsiyani zavod tarkibi bilan **o'zi ochadi** va javobda
+`configuration` id qaytaradi → shu id bilan configurator sahifasiga o'ting →
+tayyorlagach **Yakunlash** (`POST /{id}/complete/` `{configuration: id}`).
+Zayavkada model tanlanmagan bo'lsa `take` tanasida yuboriladi:
+`{"base_product": id, "warehouse": id, "mode": "build|modify"}`; butunlay
+modelsiz `take` — 400.
 
 Sales'ga eslatma tushadi; `done` zayavkada "Shartnoma tuzish" tugmasi —
 `configuration` bilan `POST /contracts/` ga o'tadi.

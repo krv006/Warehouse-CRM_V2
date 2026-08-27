@@ -1,5 +1,6 @@
 from rest_framework.serializers import (
     ModelSerializer,
+    PrimaryKeyRelatedField,
     ReadOnlyField,
     SerializerMethodField,
 )
@@ -11,6 +12,7 @@ from apps.configurator.models import (
     ConfigurationRemoval,
     ConfigurationRequest,
 )
+from apps.configurator.services import copy_factory_spec
 
 
 class ActSerializer(ModelSerializer):
@@ -24,6 +26,9 @@ class ActSerializer(ModelSerializer):
 
 
 class ConfigurationItemSerializer(ModelSerializer):
+    configuration = PrimaryKeyRelatedField(
+        queryset=Configuration.objects.all(), required=False,
+    )
     component_name = ReadOnlyField(source='component.name')
     subtotal = ReadOnlyField()
     available = ReadOnlyField()
@@ -35,7 +40,7 @@ class ConfigurationItemSerializer(ModelSerializer):
     class Meta:
         model = ConfigurationItem
         fields = [
-            'id', 'component', 'component_name', 'label', 'quantity',
+            'id', 'configuration', 'component', 'component_name', 'label', 'quantity',
             'unit_price', 'stock_price', 'needs_price', 'subtotal',
             'available', 'shortage', 'source',
         ]
@@ -104,17 +109,11 @@ class ConfigurationSerializer(ModelSerializer):
         configuration = Configuration.objects.create(**validated_data)
         if items:
             for item in items:
+                item.pop('configuration', None)
                 ConfigurationItem.objects.create(configuration=configuration, **item)
         else:
-            # TZ 6.1: model tanlanganda uning ichidagi barcha narsa tayyor keladi —
-            # zavod tarkibi avtomatik yuklanadi, keyin kerakli qatorlar o'zgartiriladi
-            for spec in configuration.base_product.specs.select_related('component'):
-                ConfigurationItem.objects.create(
-                    configuration=configuration,
-                    component=spec.component,
-                    label=spec.label,
-                    quantity=spec.quantity,
-                )
+            # TZ 6.1: model tanlanganda uning ichidagi barcha narsa tayyor keladi
+            copy_factory_spec(configuration)
         return configuration
 
     def update(self, instance, validated_data):
@@ -125,6 +124,7 @@ class ConfigurationSerializer(ModelSerializer):
         if items is not None:
             instance.items.all().delete()
             for item in items:
+                item.pop('configuration', None)
                 ConfigurationItem.objects.create(configuration=instance, **item)
         return instance
 
@@ -134,6 +134,7 @@ class ConfigurationRequestSerializer(ModelSerializer):
 
     status_display = ReadOnlyField(source='get_status_display')
     client_name = ReadOnlyField(source='client.display_name')
+    base_product_name = ReadOnlyField(source='base_product.name')
     configuration_number = ReadOnlyField(source='configuration.number')
     taken_by_name = ReadOnlyField(source='taken_by.username')
     created_by_name = ReadOnlyField(source='created_by.username')
@@ -141,7 +142,8 @@ class ConfigurationRequestSerializer(ModelSerializer):
     class Meta:
         model = ConfigurationRequest
         fields = [
-            'id', 'number', 'client', 'client_name', 'text', 'status',
+            'id', 'number', 'client', 'client_name', 'text',
+            'base_product', 'base_product_name', 'warehouse', 'status',
             'status_display', 'configuration', 'configuration_number',
             'taken_by', 'taken_by_name', 'created_by', 'created_by_name',
             'created_at',

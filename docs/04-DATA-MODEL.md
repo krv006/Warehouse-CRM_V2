@@ -192,6 +192,22 @@ Yechib olingan qism omborga qaytadi, bugalterga ACT bilan xabar boradi.
 `unit_price` bo'sh saqlansa — ombordagi narx avtomatik qo'yiladi.
 Property: `subtotal`, `stock_price`, `needs_price`, `available`, `shortage`, `source` (`stock` / `purchase`).
 
+### `ConfigurationRequest` — Sales → Engineer zayavkasi
+| Maydon | Tur |
+|---|---|
+| `number` | `ZVK-00001` (avtomatik) |
+| `client` | FK `clients.Client` (PROTECT, null) |
+| `text` | Text — client xohishi, sales yozgan matn |
+| `base_product` | FK `inventory.Product` (PROTECT, null) — sales taxmin qilgan bazaviy model |
+| `warehouse` | FK `inventory.Warehouse` (PROTECT, null) |
+| `status` | `new` / `in_progress` / `done` / `cancelled` |
+| `configuration` | FK `configurator.Configuration` (SET_NULL, null) — `take` da avtomatik ochiladi |
+| `taken_by` | FK `accounts.User` (SET_NULL, null) — ishga olgan engineer |
+| `created_by` | FK `accounts.User` (SET_NULL, null) — yuborgan sales |
+
+Yaratilganda barcha faol engineerlarga Notification boradi; `take` chernovik
+konfiguratsiyani zavod tarkibi bilan ochadi; `complete` da sales'ga xabar qaytadi.
+
 ---
 
 ## purchases

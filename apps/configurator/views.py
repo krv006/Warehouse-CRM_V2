@@ -1,4 +1,5 @@
 from django.http import HttpResponse
+from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.status import HTTP_400_BAD_REQUEST
 
@@ -23,6 +24,7 @@ from apps.configurator.services import (
     build_configuration_workbook,
     complete_request,
     finalize_modification,
+    notify_engineers_about_request,
     resolve_variant,
     take_request,
 )
@@ -61,6 +63,24 @@ class ConfigurationViewSet(BaseModelViewSet):
     search_fields = ['number', 'client__full_name', 'client__company_name']
     filterset_fields = ['status', 'client', 'base_product', 'act']
     ordering_fields = ['created_at', 'number']
+
+    def _check_draft(self, configuration):
+        """Yakunlangan konfiguratsiya o'zgartirilmaydi — faqat chernovik (TZ 6.4)."""
+        if configuration.status != Configuration.Status.DRAFT:
+            raise ValidationError({
+                'detail': (
+                    f"'{configuration.get_status_display()}' holatidagi "
+                    "konfiguratsiyani o'zgartirib bo'lmaydi — faqat chernovik."
+                ),
+            })
+
+    def perform_update(self, serializer):
+        self._check_draft(serializer.instance)
+        super().perform_update(serializer)
+
+    def perform_destroy(self, instance):
+        self._check_draft(instance)
+        super().perform_destroy(instance)
 
     def stock_check(self, request, pk=None):
         """GET /configurations/{id}/stock-check/ — qaysi butlovchi omborda bor."""
@@ -201,10 +221,33 @@ class ConfigurationViewSet(BaseModelViewSet):
 
 
 class ConfigurationItemViewSet(BaseModelViewSet):
+    """Konfiguratsiya qatorlari. Faqat chernovik holatida o'zgartiriladi."""
+
     queryset = ConfigurationItem.objects.select_related('configuration', 'component').all()
     serializer_class = ConfigurationItemSerializer
     permission_classes = [ConfiguratorAccess]
     filterset_fields = ['configuration', 'component']
+
+    def _check_draft(self, configuration):
+        if configuration.status != Configuration.Status.DRAFT:
+            raise ValidationError({
+                'detail': "Yakunlangan konfiguratsiya qatorlari o'zgartirilmaydi.",
+            })
+
+    def perform_create(self, serializer):
+        configuration = serializer.validated_data.get('configuration')
+        if configuration is None:
+            raise ValidationError({'configuration': "Konfiguratsiya ko'rsatilishi shart."})
+        self._check_draft(configuration)
+        super().perform_create(serializer)
+
+    def perform_update(self, serializer):
+        self._check_draft(serializer.instance.configuration)
+        super().perform_update(serializer)
+
+    def perform_destroy(self, instance):
+        self._check_draft(instance.configuration)
+        super().perform_destroy(instance)
 
 
 class ConfigurationRequestViewSet(BaseModelViewSet):
@@ -218,13 +261,41 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
     serializer_class = ConfigurationRequestSerializer
     permission_classes = [ConfigurationRequestAccess]
     search_fields = ['number', 'text', 'client__full_name', 'client__company_name']
-    filterset_fields = ['status', 'client', 'taken_by']
+    filterset_fields = ['status', 'client', 'taken_by', 'configuration']
     ordering_fields = ['created_at', 'number']
 
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        # Yangi zayavka haqida engineerlar darrov xabar oladi
+        notify_engineers_about_request(serializer.instance)
+
     def take(self, request, pk=None):
-        """POST /configuration-requests/{id}/take/ — Engineer ishga oladi."""
-        request_obj = take_request(self.get_object(), request.user)
-        self.log_action(ActivityLog.Action.UPDATE, request_obj, 'Engineer ishga oldi')
+        """POST /configuration-requests/{id}/take/ — Engineer ishga oladi.
+
+        Chernovik konfiguratsiya avtomatik ochiladi va zavod tarkibi yuklanadi.
+        Tana (ixtiyoriy): {"base_product": id, "warehouse": id, "mode": "build|modify"}
+        — berilmasa zayavkadagi qiymatlar olinadi.
+        """
+        from apps.inventory.models import Product, Warehouse
+
+        base_product = Product.objects.filter(
+            pk=request.data.get('base_product'),
+        ).first()
+        warehouse = Warehouse.objects.filter(
+            pk=request.data.get('warehouse'),
+        ).first()
+        mode = request.data.get('mode')
+        if mode and mode not in Configuration.Mode.values:
+            raise ValidationError({'mode': f"Noto'g'ri rejim: {mode}. Ruxsat: build, modify."})
+
+        request_obj = take_request(
+            self.get_object(), request.user,
+            base_product=base_product, warehouse=warehouse, mode=mode,
+        )
+        self.log_action(
+            ActivityLog.Action.UPDATE, request_obj,
+            f'Engineer ishga oldi — {request_obj.configuration.number} ochildi',
+        )
         return Response(self.get_serializer(request_obj).data)
 
     def complete(self, request, pk=None):

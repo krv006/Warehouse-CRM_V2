@@ -242,16 +242,21 @@ class Command(BaseCommand):
         """2 ta zayavka: yangi va bajarilgani (sales -> engineer oqimi)."""
         from apps.clients.models import Client
         from apps.configurator.models import Configuration, ConfigurationRequest
+        from apps.inventory.models import Product, Warehouse
 
         clients = list(Client.objects.order_by('id'))
+        hp = Product.objects.get(sku='HP-880')
+        warehouse = Warehouse.objects.filter(is_active=True).first()
         ConfigurationRequest.objects.create(
             client=clients[1],
             text='Client 2 ta kuchli kompyuter xohlaydi: SSD kattaroq, GPU zo\'r bo\'lsin.',
+            base_product=hp, warehouse=warehouse,
             created_by=users['sales'],
         )
         done = ConfigurationRequest.objects.create(
             client=clients[2],
             text='HP 880 ni SSD 2 ta bilan, protsessor kuchliroq qilib bering.',
+            base_product=hp, warehouse=warehouse,
             status=ConfigurationRequest.Status.DONE,
             configuration=Configuration.objects.filter(
                 status=Configuration.Status.READY,

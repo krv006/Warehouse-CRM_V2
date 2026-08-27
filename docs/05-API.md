@@ -122,16 +122,31 @@ sales'ga eslatma boradi va u shartnoma jarayonini boshlaydi.
 
 | Metod | Manzil | Kim |
 |---|---|---|
-| GET | `/configuration-requests/` | hamma |
-| POST | `/configuration-requests/` | sales (admin) |
+| GET | `/configuration-requests/` | hamma; filtr: `status`, `client`, `taken_by`, `configuration` |
+| POST | `/configuration-requests/` | sales (admin) — engineerlarga notification tushadi |
 | GET/PUT/PATCH/DELETE | `/configuration-requests/{id}/` | sales, engineer, admin |
-| POST | `/configuration-requests/{id}/take/` | **engineer** — ishga oladi |
+| POST | `/configuration-requests/{id}/take/` | **engineer** — ishga oladi, chernovik konfiguratsiya avtomatik ochiladi |
 | POST | `/configuration-requests/{id}/complete/` | **engineer** — konfiguratsiyani biriktiradi |
 
 ```json
 POST /api/configuration-requests/
-{"client": 3, "text": "Client 2 ta kuchli kompyuter xohlaydi: SSD 2 TB, GPU zo'r bo'lsin."}
+{"client": 3, "base_product": 1, "warehouse": 1,
+ "text": "Client 2 ta kuchli kompyuter xohlaydi: SSD 2 TB, GPU zo'r bo'lsin."}
 ```
+
+`base_product` — sales taxmin qilgan bazaviy model (ixtiyoriy, lekin `take` uchun kerak).
+Yaratilgan zahoti barcha faol engineerlarga Notification boradi.
+
+**take** — chernovik konfiguratsiyani o'zi ochadi: bazaviy model (tana > zayavkadagi),
+zavod tarkibi avtomatik yuklanadi, `configuration` maydoni to'ldiriladi. Tana ixtiyoriy:
+
+```json
+POST /api/configuration-requests/7/take/
+{"base_product": 1, "warehouse": 1, "mode": "build"}
+```
+
+Model hech qayerda ko'rsatilmagan bo'lsa — `400 {"base_product": "...tanlanishi shart"}`.
+Komponent (`kind != machine`) tanlansa ham 400.
 
 ```json
 POST /api/configuration-requests/7/complete/
@@ -149,13 +164,20 @@ Holatlar: `new` → `in_progress` (take) → `done` (complete). Raqam: `ZVK-0000
 |---|---|---|
 | GET/POST | `/acts/` | yozish faqat admin |
 | GET/POST | `/configurations/` | **yozish: engineer (admin)**; qatorlar ixtiyoriy |
+| PUT/PATCH/DELETE | `/configurations/{id}/` | faqat `draft` holatida — `ready`/`attached` 400 qaytaradi |
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
 | POST | `/configurations/{id}/finalize/` | ACT majburiy |
 | POST | `/configurations/{id}/attach/` | kirim buyurtmasiga biriktirish |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
-| GET/POST | `/configuration-items/` | qatorni alohida qo'shish/tahrirlash |
-| GET/PUT/PATCH/DELETE | `/configuration-items/{id}/` | filtr: `configuration`, `component` |
+| GET/POST | `/configuration-items/` | qatorni alohida qo'shish — `configuration` majburiy, faqat `draft` |
+| GET/PUT/PATCH/DELETE | `/configuration-items/{id}/` | filtr: `configuration`, `component`; faqat `draft` da o'zgaradi |
+
+Qatorni alohida qo'shish:
+```json
+POST /api/configuration-items/
+{"configuration": 12, "component": 7, "label": "SSD qo'shimcha", "quantity": 1}
+```
 
 **Yaratish** (`items` ixtiyoriy — yuborilmasa zavod tarkibi avtomatik yuklanadi):
 ```json

@@ -261,6 +261,34 @@ Demo user: `engineer` / `Ombor2026!`.
 yozish tugmalari faqat engineer'ga; sales'ning konfiguratsiya oynasi zayavka
 formasiga almashadi. Matritsalar: [09](09-FRONTEND-REACT.md), [11 §3.5](11-FRONTEND-SCREENS.md).
 
+## 8.4 Zayavka oqimi mustahkamlandi 🐛→✅ (front topgan xatolar)
+
+Frontend integratsiyasida topilgan kamchiliklar tuzatildi:
+
+| Xato | Tuzatma |
+|---|---|
+| `POST /configuration-items/` → **500** (serializer'da `configuration` yo'q edi) | maydon qo'shildi; endi `configuration` majburiy — bermasangiz **400** |
+| Sales zayavka yozganda engineerlar bilmasdi | yaratilganda barcha faol engineerlarga **Notification** tushadi |
+| `/configuration-requests/` da `configuration` filtri yo'q edi | qo'shildi: `?configuration=12` |
+| `PATCH /configurations/{id}/` `ready`/`attached` da ham ochiq edi | **status qo'riqchisi**: faqat `draft` o'zgaradi, aks holda 400; qatorlar (`/configuration-items/`) ham shunday |
+| `take/` konfiguratsiya ocholmasdi (zayavkada model yo'q edi) | quyida 👇 |
+
+**Zayavkaga `base_product` va `warehouse` qo'shildi** (ikkalasi ixtiyoriy, migration
+`0006`). Sales zayavka yozganda modelni tanlab yuboradi — TZ misolining o'zi
+"HP 880, lekin SSD 1 TB": model salesga oldindan ma'lum, matn faqat farqni tasvirlaydi.
+
+**`take/` endi chernovik konfiguratsiyani o'zi ochadi:** bazaviy model (so'rov
+tanasi > zayavkadagisi), zavod tarkibi avtomatik yuklanadi, `configuration`
+maydoni to'ldiriladi va engineer to'g'ri tahrirlashga o'tadi. Tana ixtiyoriy:
+`{"base_product": 1, "warehouse": 1, "mode": "build|modify"}`. Model umuman
+ko'rsatilmagan bo'lsa — 400.
+
+**Frontendga ta'siri:**
+- zayavka formasiga "Bazaviy model" (machine'lar ro'yxati) va "Ombor" selectlari;
+- `take` dan keyin javobdagi `configuration` id bilan configurator sahifasiga o'tish;
+- `ready` konfiguratsiyada tahrir tugmalarini yashirish (baribir 400 qaytadi);
+- engineer dashboardida yangi zayavka notificationlari ko'rinadi.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -292,5 +320,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **92** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **150** |
+| Testlar | 66 | **160** |
 | Rollar | 3 | **5** |
