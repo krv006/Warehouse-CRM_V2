@@ -48,7 +48,7 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 | Django ilovalari | 9 ta (`core`, `accounts`, `clients`, `inventory`, `configurator`, `purchases`, `procurement`, `sales`, `finance`) |
 | Modellar | 28 ta |
 | Rollar | 4 ta: admin, bugalter, sales, buyurtmachi |
-| Testlar | **112 ta**, hammasi o'tadi |
+| Testlar | **127 ta**, hammasi o'tadi |
 
 ---
 
@@ -62,7 +62,10 @@ Tizim ishlab turibdi: **https://ombor.thesofmebel.uz**
 | https://ombor.thesofmebel.uz/api/schema/ | OpenAPI (frontend uchun TS tiplari) |
 | https://ombor.thesofmebel.uz/admin/ | Django admin |
 
-Sinov foydalanuvchilari (`make docker-demo` bilan yaratiladi), parol — `Ombor2026!`:
+`make docker-demo` bitta komanda bilan **butun tizimga** demo yuklaydi: 5 foydalanuvchi,
+4 mijoz, 5 mahsulot (qoldiq bilan), 5 lead, 5 shartnoma (har bosqichdan), 5 kirim
+(har turdan), 2 to'ldirish hisobi, qarzlar, xarajatlar va eslatmalar.
+Foydalanuvchilar, parol — `Ombor2026!`:
 
 | Login | Rol |
 |---|---|
@@ -144,7 +147,7 @@ Har bir ilovada `models/` va `tests/` — papka ko'rinishida, `urls.py` esa har 
 | `make test` | barcha testlar |
 | `make ci` | check + test (commitdan oldin) |
 | `make superuser` | admin ochish |
-| `make demo` | kassa yacheykalari + 4 ta demo user + 4 ta demo buyurtmachi |
+| `make demo` | to'liq demo: userlar, mijozlar, mahsulotlar, shartnomalar, kirim, kassa |
 | `make migrations` / `make migrate` | migratsiya yozish / qo'llash |
 | `make clean` | `__pycache__` tozalash |
 
@@ -155,7 +158,7 @@ Har bir ilovada `models/` va `tests/` — papka ko'rinishida, `urls.py` esa har 
 | `make deploy` | git pull + to'liq o'rnatish (konteyner, Caddy, cron) |
 | `make docker-dbcheck` | qaysi baza ishlatilayotgani va migratsiya holati |
 | `make docker-superuser` | konteyner ichida admin ochish |
-| `make docker-demo` | serverda demo user va buyurtmachilar |
+| `make docker-demo` | serverda to'liq demo ma'lumotlar |
 | `make backup` | bazani zaxiralaydi |
 
 ---
@@ -175,7 +178,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (118 ta).
+Barcha testlar (127 ta).
 
 ---
 

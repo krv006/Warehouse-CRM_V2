@@ -61,7 +61,8 @@ clients: ## Demo buyurtmachilar (2 jismoniy, 2 yuridik)
 	$(MANAGE) seed_clients
 
 .PHONY: demo
-demo: seed users clients ## Kassa yacheykalari + demo user + demo buyurtmachi
+demo: ## To'liq demo: userlar, mijozlar, ombor, shartnomalar, kirim, kassa
+	$(MANAGE) seed_demo
 
 .PHONY: deadlines
 deadlines: ## Muddat eslatmalarini tekshiradi
@@ -145,7 +146,8 @@ docker-clients: ## Serverda demo buyurtmachilar
 	$(COMPOSE) exec web python manage.py seed_clients
 
 .PHONY: docker-demo
-docker-demo: docker-users docker-clients ## Serverda demo user + buyurtmachi
+docker-demo: ## Serverda to'liq demo ma'lumotlar
+	$(COMPOSE) exec web python manage.py seed_demo
 
 .PHONY: docker-deadlines
 docker-deadlines: ## Konteyner ichida muddat eslatmalari

@@ -112,10 +112,15 @@ docker exec edu_platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile
 ### Sinov ma'lumotlari
 
 ```bash
-docker compose exec web python manage.py seed_users
+docker compose exec web python manage.py seed_demo
 ```
 
-4 ta foydalanuvchi ochadi (parol: `Ombor2026!`):
+Bitta komanda **butun tizimga** demo yuklaydi: foydalanuvchilar, mijozlar, mahsulotlar
+(qoldiq bilan), leadlar, shartnomalar (har bosqichdan), kirimlar (har turdan),
+to'ldirish hisoblari, qarzlar, xarajatlar va eslatmalar. Takror ishga tushirilsa
+qayta yozmaydi.
+
+Foydalanuvchilar (parol: `Ombor2026!`):
 
 | Login | Rol |
 |---|---|
@@ -123,12 +128,6 @@ docker compose exec web python manage.py seed_users
 | `bugalter` | Bugalter |
 | `sales1` | Sales |
 | `sales2` | Sales |
-
-```bash
-docker compose exec web python manage.py seed_clients
-```
-
-4 ta buyurtmachi: 2 jismoniy va 2 yuridik shaxs.
 
 Parolni o'zingiz belgilash: `seed_users --password 'Kuchli-Parol1'`.
 Mavjud foydalanuvchilar parolini qayta yozish: `--force`.

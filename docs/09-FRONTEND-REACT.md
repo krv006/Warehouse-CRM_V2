@@ -1,6 +1,6 @@
 # 09 — Frontend (React) integratsiya qo'llanmasi
 
-Backend to'liq tayyor va **serverda ishlab turibdi**: **87 endpoint**, 118 test,
+Backend to'liq tayyor va **serverda ishlab turibdi**: **87 endpoint**, 127 test,
 OpenAPI sxemasi xatosiz. Ishchi manzil: https://ombor.thesofmebel.uz/api/docs/
 Bu fayl — frontend yozish uchun texnik kontrakt. Ekranlar bo'yicha batafsil topshiriq:
 [11-FRONTEND-SCREENS.md](11-FRONTEND-SCREENS.md).
@@ -29,6 +29,8 @@ VITE_API_URL=https://ombor.thesofmebel.uz/api
 ```
 
 Lokal backend bilan ishlaganda `http://127.0.0.1:8000/api` (CORS ochilgan: `localhost:5173`).
+Serverda CORS ochiq manzillar: `https://warehouse-frontend-iota.vercel.app` va `localhost:5173`.
+Frontend boshqa domenga ko'chsa — serverdagi `.env` da `CORS_ALLOWED_ORIGINS` ga qo'shiladi.
 
 TypeScript tiplarini sxemadan avtomatik yarating — qo'lda yozish shart emas:
 
