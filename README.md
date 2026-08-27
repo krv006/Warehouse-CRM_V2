@@ -61,7 +61,7 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 
 ```
 Warehouse_CRM_V2/
-├── root/                 # settings, urls (→ apps.urls), wsgi/asgi
+├── root/                 # settings/ (bo'laklarga bo'lingan), urls (→ apps.urls), wsgi/asgi
 ├── apps/
 │   ├── urls.py           # barcha app'larning urls.py fayllarini yig'adi
 │   ├── core/             # TimeStampedModel, ActivityLog, Notification, Dashboard
@@ -97,7 +97,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (51 ta).
+Barcha testlar (56 ta).
 
 ---
 

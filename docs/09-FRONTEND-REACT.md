@@ -15,7 +15,7 @@ npm create vite@latest frontend -- --template react
 VITE_API_URL=http://127.0.0.1:8000/api
 ```
 
-Boshqa portda ishlasangiz, `root/settings.py` dagi `CORS_ALLOWED_ORIGINS` ga qo'shing.
+Boshqa portda ishlasangiz, `root/settings/cors.py` dagi `CORS_ALLOWED_ORIGINS` ga qo'shing.
 
 ## Autentifikatsiya
 

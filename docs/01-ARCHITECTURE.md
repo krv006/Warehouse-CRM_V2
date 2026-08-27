@@ -146,18 +146,38 @@ graph TD
 - `finance` boshqa ilovalarga faqat **satrli FK** orqali bog'lanadi (`'sales.Contract'`, `'purchases.Purchase'`) — sikl yo'q.
 - `sales.services` va `purchases.services` `finance.services.record_transaction()` ni chaqiradi.
 
-## Sozlamalar (`root/settings.py`)
+## Sozlamalar — `root/settings/` paketi
 
-| Sozlama | Qiymat |
-|---|---|
-| `AUTH_USER_MODEL` | `accounts.User` |
-| `DEFAULT_AUTHENTICATION_CLASSES` | JWT (simplejwt) |
-| `DEFAULT_PERMISSION_CLASSES` | `IsAuthenticated` |
-| `PAGE_SIZE` | 20 |
-| `ACCESS_TOKEN_LIFETIME` | 12 soat |
-| `REFRESH_TOKEN_LIFETIME` | 7 kun |
-| `LANGUAGE_CODE` / `TIME_ZONE` | `uz` / `Asia/Tashkent` |
-| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173`, `http://127.0.0.1:5173` |
-| `PREPAYMENT_THRESHOLD` | `1_000_000_000` |
-| `PREPAYMENT_PERCENT_SMALL` / `LARGE` | `30` / `15` |
-| `DEADLINE_RED_ZONE_DAYS` | `10` |
+Sozlamalar bitta katta fayl emas, mavzular bo'yicha bo'lingan:
+
+```
+root/settings/
+    __init__.py     # hamma bo'lakni yig'adi (from ... import *)
+    base.py         # BASE_DIR, SECRET_KEY, DEBUG, ilovalar, middleware, shablon, til, static/media
+    database.py     # DATABASES
+    auth.py         # AUTH_USER_MODEL, AUTH_PASSWORD_VALIDATORS
+    rest.py         # REST_FRAMEWORK
+    jwt.py          # SIMPLE_JWT — token muddatlari, rotatsiya, Bearer sarlavhasi
+    spectacular.py  # SPECTACULAR_SETTINGS (OpenAPI)
+    cors.py         # CORS_ALLOWED_ORIGINS (React dev server)
+    business.py     # TZ raqamlari: 30%/15% chegarasi, qizil zona kunlari
+```
+
+`DJANGO_SETTINGS_MODULE` o'zgarmagan — `root.settings`.
+Yangi bo'lak qo'shilsa, fayl yaratiladi va `__init__.py` ga bitta `import *` qatori qo'shiladi.
+
+| Sozlama | Qiymat | Fayl |
+|---|---|---|
+| `AUTH_USER_MODEL` | `accounts.User` | `auth.py` |
+| `DEFAULT_AUTHENTICATION_CLASSES` | JWT (simplejwt) | `rest.py` |
+| `DEFAULT_PERMISSION_CLASSES` | `IsAuthenticated` | `rest.py` |
+| `PAGE_SIZE` | 20 | `rest.py` |
+| `ACCESS_TOKEN_LIFETIME` | 12 soat | `jwt.py` |
+| `REFRESH_TOKEN_LIFETIME` | 7 kun | `jwt.py` |
+| `ROTATE_REFRESH_TOKENS` | `True` | `jwt.py` |
+| `AUTH_HEADER_TYPES` | `('Bearer',)` | `jwt.py` |
+| `LANGUAGE_CODE` / `TIME_ZONE` | `uz` / `Asia/Tashkent` | `base.py` |
+| `CORS_ALLOWED_ORIGINS` | `http://localhost:5173`, `http://127.0.0.1:5173` | `cors.py` |
+| `PREPAYMENT_THRESHOLD` | `1_000_000_000` | `business.py` |
+| `PREPAYMENT_PERCENT_SMALL` / `LARGE` | `30` / `15` | `business.py` |
+| `DEADLINE_RED_ZONE_DAYS` | `10` | `business.py` |

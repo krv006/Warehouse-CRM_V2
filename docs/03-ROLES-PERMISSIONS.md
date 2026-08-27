@@ -23,7 +23,7 @@
 | `IsAdminOrSales` | barcha login qilganlar | admin, sales |
 | `CanManageClients` | barcha login qilganlar | bugalterdan tashqari hamma |
 
-Global default: `IsAuthenticated` (`root/settings.py`) — login qilmagan hech kim hech nimani ko'rmaydi.
+Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan hech kim hech nimani ko'rmaydi.
 
 ## Endpointlar bo'yicha ruxsat jadvali
 
