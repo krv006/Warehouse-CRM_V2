@@ -201,7 +201,8 @@ Timeline ko'rinishi: `GET /replenishments/{id}/timeline/` → `events[]` + `debt
 
 1. **Bazaviy model** tanlanadi — `GET /products/?kind=machine`
    Javobdagi `specs[]` zavod tarkibini beradi (`component_name`, `quantity`, `component_stock`)
-2. Foydalanuvchi tarkibni o'zgartiradi → `POST /configurations/`
+2. `POST /configurations/` — **`items` yubormasangiz zavod tarkibi avtomatik yuklanadi**,
+   javob darrov to'liq qatorlar bilan qaytadi; foydalanuvchi keyin keraklisini o'zgartiradi
 
 ```json
 {
@@ -222,7 +223,7 @@ Timeline ko'rinishi: `GET /replenishments/{id}/timeline/` → `events[]` + `debt
 | Qatorlar jadvali | `items[]`: `component_name`, `quantity`, `unit_price`, `stock_price`, `needs_price`, `available`, `shortage`, `source` |
 | "Omborda bor / Kirim kerak" belgisi | `source` = `stock` / `purchase` |
 | Narx yo'q ogohlantirishi | `needs_price: true` → qizil qator, inline narx kiritish |
-| Tayyor variant banneri | `ready_variant: {sku, price}` → "Bu konfiguratsiya omborda bor: HP-880-V01 — 5 500 000" |
+| Tayyor variant banneri | `ready_variant: {sku, name, price, stock, is_base_model}` → "Omborda tayyor: HP 880 — 25 000 000 (3 dona)". `is_base_model: true` — tarkib o'zgartirilmagan, bazaviy modelning o'zi |
 | Jami | `items_total` (qatorlar) va `total_price` (tayyor variant narxi bo'lsa — o'sha) |
 | ACT | `act` select (`GET /acts/?is_active=true`) |
 

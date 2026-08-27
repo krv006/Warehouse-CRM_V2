@@ -119,3 +119,92 @@ class VariantPricingTests(APITestCase):
         response = self.client.get(f'/api/configurations/{configuration.id}/stock-check/')
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data['ready_variant'].startswith('HP-880-V'))
+
+
+class BaseModelAsReadyPositionTests(APITestCase):
+    """TZ 6.1-6.2: bazaviy modelning o'zi ombordagi tayyor pozitsiya."""
+
+    def setUp(self):
+        self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
+        self.base = Product.objects.create(
+            sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
+            sale_price=Decimal('25000000'),
+        )
+        self.ssd = Product.objects.create(
+            sku='SSD-1TB', name='SSD 1 TB', kind=Product.Kind.COMPONENT,
+            sale_price=Decimal('1500000'),
+        )
+        self.gpu = Product.objects.create(
+            sku='GPU-32', name='GPU 32', kind=Product.Kind.COMPONENT,
+            sale_price=Decimal('4500000'),
+        )
+        from apps.inventory.models import ProductSpec, StockMovement, Warehouse
+        from apps.inventory.services import apply_movement
+
+        for component, label in [(self.ssd, 'SSD'), (self.gpu, 'GPU')]:
+            ProductSpec.objects.create(
+                product=self.base, component=component, label=label, quantity=1,
+            )
+        warehouse = Warehouse.objects.create(name='Asosiy ombor')
+        apply_movement(
+            product=self.base, warehouse=warehouse,
+            type=StockMovement.Type.IN, quantity=Decimal('3'),
+        )
+        self.client.force_authenticate(self.sales)
+
+    def test_items_autofilled_from_factory_specs(self):
+        """Model tanlanganda tarkibi avtomatik yuklanadi — qo'lda kiritish shart emas."""
+        response = self.client.post('/api/configurations/', {
+            'base_product': self.base.id,
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        labels = {item['label'] for item in response.data['items']}
+        self.assertEqual(labels, {'SSD', 'GPU'})
+        # narxlar ham ombordan olingan
+        prices = {item['label']: item['unit_price'] for item in response.data['items']}
+        self.assertEqual(prices['SSD'], '1500000.00')
+
+    def test_unchanged_composition_recognized_as_base_product(self):
+        """Tarkib o'zgartirilmagan — tayyor HP 880 ning o'zi va narxi qo'llanadi."""
+        response = self.client.post('/api/configurations/', {
+            'base_product': self.base.id,
+        }, format='json')
+        ready = response.data['ready_variant']
+        self.assertIsNotNone(ready)
+        self.assertEqual(ready['sku'], 'HP-880')
+        self.assertTrue(ready['is_base_model'])
+        self.assertEqual(Decimal(ready['price']), Decimal('25000000'))
+        self.assertEqual(Decimal(ready['stock']), Decimal('3'))
+        # umumiy narx qatorlar yig'indisi (6 mln) emas, tayyor mahsulot narxi
+        self.assertEqual(Decimal(response.data['total_price']), Decimal('25000000'))
+
+    def test_finalize_unchanged_does_not_create_new_product(self):
+        from datetime import date
+
+        from apps.configurator.models import Act, Configuration
+
+        act = Act.objects.create(number='ACT-01', title='ACT', issued_at=date.today())
+        response = self.client.post('/api/configurations/', {
+            'base_product': self.base.id, 'act': act.id,
+        }, format='json')
+        config_id = response.data['id']
+
+        before = Product.objects.count()
+        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Product.objects.count(), before)  # yangi mahsulot yaratilmadi
+
+        configuration = Configuration.objects.get(pk=config_id)
+        self.assertEqual(configuration.variant, self.base)
+
+    def test_changed_composition_still_creates_variant(self):
+        """Tarkib o'zgartirilsa — bazaviy model emas, yangi variant."""
+        response = self.client.post('/api/configurations/', {
+            'base_product': self.base.id,
+            'items': [
+                {'component': self.ssd.id, 'label': 'SSD', 'quantity': 2},
+                {'component': self.gpu.id, 'label': 'GPU', 'quantity': 1},
+            ],
+        }, format='json')
+        ready = response.data['ready_variant']
+        self.assertIsNone(ready)  # bunday kombinatsiya hali yo'q

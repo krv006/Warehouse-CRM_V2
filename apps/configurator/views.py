@@ -48,6 +48,7 @@ class ConfigurationViewSet(BaseModelViewSet):
             'configuration': configuration.number,
             'ready_variant': variant.sku if variant else None,
             'variant_price': variant.stock_price if variant else None,
+            'variant_stock': variant.total_stock if variant else None,
             'total_price': configuration.total_price,
             'items': [
                 {

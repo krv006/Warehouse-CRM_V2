@@ -192,6 +192,11 @@ butlovchilar va ularning miqdori. Shu sababli:
 - Yangi kombinatsiya yakunlanganda omborga **alohida mahsulot** bo'lib qo'shiladi
   (`sku` = `HP-880-V01`, `base_model` = bazaviy model), keyingi safar qayta ishlatiladi
 - Komponentlar tartibi ahamiyatsiz: `SSD + GPU` va `GPU + SSD` bir xil imzo beradi
+- **Bazaviy modelning o'zi ham tayyor pozitsiya**: tarkib zavod tarkibiga teng bo'lsa,
+  tizim aynan bazaviy modelni taniydi — uning ombordagi narxi va qoldig'i qo'llanadi,
+  yangi variant yaratilmaydi
+- Model tanlanganda **zavod tarkibi avtomatik yuklanadi** (`items` yuborilmasa) —
+  ichidagi barcha narsa tayyor keladi, foydalanuvchi faqat keraklisini o'zgartiradi (TZ 6.1)
 
 Configurator **barcha rollarga** ochiq (TZ 6.5).
 

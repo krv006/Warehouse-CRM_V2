@@ -127,7 +127,13 @@ va `POST /replenishments/{id}/receive/` (TZ 1-bo'lim: Kirim va Chiqim).
 | GET/POST | `/configuration-items/` | qatorni alohida qo'shish/tahrirlash |
 | GET/PUT/PATCH/DELETE | `/configuration-items/{id}/` | filtr: `configuration`, `component` |
 
-**Yaratish:**
+**Yaratish** (`items` ixtiyoriy — yuborilmasa zavod tarkibi avtomatik yuklanadi):
+```json
+POST /api/configurations/
+{"base_product": 1, "client": 3, "warehouse": 1}
+```
+
+Yoki tarkibni o'zgartirib:
 ```json
 POST /api/configurations/
 {
@@ -135,8 +141,8 @@ POST /api/configurations/
   "client": 3,
   "warehouse": 1,
   "items": [
-    {"component": 7, "label": "SSD", "quantity": 1, "unit_price": "1500000"},
-    {"component": 9, "label": "GPU", "quantity": 1, "unit_price": "4500000"}
+    {"component": 7, "label": "SSD", "quantity": 2},
+    {"component": 9, "label": "GPU", "quantity": 1}
   ]
 }
 ```
@@ -147,6 +153,7 @@ POST /api/configurations/
   "configuration": "CFG-00001",
   "ready_variant": "HP-880-V01",
   "variant_price": "5500000.00",
+  "variant_stock": "3.00",
   "total_price": "5500000.00",
   "items": [
     {"component": "SSD 1 TB", "quantity": 1, "available": 5, "shortage": 0,
@@ -164,6 +171,8 @@ Narxlash qoidasi (TZ 6.2):
   `{"detail": "Narxi kiritilmagan butlovchilar bor.", "items": ["RAM 4"]}`
 - Yakunlangach javobda `variant`, `variant_sku`, `ready_variant` to'ladi — bu ombordagi
   tayyor pozitsiya (yangi yaratilgan yoki avvaldan mavjud)
+- Tarkib **o'zgartirilmagan** bo'lsa, tayyor pozitsiya bazaviy modelning o'zi bo'ladi
+  (`ready_variant.is_base_model: true`) — narx va qoldiq undan olinadi
 
 **Biriktirish:**
 ```json

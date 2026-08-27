@@ -74,12 +74,19 @@ class Configuration(TimeStampedModel):
 
     @property
     def matching_variant(self):
-        """Xuddi shu tarkib omborda tayyor pozitsiya sifatida bormi?"""
+        """Xuddi shu tarkib omborda tayyor pozitsiya sifatida bormi?
+
+        Bazaviy modelning o'zi ham tayyor pozitsiya: tarkib zavod tarkibiga
+        teng bo'lsa, aynan bazaviy model va uning ombordagi narxi qo'llanadi.
+        """
         from apps.inventory.models import Product
 
         if not self.items.exists():
             return None
-        return Product.objects.filter(signature=self.signature).first()
+        signature = self.signature
+        if self.base_product and self.base_product.composition_signature == signature:
+            return self.base_product
+        return Product.objects.filter(signature=signature).first()
 
     @property
     def total_price(self):

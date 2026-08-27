@@ -54,6 +54,20 @@ class Product(TimeStampedModel):
         return self.base_model_id is not None
 
     @property
+    def composition_signature(self):
+        """Zavod tarkibining imzosi — konfiguratsiya bilan taqqoslash uchun (TZ 6.2).
+
+        Tarkib o'zgartirilmagan bo'lsa, bazaviy modelning o'zi tayyor pozitsiya
+        hisoblanadi va uning ombordagi narxi qo'llanadi.
+        """
+        from apps.inventory.services import configuration_signature
+
+        specs = [(spec.component_id, spec.quantity) for spec in self.specs.all()]
+        if not specs:
+            return None
+        return configuration_signature(self.pk, specs)
+
+    @property
     def stock_price(self):
         """Ombordagi narx: sotuv narxi, bo'lmasa tannarx (TZ 6.2)."""
         return self.sale_price or self.cost_price

@@ -89,8 +89,17 @@ Yangi xatti-harakatlar:
 - Yakunlangach konfiguratsiya **omborga alohida mahsulot** bo'lib qo'shiladi
   (`sku` = `HP-880-V01`), bir xil tarkib ikkinchi marta yig'ilsa yangi mahsulot yaratilmaydi
 
-`GET /stock-check/` javobiga qo'shildi: `ready_variant`, `variant_price`, `total_price`,
-har bir qatorda `unit_price` va `needs_price`.
+`GET /stock-check/` javobiga qo'shildi: `ready_variant`, `variant_price`, `variant_stock`,
+`total_price`, har bir qatorda `unit_price` va `needs_price`.
+
+Keyingi aniqlashtirish:
+
+- `POST /configurations/` da `items` **ixtiyoriy** — yuborilmasa zavod tarkibi (specs)
+  avtomatik yuklanadi (TZ 6.1: model ichidagi hamma narsa tayyor keladi)
+- Tarkib o'zgartirilmagan bo'lsa tizim **bazaviy modelning o'zini** tayyor pozitsiya
+  sifatida taniydi: `ready_variant.is_base_model: true`, narx va qoldiq undan olinadi,
+  yangi variant yaratilmaydi
+- `ready_variant` endi `{id, sku, name, price, stock, is_base_model}` qaytaradi
 
 ---
 
@@ -228,5 +237,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **87** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **28** |
-| Testlar | 66 | **127** |
+| Testlar | 66 | **131** |
 | Rollar | 3 | **4** |

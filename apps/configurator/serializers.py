@@ -36,7 +36,7 @@ class ConfigurationItemSerializer(ModelSerializer):
 
 
 class ConfigurationSerializer(ModelSerializer):
-    items = ConfigurationItemSerializer(many=True)
+    items = ConfigurationItemSerializer(many=True, required=False)
     client_name = ReadOnlyField(source='client.display_name')
     base_product_name = ReadOnlyField(source='base_product.name')
     status_display = ReadOnlyField(source='get_status_display')
@@ -66,13 +66,31 @@ class ConfigurationSerializer(ModelSerializer):
         variant = obj.variant or obj.matching_variant
         if not variant:
             return None
-        return {'id': variant.id, 'sku': variant.sku, 'price': variant.stock_price}
+        return {
+            'id': variant.id,
+            'sku': variant.sku,
+            'name': variant.name,
+            'price': variant.stock_price,
+            'stock': variant.total_stock,
+            'is_base_model': variant.pk == obj.base_product_id,
+        }
 
     def create(self, validated_data):
         items = validated_data.pop('items', [])
         configuration = Configuration.objects.create(**validated_data)
-        for item in items:
-            ConfigurationItem.objects.create(configuration=configuration, **item)
+        if items:
+            for item in items:
+                ConfigurationItem.objects.create(configuration=configuration, **item)
+        else:
+            # TZ 6.1: model tanlanganda uning ichidagi barcha narsa tayyor keladi —
+            # zavod tarkibi avtomatik yuklanadi, keyin kerakli qatorlar o'zgartiriladi
+            for spec in configuration.base_product.specs.select_related('component'):
+                ConfigurationItem.objects.create(
+                    configuration=configuration,
+                    component=spec.component,
+                    label=spec.label,
+                    quantity=spec.quantity,
+                )
         return configuration
 
     def update(self, instance, validated_data):
