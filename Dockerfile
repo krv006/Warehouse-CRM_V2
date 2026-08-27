@@ -1,8 +1,11 @@
 FROM python:3.13-slim
 
+# SQLITE_PATH shu yerda turadi — shunda `docker compose exec` bilan ishga tushirilgan
+# komandalar ham aynan shu bazani ochadi (.env dagi qiymat baribir ustun keladi).
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
-    DJANGO_SETTINGS_MODULE=root.settings
+    DJANGO_SETTINGS_MODULE=root.settings \
+    SQLITE_PATH=/app/data/db.sqlite3
 
 WORKDIR /app
 

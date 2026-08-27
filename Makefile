@@ -151,6 +151,11 @@ docker-demo: docker-users docker-clients ## Serverda demo user + buyurtmachi
 docker-deadlines: ## Konteyner ichida muddat eslatmalari
 	$(COMPOSE) exec web python manage.py check_deadlines
 
+.PHONY: docker-dbcheck
+docker-dbcheck: ## Konteyner qaysi bazani ishlatayotganini ko'rsatadi
+	$(COMPOSE) exec web sh -c 'echo "SQLITE_PATH=$$SQLITE_PATH"; ls -la /app/data'
+	$(COMPOSE) exec web python manage.py showmigrations inventory procurement
+
 .PHONY: docker-shell
 docker-shell: ## Konteyner ichidagi bash
 	$(COMPOSE) exec web bash

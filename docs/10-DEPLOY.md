@@ -131,6 +131,23 @@ Mavjud foydalanuvchilar parolini qayta yozish: `--force`.
 > Ochiq domenda turgan tizimda demo parollarni ishga tushgach almashtiring
 > yoki keraksiz foydalanuvchilarni o'chiring.
 
+### Baza qayerda turadi
+
+Baza `SQLITE_PATH` bo'yicha ochiladi — u **Dockerfile ichida** `/app/data/db.sqlite3` qilib
+qo'yilgan, ya'ni `docker compose exec` bilan ishga tushirilgan komandalar ham aynan shu
+bazani ko'radi. `/app/data` esa host papkasiga (`/var/www/ombor-crm/data`) ulangan.
+
+Tekshirish:
+
+```bash
+docker compose exec web sh -c 'echo $SQLITE_PATH; ls -la /app/data'
+```
+
+> **`duplicate column name: ...` xatosi** — bu migratsiya boshqa (bo'sh yoki yarim
+> migratsiyalangan) bazaga urinayotganini bildiradi. `SQLITE_PATH` to'g'ri ekanini
+> tekshiring; migratsiyalar konteyner ishga tushganda entrypoint tomonidan avtomatik
+> bajariladi, shuning uchun qo'lda `migrate` qilish odatda shart emas.
+
 ### Kundalik ishlar
 
 > `make` o'rnatilgan bo'lsa (`sudo apt install make`), shu jadvaldagilarni
