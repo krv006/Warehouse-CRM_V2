@@ -74,6 +74,7 @@ Warehouse_CRM_V2/
 │   ├── sales/            # Lead, Contract, ContractItem, Approval, Payment
 │   └── finance/          # Kassa: kategoriya, tranzaksiya, qarz, xarajat so'rovi
 ├── deploy/               # entrypoint, nginx, systemd service, deploy.sh
+├── Makefile              # qisqa komandalar (make, make test, make up ...)
 ├── Dockerfile
 ├── docker-compose.yml
 ├── .env.example
@@ -84,6 +85,30 @@ Warehouse_CRM_V2/
 
 Har bir ilovada `models/` va `tests/` — papka ko'rinishida, `urls.py` esa har bir app'da alohida
 ([docs/07-CODE-STYLE.md](docs/07-CODE-STYLE.md)).
+
+---
+
+## Makefile — qisqa komandalar
+
+`make` bo'lsa, hamma narsa qisqaradi (`make` — ro'yxatni ko'rsatadi):
+
+| Lokal | Nima qiladi |
+|---|---|
+| `make setup` | install + migrate + seed (birinchi ishga tushirish) |
+| `make run` | lokal server |
+| `make test` | barcha testlar |
+| `make ci` | check + test (commitdan oldin) |
+| `make superuser` | admin ochish |
+| `make migrations` / `make migrate` | migratsiya yozish / qo'llash |
+| `make clean` | `__pycache__` tozalash |
+
+| Serverda (docker) | Nima qiladi |
+|---|---|
+| `make up` | yig'ib ishga tushiradi |
+| `make logs` | jonli loglar |
+| `make deploy` | git pull + qayta yig'ish + migratsiya |
+| `make docker-superuser` | konteyner ichida admin ochish |
+| `make backup` | bazani zaxiralaydi |
 
 ---
 

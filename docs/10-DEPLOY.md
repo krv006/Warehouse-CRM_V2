@@ -69,12 +69,15 @@ Konteyner faqat `127.0.0.1:8000` da turadi — serverdagi boshqa saytlarga (`the
 
 ### Kundalik ishlar
 
+> `make` o'rnatilgan bo'lsa (`sudo apt install make`), shu jadvaldagilarni
+> `make up`, `make logs`, `make deploy`, `make backup` deb qisqartirsa bo'ladi.
+
 | Kerakli ish | Komanda (`/var/www/ombor-crm` ichida) |
 |---|---|
 | Holat | `docker compose ps` |
 | Loglar | `docker compose logs -f web` |
 | Qayta ishga tushirish | `docker compose restart web` |
-| Kod yangilandi | `docker compose up -d --build` |
+| Kod yangilandi | `docker compose up -d --build` yoki `make deploy` |
 | To'xtatish | `docker compose down` |
 | Migratsiya | `docker compose exec web python manage.py migrate` |
 | Eslatmalarni tekshirish | `docker compose exec web python manage.py check_deadlines` |
