@@ -53,6 +53,7 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 | [docs/07-CODE-STYLE.md](docs/07-CODE-STYLE.md) | Kod yozish qoidalari (majburiy) |
 | [docs/08-TESTING.md](docs/08-TESTING.md) | Testlar, komandalar |
 | [docs/09-FRONTEND-REACT.md](docs/09-FRONTEND-REACT.md) | React integratsiyasi uchun qo'llanma |
+| [docs/10-DEPLOY.md](docs/10-DEPLOY.md) | Serverga o'rnatish: Docker yoki systemd + nginx |
 | [CLAUDE.md](CLAUDE.md) | AI yordamchi uchun qisqa qoidalar to'plami |
 
 ---
@@ -72,6 +73,10 @@ Warehouse_CRM_V2/
 │   ├── purchases/        # Kirim: UZB ichidan / Import / Ustav
 │   ├── sales/            # Lead, Contract, ContractItem, Approval, Payment
 │   └── finance/          # Kassa: kategoriya, tranzaksiya, qarz, xarajat so'rovi
+├── deploy/               # entrypoint, nginx, systemd service, deploy.sh
+├── Dockerfile
+├── docker-compose.yml
+├── .env.example
 ├── templates/
 ├── requirements.txt
 └── manage.py
@@ -112,5 +117,6 @@ Barcha testlar (56 ta).
 | Client (jismoniy / yuridik) | ✅ tayyor |
 | Rollar, audit, eslatmalar | ✅ tayyor |
 | Export (USD / EUR / CNY) | 🟡 modelda joy bor, jarayon yozilmagan |
+| Serverga o'rnatish (Docker / systemd + nginx) | ✅ tayyor |
 | React frontend | ⬜ keyingi bosqich |
 | Bojxona / soliq integratsiyasi | ⬜ hozircha qo'lda kiritiladi |

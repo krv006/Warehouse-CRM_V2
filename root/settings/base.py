@@ -2,16 +2,24 @@
 
 from pathlib import Path
 
+from root.settings.env import env_bool, env_list, env_str
+
 # root/settings/base.py -> root/settings -> root -> loyiha ildizi
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-tti2@f27gu7arts#0=1wv283t&0ji3)b7wgp60)@@f=5+gdc*t'
+# Serverda .env orqali beriladi, lokalda default ishlaydi
+SECRET_KEY = env_str(
+    'SECRET_KEY',
+    'django-insecure-tti2@f27gu7arts#0=1wv283t&0ji3)b7wgp60)@@f=5+gdc*t',
+)
 
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+# Serverda: DEBUG=False
+DEBUG = env_bool('DEBUG', True)
 
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = env_list('ALLOWED_HOSTS', '*')
+
+# Domen orqali admin panelga kirish uchun (masalan: https://crm.example.uz)
+CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
 
 
 # Ilovalar

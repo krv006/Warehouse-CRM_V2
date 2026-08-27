@@ -1,0 +1,31 @@
+services:
+  # Django + gunicorn. Faqat 127.0.0.1:8000 da ochiladi —
+  # tashqariga serverning o'z nginx'i chiqaradi (deploy/nginx-docker.conf).
+  web:
+    build: .
+    container_name: ombor-crm
+    restart: unless-stopped
+    env_file:
+      - .env
+    volumes:
+      - ./data:/app/data                 # sqlite bazasi
+      - ./media:/app/media               # yuklangan rasm va hujjatlar
+      - ./staticfiles:/app/staticfiles   # nginx shu papkadan static beradi
+    ports:
+      - "127.0.0.1:8000:8000"
+
+  # Serverda nginx bo'lmasa: docker compose --profile with-nginx up -d --build
+  nginx:
+    profiles:
+      - with-nginx
+    image: nginx:1.27-alpine
+    container_name: ombor-crm-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./deploy/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./staticfiles:/var/www/static:ro
+      - ./media:/var/www/media:ro
+    depends_on:
+      - web

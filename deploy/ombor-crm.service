@@ -1,0 +1,24 @@
+[Unit]
+Description=Ombor CRM — Django + Gunicorn
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/var/www/ombor-crm
+EnvironmentFile=/var/www/ombor-crm/.env
+RuntimeDirectory=ombor-crm
+ExecStart=/var/www/ombor-crm/.venv/bin/gunicorn root.wsgi:application \
+    --workers 3 \
+    --timeout 120 \
+    --bind unix:/run/ombor-crm/gunicorn.sock \
+    --access-logfile - \
+    --error-logfile -
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=3
+KillMode=mixed
+
+[Install]
+WantedBy=multi-user.target

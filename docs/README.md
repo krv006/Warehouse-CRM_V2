@@ -13,6 +13,7 @@ Ombor CRM (Warehouse CRM V2) loyihasining to'liq hujjatlari.
 | 07 | [07-CODE-STYLE.md](07-CODE-STYLE.md) | Kod yozish qoidalari — **majburiy** | Backend dasturchi |
 | 08 | [08-TESTING.md](08-TESTING.md) | Testlar, komandalar, qamrov | Backend dasturchi |
 | 09 | [09-FRONTEND-REACT.md](09-FRONTEND-REACT.md) | React integratsiyasi: auth, rollar, chartlar, formalar | Frontend dasturchi |
+| 10 | [10-DEPLOY.md](10-DEPLOY.md) | Serverga o'rnatish: Docker (bitta komanda) yoki systemd + nginx | DevOps / server |
 
 Boshlash: [../README.md](../README.md) · AI yordamchi uchun qisqa qoidalar: [../CLAUDE.md](../CLAUDE.md)
 
@@ -29,3 +30,6 @@ Boshlash: [../README.md](../README.md) · AI yordamchi uchun qisqa qoidalar: [..
 
 **Biznes qoidani tekshirmoqchimisiz?**
 `02-BUSINESS-RULES.md` → `06-WORKFLOWS.md`
+
+**Serverga qo'ymoqchimisiz?**
+`10-DEPLOY.md`
