@@ -135,3 +135,72 @@ class ContractFlowTests(APITestCase):
         self.client.force_authenticate(self.sales)
         response = self.client.get(f'/api/contracts/{contract.id}/')
         self.assertIn('unit_price', response.data['items'][0])
+
+
+class ContractShipmentTests(APITestCase):
+    """TZ 3.1, 9: sotuv tasdiqlanganda mahsulot ombordan chiqim qilinadi."""
+
+    def setUp(self):
+        from apps.inventory.models import StockMovement, Warehouse
+        from apps.inventory.services import apply_movement
+
+        self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
+        self.bugalter = User.objects.create_user('bug', password='p', role=User.Role.BUGALTER)
+        self.client_obj = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112224', jshshir='11112222333345', phone='+998900000002',
+        )
+        self.product = Product.objects.create(
+            sku='HP-880', name='HP 880', sale_price=Decimal('25000000'),
+        )
+        self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
+        apply_movement(
+            product=self.product, warehouse=self.warehouse,
+            type=StockMovement.Type.IN, quantity=Decimal('3'),
+        )
+
+    def _approved_contract(self, quantity):
+        contract = Contract.objects.create(
+            client=self.client_obj, status=Contract.Status.APPROVED,
+            total_amount=self.product.sale_price * quantity,
+            created_by=self.sales,
+        )
+        ContractItem.objects.create(
+            contract=contract, product=self.product, quantity=quantity,
+            unit_price=self.product.sale_price,
+        )
+        return contract
+
+    def test_first_payment_ships_goods_from_stock(self):
+        from apps.inventory.models import StockMovement
+        from apps.inventory.services import available_quantity
+
+        contract = self._approved_contract(2)
+        self.client.force_authenticate(self.bugalter)
+        response = self.client.post(f'/api/contracts/{contract.id}/confirm-payment/')
+        self.assertEqual(response.status_code, 200, response.data)
+
+        # Qoldiq 3 -> 1, harakat sabab 'sale' bilan yozilgan
+        self.assertEqual(available_quantity(self.product, self.warehouse), Decimal('1'))
+        movement = StockMovement.objects.get(reason=StockMovement.Reason.SALE)
+        self.assertEqual(movement.reference, contract.number)
+
+        # Ikkinchi to'lov qayta chiqim qilmaydi
+        self.client.post(f'/api/contracts/{contract.id}/confirm-payment/', {'amount': '1000'})
+        self.assertEqual(available_quantity(self.product, self.warehouse), Decimal('1'))
+
+    def test_payment_blocked_when_stock_insufficient(self):
+        from apps.finance.models import CashTransaction
+        from apps.inventory.services import available_quantity
+
+        contract = self._approved_contract(5)  # omborda faqat 3 ta
+        self.client.force_authenticate(self.bugalter)
+        response = self.client.post(f'/api/contracts/{contract.id}/confirm-payment/')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('HP 880', str(response.data['items']))
+
+        # Hech narsa yozilmagan: qoldiq joyida, to'lov ham, kassa ham yo'q
+        self.assertEqual(available_quantity(self.product, self.warehouse), Decimal('3'))
+        self.assertFalse(CashTransaction.objects.exists())
+        contract.refresh_from_db()
+        self.assertEqual(contract.status, Contract.Status.APPROVED)

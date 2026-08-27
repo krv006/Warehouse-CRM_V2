@@ -43,7 +43,7 @@ Hujjatlar bilan **bugalter** ishlaydi (TZ 8.2): yuklash va o'zgartirish faqat un
 
 | Tur | Qayerda |
 |---|---|
-| Mijozga sotuv (so'mda) | `apps/sales` — shartnoma va to'lov |
+| Mijozga sotuv (so'mda) | `apps/sales` — birinchi to'lov tasdiqlanganda mahsulot **ombordan chiqim qilinadi** (TZ 9); yetmasa to'lov bloklanadi |
 | Import xarajati | `Purchase.receive` → kassa chiqimi |
 | Ustav kapitalidan xarajat | `ustav_out` kategoriyasi |
 | Kichik xarajatlar (oylik, arenda, obed, boshqa) | `ExpenseRequest` → admin ruxsati → kassa chiqimi |

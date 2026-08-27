@@ -225,6 +225,18 @@ ortiqcha to'lovga yo'l ochilardi.
 - `POST /loans/{id}/repay/` endi tekshiradi: yopiq qarz — `400`,
   musbat bo'lmagan summa — `400`, qoldiqdan ortiq — `400` (+`balance`)
 
+## 8.2.2 Sotuvda ombordan chiqim 🐛→✅
+
+TZ 3.1/9 talab qilgan, lekin yo'q edi: shartnoma bo'yicha **birinchi to'lov
+tasdiqlanganda** sotilgan mahsulotlar ombordan chiqim qilinadi
+(`StockMovement.reason = sale`, `reference` = shartnoma raqami).
+
+- Omborda yetarli bo'lmasa `confirm-payment` **400** qaytaradi
+  (`items[]` — qaysi mahsulot qancha yetmasligi); to'lov ham, kassa ham yozilmaydi
+- Keyingi to'lovlar qayta chiqim qilmaydi
+
+**Frontendga ta'siri:** to'lov oynasida 400 kelganda `items[]` ro'yxatini ko'rsating.
+
 ## 8.3 Yangi rol: Engineer 🔴 breaking
 
 `User.role` endi **5 xil**: `admin | bugalter | sales | buyurtmachi | engineer`.
@@ -280,5 +292,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **92** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **146** |
+| Testlar | 66 | **148** |
 | Rollar | 3 | **5** |

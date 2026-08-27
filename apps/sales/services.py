@@ -94,10 +94,51 @@ def reject_contract(contract, user, comment=''):
     return contract
 
 
+def _ship_contract_items(contract, user):
+    """Sotilgan mahsulotlarni ombordan chiqim qiladi (TZ 3.1, 9).
+
+    Birinchi to'lov tasdiqlanganda har bir shartnoma qatori bo'yicha
+    ombor qoldig'i kamayadi. Ombor hali sozlanmagan bo'lsa (bo'sh tizim)
+    harakat yozilmaydi.
+    """
+    from apps.inventory.models import StockMovement, Warehouse
+    from apps.inventory.services import apply_movement, available_quantity
+
+    warehouse = Warehouse.objects.filter(is_active=True).first()
+    if warehouse is None:
+        return
+
+    shortages = [
+        f'{item.product.name} (kerak: {item.quantity}, '
+        f'omborda: {available_quantity(item.product, warehouse)})'
+        for item in contract.items.select_related('product')
+        if available_quantity(item.product, warehouse) < item.quantity
+    ]
+    if shortages:
+        raise ValidationError({
+            'detail': 'Omborda sotish uchun mahsulot yetarli emas.',
+            'items': shortages,
+        })
+
+    for item in contract.items.select_related('product'):
+        apply_movement(
+            product=item.product,
+            warehouse=warehouse,
+            type=StockMovement.Type.OUT,
+            quantity=item.quantity,
+            reason=StockMovement.Reason.SALE,
+            reference=contract.number,
+            user=user,
+        )
+
+
 @atomic
 def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRANSFER,
                     paid_at=None, is_prepayment=None):
-    """Bugalter pul kelganini tasdiqlaydi — shu kundan muddat sanog'i boshlanadi."""
+    """Bugalter pul kelganini tasdiqlaydi — shu kundan muddat sanog'i boshlanadi.
+
+    Birinchi to'lovda sotilgan mahsulotlar ombordan chiqim qilinadi (TZ 9).
+    """
     _require_role(user, bugalter=True)
     if contract.status not in {Contract.Status.APPROVED, Contract.Status.ACTIVE}:
         raise ValidationError('Avval shartnoma admin tomonidan tasdiqlanishi kerak.')
@@ -106,6 +147,9 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
     first_payment = contract.status == Contract.Status.APPROVED
     if is_prepayment is None:
         is_prepayment = first_payment
+
+    if first_payment:
+        _ship_contract_items(contract, user)
 
     payment = ContractPayment.objects.create(
         contract=contract,

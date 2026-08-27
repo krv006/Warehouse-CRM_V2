@@ -29,6 +29,7 @@ Qadamlar:
    - `ContractPayment` yoziladi
    - kassaga `sale` kirimi tushadi
    - `start_date = bugun`, status `active` — **shu kundan kunlar sanog'i boshlanadi**
+   - **sotilgan mahsulotlar ombordan chiqim qilinadi** (yetmasa to'lov bloklanadi)
 6. Qoldiq to'liq yopilsa status `completed`.
 
 Har bir tasdiq/rad `ContractApproval` ga (kim, qachon, izoh) va `ActivityLog` ga yoziladi.

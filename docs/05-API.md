@@ -350,7 +350,14 @@ POST /api/contracts/7/approve/
 POST /api/contracts/7/confirm-payment/
 {"amount": "150000000", "method": "transfer"}
 ```
-Natija: `status = active`, `start_date = bugun`, kassaga `sale` kirimi tushadi.
+Natija: `status = active`, `start_date = bugun`, kassaga `sale` kirimi tushadi,
+**sotilgan mahsulotlar ombordan chiqim qilinadi** (birinchi to'lovda, TZ 9).
+Omborda yetarli bo'lmasa — `400`:
+
+```json
+{"detail": "Omborda sotish uchun mahsulot yetarli emas.",
+ "items": ["HP 880 (kerak: 5, omborda: 3)"]}
+```
 
 **Timeline javobi:**
 ```json
