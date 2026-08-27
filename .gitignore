@@ -270,3 +270,11 @@ cython_debug/
 #  option (not recommended) you can uncomment the following to ignore the entire idea folder.
 #.idea/
 
+### Ombor CRM
+staticfiles/
+media/
+data/
+schema.yml
+*.bak
+*.bak-*
+db.sqlite3.bak
