@@ -138,13 +138,25 @@ class ConfigurationViewSet(BaseModelViewSet):
         })
 
     def finalize(self, request, pk=None):
-        """POST /configurations/{id}/finalize/ — ACT bilan yakunlash."""
+        """POST /configurations/{id}/finalize/ — ACT bilan yakunlash.
+
+        Tana (ixtiyoriy): {"act": id} — ACT shu yerning o'zida biriktiriladi,
+        oldindan PATCH qilish shart emas.
+        """
         configuration = self.get_object()
         if configuration.status != Configuration.Status.DRAFT:
             return Response(
                 {'detail': 'Faqat chernovik holatidagi konfiguratsiya yakunlanadi.'},
                 status=HTTP_400_BAD_REQUEST,
             )
+        if request.data.get('act'):
+            act = Act.objects.filter(pk=request.data['act'], is_active=True).first()
+            if not act:
+                return Response(
+                    {'act': 'ACT topilmadi yoki faol emas.'},
+                    status=HTTP_400_BAD_REQUEST,
+                )
+            configuration.act = act
         if not configuration.act:
             return Response(
                 {'detail': 'Yakunlash uchun ACT biriktirilishi shart.'},

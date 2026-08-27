@@ -272,6 +272,7 @@ Frontend integratsiyasida topilgan kamchiliklar tuzatildi:
 | `/configuration-requests/` da `configuration` filtri yo'q edi | qo'shildi: `?configuration=12` |
 | `PATCH /configurations/{id}/` `ready`/`attached` da ham ochiq edi | **status qo'riqchisi**: faqat `draft` o'zgaradi, aks holda 400; qatorlar (`/configuration-items/`) ham shunday |
 | `take/` konfiguratsiya ocholmasdi (zayavkada model yo'q edi) | quyida 👇 |
+| `finalize/` tanadagi `{"act": 2}` ni e'tiborsiz qoldirib 400 berardi | endi qabul qiladi: ACT shu so'rovning o'zida biriktiriladi, oldindan PATCH shart emas; noto'g'ri id — `400 {"act": "topilmadi"}` |
 
 **Zayavkaga `base_product` va `warehouse` qo'shildi** (ikkalasi ixtiyoriy, migration
 `0006`). Sales zayavka yozganda modelni tanlab yuboradi — TZ misolining o'zi
@@ -320,5 +321,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **92** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **160** |
+| Testlar | 66 | **163** |
 | Rollar | 3 | **5** |

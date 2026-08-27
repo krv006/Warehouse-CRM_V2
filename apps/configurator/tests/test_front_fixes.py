@@ -118,6 +118,43 @@ class FrontFixesTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200, response.data)
 
+    # ------------------------------------------------- finalize: tanadagi ACT
+    def test_finalize_accepts_act_in_body(self):
+        from datetime import date
+
+        from apps.configurator.models import Act
+
+        ConfigurationItem.objects.create(
+            configuration=self.configuration, component=self.ssd,
+            label='SSD', quantity=1, unit_price=Decimal('1500000'),
+        )
+        act = Act.objects.create(number='ACT-9', title='ACT', issued_at=date.today())
+        response = self.client.post(
+            f'/api/configurations/{self.configuration.id}/finalize/',
+            {'act': act.id}, format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.configuration.refresh_from_db()
+        self.assertEqual(self.configuration.act, act)
+        self.assertEqual(self.configuration.status, Configuration.Status.READY)
+
+    def test_finalize_with_unknown_act_is_400(self):
+        response = self.client.post(
+            f'/api/configurations/{self.configuration.id}/finalize/',
+            {'act': 99999}, format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('act', response.data)
+
+    def test_finalize_is_403_for_sales(self):
+        """Front ko'rgan 403 ning sababi: finalize — engineer (admin) ishi."""
+        self.client.force_authenticate(self.sales)
+        response = self.client.post(
+            f'/api/configurations/{self.configuration.id}/finalize/',
+            {'act': 1}, format='json',
+        )
+        self.assertEqual(response.status_code, 403)
+
     # ----------------------------------------------- 5: take auto-konfiguratsiya
     def test_take_opens_draft_with_factory_spec(self):
         self.client.force_authenticate(self.sales)
