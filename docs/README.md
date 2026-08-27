@@ -14,6 +14,8 @@ Ombor CRM (Warehouse CRM V2) loyihasining to'liq hujjatlari.
 | 08 | [08-TESTING.md](08-TESTING.md) | Testlar, komandalar, qamrov | Backend dasturchi |
 | 09 | [09-FRONTEND-REACT.md](09-FRONTEND-REACT.md) | React integratsiyasi: auth, rollar, chartlar, formalar | Frontend dasturchi |
 | 10 | [10-DEPLOY.md](10-DEPLOY.md) | Serverga o'rnatish: Docker (bitta komanda) yoki systemd + nginx | DevOps / server |
+| 11 | [11-FRONTEND-SCREENS.md](11-FRONTEND-SCREENS.md) | Ekranlar bo'yicha topshiriq: har bir sahifa, endpoint, maydon, holat | Frontend dasturchi |
+| 12 | [12-CHANGELOG-TZ-2.1.md](12-CHANGELOG-TZ-2.1.md) | TZ 2.1 da nima o'zgardi (breaking o'zgarishlar) | Frontend + backend |
 
 Boshlash: [../README.md](../README.md) · AI yordamchi uchun qisqa qoidalar: [../CLAUDE.md](../CLAUDE.md)
 
@@ -26,7 +28,7 @@ Boshlash: [../README.md](../README.md) · AI yordamchi uchun qisqa qoidalar: [..
 `07-CODE-STYLE.md` → `01-ARCHITECTURE.md` → `04-DATA-MODEL.md` → `08-TESTING.md`
 
 **Frontend yozasizmi?**
-`09-FRONTEND-REACT.md` → `05-API.md` → `03-ROLES-PERMISSIONS.md`
+`12-CHANGELOG-TZ-2.1.md` → `09-FRONTEND-REACT.md` → `11-FRONTEND-SCREENS.md` → `05-API.md` → `03-ROLES-PERMISSIONS.md`
 
 **Biznes qoidani tekshirmoqchimisiz?**
 `02-BUSINESS-RULES.md` → `06-WORKFLOWS.md`

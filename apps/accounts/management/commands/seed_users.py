@@ -26,6 +26,14 @@ DEMO_USERS = [
         'is_staff': True,
     },
     {
+        'username': 'buyurtmachi',
+        'first_name': 'Shohrux',
+        'last_name': 'Nazarov',
+        'email': 'buyurtmachi@thesofmebel.uz',
+        'phone': '+998901110005',
+        'role': User.Role.SUPPLIER,
+    },
+    {
         'username': 'sales1',
         'first_name': 'Jasur',
         'last_name': 'Ergashev',
@@ -47,7 +55,7 @@ DEMO_USERS = [
 class Command(BaseCommand):
     """Sinov uchun har bir rolga foydalanuvchi ochadi."""
 
-    help = 'Demo foydalanuvchilar: admin, bugalter, sales1, sales2'
+    help = 'Demo foydalanuvchilar: admin, bugalter, buyurtmachi, sales1, sales2'
 
     def add_arguments(self, parser):
         parser.add_argument(

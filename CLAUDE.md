@@ -101,15 +101,16 @@ urlpatterns = [
 | `admin` | Hamma narsani ko'radi, ACT kiritadi, shartnomani oxirgi tasdiqlaydi, bugalterning xarajatiga ruxsat beradi |
 | `bugalter` | Hujjat va pul kirdi-chiqdisi, shartnomaning 1-tasdig'i, pul kelganini tasdiqlash. Client qo'sha olmaydi |
 | `sales` | Zakaz shakllantiradi, configurator qiladi, client qo'shadi, sotuv narxini ko'radi |
+| `buyurtmachi` | Omborni to'ldiradi: ta'minotchi narxi, logistika, yetkazib berish kuzatuvi, qarz |
 
 Permission klasslari: `apps/accounts/permissions.py` (`IsAdmin`, `IsAdminOrBugalter`,
-`IsAdminOrSales`, `CanManageClients`, `IsAdminOrReadOnly`).
+`IsAdminOrSales`, `IsAdminOrSupplier`, `CanManageClients`, `IsAdminOrReadOnly`).
 
 ### 2.2 Client — `apps/clients`
 
 Bitta model, ikki tur: `individual` (F.I.SH, passport, JSHSHIR — unique) va
-`legal` (kompaniya nomi, INN, JSHSHIR, rahbar F.I.SH, manzil — majburiy).
-`phone` — hamma uchun unique, `email` va `note` — optional.
+`legal` (kompaniya nomi, INN, JSHSHIR, MFO, bank nomi, hisob raqam, rahbar F.I.SH — majburiy).
+`phone` va `account_number` — unique; `email`, `address`, `note` — optional.
 
 ### 2.3 Kirim — `apps/purchases`
 
@@ -138,7 +139,7 @@ Bitta model, ikki tur: `individual` (F.I.SH, passport, JSHSHIR — unique) va
   - `POST /contracts/{id}/confirm-payment/` — bugalter; shu kundan **muddat sanog'i** boshlanadi
   - `GET /contracts/{id}/timeline/` — line chart nuqtalari va rang
 - Oldindan to'lov: summa **1 mlrd dan kam bo'lsa 30%**, ko'p bo'lsa **15%**; qo'lda o'zgartirsa bo'ladi.
-- Rang qoidasi (`apps/core/utils.py`): yashil → sariq (oxirgi 30%) → **oxirgi 10 kun qizil**.
+- Rang qoidasi (`apps/core/utils.py`): yashil → sariq (oxirgi 1/3) → **oxirgi 10 kun qizil**.
 - Qator narxi (`unit_price`, `subtotal`) faqat sales va adminga ko'rinadi.
 
 ### 2.6 Configurator — `apps/configurator`
@@ -150,6 +151,15 @@ Barcha rollarga ochiq. Bazaviy model (`Product.kind = machine`) tarkibi `Product
 - `POST /configurations/{id}/finalize/` — **ACT majburiy** (ACT ni faqat admin kiritadi)
 - `POST /configurations/{id}/attach/` — tayyor konfiguratsiyani kirim buyurtmasiga biriktiradi
 - `GET /configurations/{id}/export-excel/` — chernovik Excel (openpyxl)
+- Narx ombordan avtomatik olinadi; narxsiz qator bo'lsa `finalize` bloklanadi
+- Bir xil tarkib `signature` orqali tanib olinadi va ombordagi tayyor variant narxi qo'llanadi
+
+### 2.6.1 Buyurtmachi — `apps/procurement`
+
+`Replenishment` + item / approval / event. Jarayon: yetishmayotganlar ro'yxati →
+`from-low-stock` → `submit` → bugalter `approve` → admin `approve` → bugalter `pay`
+(pul yetmasa `shortfall` qarzga: `Loan.source=supplier`, muddat kirimdan 60 kun) →
+`events` (bojxona va h.k.) → `receive` (ombor qoldig'i oshadi).
 
 ### 2.7 Audit va eslatmalar — `apps/core`
 

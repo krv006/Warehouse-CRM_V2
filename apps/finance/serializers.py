@@ -33,6 +33,7 @@ class CashTransactionSerializer(ModelSerializer):
 
 class LoanSerializer(ModelSerializer):
     status_display = ReadOnlyField(source='get_status_display')
+    source_display = ReadOnlyField(source='get_source_display')
     days_left = ReadOnlyField()
     color = ReadOnlyField()
     repaid = ReadOnlyField()
@@ -42,7 +43,8 @@ class LoanSerializer(ModelSerializer):
         model = Loan
         fields = [
             'id', 'lender_name', 'amount', 'currency', 'taken_at', 'deadline',
-            'status', 'status_display', 'note', 'days_left', 'color',
+            'status', 'status_display', 'source', 'source_display',
+            'note', 'days_left', 'color',
             'repaid', 'balance', 'created_by', 'created_at',
         ]
         read_only_fields = ['created_by']

@@ -66,7 +66,7 @@ POST /api/clients/
 }
 ```
 
-**Yuridik shaxs:**
+**Yuridik shaxs** (TZ 2.1: MFO, bank nomi va hisob raqam majburiy, manzil ixtiyoriy)**:**
 ```json
 POST /api/clients/
 {
@@ -74,9 +74,12 @@ POST /api/clients/
   "company_name": "Ombor Servis MCHJ",
   "inn": "305123456",
   "jshshir": "98765432109876",
+  "mfo": "00423",
+  "bank_name": "Ipoteka Bank, Chilonzor filiali",
+  "account_number": "20208000600123456001",
   "director_name": "Aziz Karimov",
-  "address": "Toshkent, Chilonzor 5",
-  "phone": "+998901112244"
+  "phone": "+998901112244",
+  "address": "Toshkent, Chilonzor 5"
 }
 ```
 
@@ -138,12 +141,25 @@ POST /api/configurations/
 ```json
 {
   "configuration": "CFG-00001",
+  "ready_variant": "HP-880-V01",
+  "variant_price": "5500000.00",
+  "total_price": "5500000.00",
   "items": [
-    {"component": "SSD 1 TB", "quantity": 1, "available": 5, "shortage": 0, "source": "stock"},
-    {"component": "GPU 32", "quantity": 1, "available": 0, "shortage": 1, "source": "purchase"}
+    {"component": "SSD 1 TB", "quantity": 1, "available": 5, "shortage": 0,
+     "source": "stock", "unit_price": "1500000.00", "needs_price": false},
+    {"component": "GPU 32", "quantity": 1, "available": 0, "shortage": 1,
+     "source": "purchase", "unit_price": "0.00", "needs_price": true}
   ]
 }
 ```
+
+Narxlash qoidasi (TZ 6.2):
+
+- `unit_price` yuborilmasa — ombordagi narx avtomatik qo'yiladi
+- `needs_price: true` qator bo'lsa `finalize` `400` qaytaradi:
+  `{"detail": "Narxi kiritilmagan butlovchilar bor.", "items": ["RAM 4"]}`
+- Yakunlangach javobda `variant`, `variant_sku`, `ready_variant` to'ladi — bu ombordagi
+  tayyor pozitsiya (yangi yaratilgan yoki avvaldan mavjud)
 
 **Biriktirish:**
 ```json
@@ -277,6 +293,95 @@ Natija: `status = active`, `start_date = bugun`, kassaga `sale` kirimi tushadi.
 
 ---
 
+## Omborni to'ldirish — Buyurtmachi (TZ 7)
+
+| Metod | Manzil | Kim |
+|---|---|---|
+| GET | `/replenishments/low-stock/?warehouse=1` | hamma |
+| POST | `/replenishments/from-low-stock/` | buyurtmachi |
+| GET/POST | `/replenishments/` | yozish: admin, buyurtmachi |
+| GET/PUT/PATCH/DELETE | `/replenishments/{id}/` | admin, buyurtmachi |
+| POST | `/replenishments/{id}/submit/` | buyurtmachi |
+| POST | `/replenishments/{id}/approve/` | avval bugalter, keyin admin |
+| POST | `/replenishments/{id}/reject/` | bugalter / admin |
+| POST | `/replenishments/{id}/pay/` | bugalter |
+| POST | `/replenishments/{id}/events/` | buyurtmachi / bugalter |
+| POST | `/replenishments/{id}/receive/` | buyurtmachi / bugalter |
+| GET | `/replenishments/{id}/timeline/` | hamma |
+| GET/POST/PATCH/DELETE | `/replenishment-items/` | admin doim, buyurtmachi qoralamada |
+| GET | `/replenishment-approvals/`, `/replenishment-events/` | faqat o'qish |
+
+**Yetishmayotganlar ro'yxati:**
+```json
+GET /api/replenishments/low-stock/?warehouse=1
+[
+  {"id": 5, "sku": "GPU-32", "name": "GPU 32", "total_stock": "0.00",
+   "reorder_level": 10, "needed": 10, "cost_price": "400000.00"}
+]
+```
+
+**Ro'yxatdan hisob shakllantirish:**
+```json
+POST /api/replenishments/from-low-stock/
+{"warehouse": 1, "supplier": "Etuf MCHJ"}
+```
+
+**Hisob javobi — admin oynasi uchun muhim maydonlar:**
+```json
+{
+  "number": "TLD-00001",
+  "status": "pending_admin",
+  "items_total": "1200000.00",
+  "logistics_cost": "150000.00",
+  "other_cost": "50000.00",
+  "total_amount": "1400000.00",
+  "cash_available": "500000.00",
+  "shortfall": "900000.00",
+  "debt": null,
+  "debt_days_left": null,
+  "debt_color": "grey",
+  "items": [], "approvals": [], "events": []
+}
+```
+
+**To'lov** — pul yetmasa farqi qarzga o'tadi:
+```json
+POST /api/replenishments/7/pay/
+{"debt_amount": "900000"}
+```
+
+`debt_amount` yuborilmasa `shortfall` olinadi. Kassada pul yetmasa `400`:
+```json
+{"detail": "Kassada yetarli pul yo'q.", "total": "1400000.00",
+ "cash_available": "500000.00", "suggested_debt": "900000.00"}
+```
+
+**Bosqich qo'shish** (TZ 7.3):
+```json
+POST /api/replenishments/7/events/
+{"stage": "customs", "comment": "Bojxonada rasmiylashtirilmoqda"}
+```
+
+`stage`: `ordered`, `shipped`, `customs`, `cleared`, `arrived`, `note`.
+
+**Omborga kirim:** `POST /api/replenishments/7/receive/` — qoldiq oshadi va qarz muddati
+shu kundan **60 kun** qilib qayta hisoblanadi.
+
+**Timeline javobi:**
+```json
+{
+  "number": "TLD-00001",
+  "status": "delivered",
+  "total_amount": "1400000.00",
+  "paid_amount": "500000.00",
+  "events": [{"stage": "customs", "stage_display": "Bojxonada", "happened_at": "..."}],
+  "debt": {"amount": "900000.00", "deadline": "2026-10-26", "days_left": 60,
+           "color": "green", "points": []}
+}
+```
+
+---
+
 ## Kassa (Finance)
 
 | Metod | Manzil | Izoh |
@@ -284,7 +389,7 @@ Natija: `status = active`, `start_date = bugun`, kassaga `sale` kirimi tushadi.
 | GET/POST | `/cash-categories/` | yangi yacheyka qo'shish |
 | GET/POST | `/cash-transactions/` | |
 | GET | `/cash-transactions/summary/` | kirim/chiqim hisoboti |
-| GET/POST | `/loans/` | yaratilganda kirim yoziladi |
+| GET/POST | `/loans/` | yaratilganda kirim yoziladi; filtr `?source=personal` yoki `?source=supplier` |
 | POST | `/loans/{id}/repay/` | qaytarish |
 | GET/POST | `/expense-requests/` | bugalter so'raydi |
 | POST | `/expense-requests/{id}/approve/` | **faqat admin** |

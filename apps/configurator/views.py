@@ -9,7 +9,7 @@ from apps.configurator.serializers import (
     ConfigurationSerializer,
     ConfigurationItemSerializer,
 )
-from apps.configurator.services import build_configuration_workbook
+from apps.configurator.services import build_configuration_workbook, resolve_variant
 from apps.core.mixins import BaseModelViewSet
 from apps.core.models import ActivityLog
 
@@ -43,8 +43,12 @@ class ConfigurationViewSet(BaseModelViewSet):
     def stock_check(self, request, pk=None):
         """GET /configurations/{id}/stock-check/ — qaysi butlovchi omborda bor."""
         configuration = self.get_object()
+        variant = configuration.variant or configuration.matching_variant
         return Response({
             'configuration': configuration.number,
+            'ready_variant': variant.sku if variant else None,
+            'variant_price': variant.stock_price if variant else None,
+            'total_price': configuration.total_price,
             'items': [
                 {
                     'component': item.component.name,
@@ -52,6 +56,8 @@ class ConfigurationViewSet(BaseModelViewSet):
                     'available': item.available,
                     'shortage': item.shortage,
                     'source': item.source,
+                    'unit_price': item.unit_price,
+                    'needs_price': item.needs_price,
                 }
                 for item in configuration.items.select_related('component')
             ],
@@ -75,9 +81,26 @@ class ConfigurationViewSet(BaseModelViewSet):
                 {'detail': 'Konfiguratsiya qatorlari kiritilmagan.'},
                 status=HTTP_400_BAD_REQUEST,
             )
+
+        # TZ 6.2: narxi aniqlanmagan butlovchi bo'lsa, jarayon yakunlanmaydi
+        no_price = configuration.items_without_price
+        if no_price:
+            return Response(
+                {
+                    'detail': 'Narxi kiritilmagan butlovchilar bor.',
+                    'items': [item.component.name for item in no_price],
+                },
+                status=HTTP_400_BAD_REQUEST,
+            )
+
+        variant, created = resolve_variant(configuration)
+        configuration.variant = variant
         configuration.status = Configuration.Status.READY
         configuration.save()
-        self.log_action(ActivityLog.Action.UPDATE, configuration, 'Konfiguratsiya yakunlandi')
+        self.log_action(
+            ActivityLog.Action.UPDATE, configuration,
+            f'Yakunlandi, variant: {variant.sku} ' + ('(yangi)' if created else '(ombordan)'),
+        )
         return Response(self.get_serializer(configuration).data)
 
     def attach(self, request, pk=None):

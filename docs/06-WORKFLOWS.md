@@ -36,33 +36,91 @@ Har bir tasdiq/rad `ContractApproval` ga (kim, qachon, izoh) va `ActivityLog` ga
 ### Muddat ranglari
 
 ```
-90 kunlik shartnoma:
-kun 0 ────────────────► kun 63 ──────────► kun 80 ─────► kun 90
-      🟢 yashil              🟡 sariq          🔴 qizil
-                        (oxirgi 30%)      (oxirgi 10 kun)
+90 kunlik shartnoma (TZ 5.3):
+qolgan kun:  90 ─────────────── 31 │ 30 ────────── 11 │ 10 ──────── 0
+             🟢 yashil            │ 🟡 sariq        │ 🔴 qizil
+                                  (oxirgi 1/3)       (oxirgi 10 kun)
 ```
 
 `GET /contracts/{id}/timeline/` — `points[]` ichida har bir kun uchun rang tayyor holda keladi.
 
 ---
 
+## 1.1 Omborni to'ldirish (Buyurtmachi) — TZ 7
+
+```mermaid
+stateDiagram-v2
+    [*] --> draft: Yetishmayotganlar ro'yxatidan hisob
+    draft --> pending_bugalter: POST /submit/ (buyurtmachi)
+    pending_bugalter --> pending_admin: POST /approve/ (bugalter)
+    pending_bugalter --> rejected: POST /reject/
+    pending_admin --> approved: POST /approve/ (admin)
+    pending_admin --> rejected: POST /reject/
+    approved --> ordered: POST /pay/ (bugalter)
+    ordered --> in_transit: events: shipped
+    in_transit --> customs: events: customs
+    customs --> in_transit: events: cleared
+    in_transit --> delivered: POST /receive/
+    rejected --> draft: buyurtmachi tuzatadi
+    delivered --> [*]
+```
+
+Qadamlar:
+
+1. **Buyurtmachi** `GET /replenishments/low-stock/` bilan yetishmayotganlarni ko'radi va
+   `POST /replenishments/from-low-stock/` bilan hisob shakllantiradi
+2. Har bir pozitsiyaga ta'minotchi narxini, so'ng `logistics_cost` va `other_cost` ni kiritadi
+3. `POST /submit/` → **Bugalter** tekshiradi (`approve`) yoki qaytaradi (`reject`)
+4. **Admin** ko'rib chiqadi: miqdorni o'zgartiradi, pozitsiya o'chiradi, so'ng tasdiqlaydi.
+   Oynada `total_amount` va `cash_available` yonma-yon turadi
+5. **Bugalter** `POST /pay/` qiladi:
+   - pul yetsa → to'liq kassadan chiqim
+   - yetmasa → farqi (`shortfall`) **qarzga** o'tadi (`Loan.source = supplier`)
+6. Yetkazib berish bosqichlari `POST /events/` bilan qayd etiladi (bojxona va h.k.)
+7. `POST /receive/` → ombor qoldig'i oshadi, **qarz muddati shu kundan 60 kun** bo'lib qayta hisoblanadi
+
+### Pul yetmagan holat (TZ 7.1 misoli)
+
+```
+Jami:          1 400 000
+Kassada:         500 000
+Yetmayapti:      900 000  →  Loan(source=supplier, deadline = kirim + 60 kun)
+```
+
 ## 2. Configurator: mijoz tarkibni o'zgartiradi
 
 ```mermaid
 flowchart TD
     A[Bazaviy model: HP 880] --> B[Mijoz tarkibni o'zgartiradi]
-    B --> C{Har bir butlovchi omborda bormi?}
-    C -->|Ha| D[source = stock — ombordan olinadi]
+    B --> S{Xuddi shu tarkib omborda bormi?}
+    S -->|Ha| S1[Tayyor variant topildi — ombordagi narx qo'llanadi]
+    S -->|Yo'q| C{Har bir butlovchi omborda bormi?}
+    C -->|Bor, narxi ham bor| D[Narx ombordan avtomatik olinadi]
+    C -->|Bor, narxi yo'q| P[needs_price — foydalanuvchi kiritadi]
     C -->|Yo'q| E[source = purchase — kirim qilinadi]
     D --> F[GET /stock-check/]
+    P --> F
     E --> F
-    F --> G{ACT biriktirilganmi?}
+    S1 --> F
+    F --> G{ACT bormi va hamma narx kiritilganmi?}
     G -->|Yo'q| H[finalize → 400 xato]
     G -->|Ha| I[POST /finalize/ → status ready]
+    I --> V[Variant omborga qo'shiladi: HP-880-V01]
     I --> J[GET /export-excel/ — chernovik]
     I --> K[POST /attach/ — kirim buyurtmasiga biriktiriladi]
-    K --> L[status attached]
 ```
+
+Narxlash qoidalari (TZ 6.2):
+
+| Holat | Tizim nima qiladi |
+|---|---|
+| Butlovchi omborda bor, narxi bor | Narx avtomatik olinadi (`unit_price` bo'sh yuborilsa) |
+| Omborda bor, narxi yo'q | `needs_price: true` — narx kiritilmaguncha yakunlanmaydi |
+| Omborda yo'q | `source: purchase` — kirim qilish kerakligi belgilanadi |
+| Aynan shu tarkib avval yig'ilgan | Tayyor variant (`ready_variant`) va uning ombordagi narxi qo'llanadi |
+
+Tarkib **imzo (signature)** bilan saqlanadi — komponentlar tartibi muhim emas,
+bir xil kombinatsiya doim bir xil imzo beradi.
 
 - ACT ni **faqat admin** kiritadi (`POST /acts/`).
 - Excel chernovik: butlovchi, belgi, miqdor, narx, summa, omborda, yetishmaydi, manba va jami.

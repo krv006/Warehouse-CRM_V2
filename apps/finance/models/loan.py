@@ -21,12 +21,17 @@ class Loan(TimeStampedModel):
         ACTIVE = 'active', 'Faol'
         CLOSED = 'closed', 'Yopilgan'
 
+    class Source(TextChoices):
+        PERSONAL = 'personal', 'Shaxsiy qarz'
+        SUPPLIER = 'supplier', "Ta'minotchi oldidagi qarz"
+
     lender_name = CharField(max_length=200)
     amount = DecimalField(max_digits=18, decimal_places=2)
     currency = CharField(max_length=3, choices=Currency.choices, default=Currency.UZS)
     taken_at = DateField()
     deadline = DateField()
     status = CharField(max_length=20, choices=Status.choices, default=Status.ACTIVE)
+    source = CharField(max_length=20, choices=Source.choices, default=Source.PERSONAL)
     note = TextField(blank=True)
     created_by = ForeignKey(
         'accounts.User', SET_NULL, related_name='loans',

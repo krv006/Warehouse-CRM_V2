@@ -45,3 +45,17 @@ def sync_stock(movement):
         stock.quantity = movement.quantity
     stock.save()
     return stock
+
+
+def configuration_signature(base_product_id, items):
+    """Konfiguratsiya tarkibining takrorlanmas imzosi.
+
+    Bir xil bazaviy model + bir xil butlovchilar (miqdori bilan) doim
+    bir xil imzo beradi — shu orqali "bunday variant avval bo'lganmi"
+    degan taqqoslash bajariladi (TZ 6.2).
+    """
+    from hashlib import sha256
+
+    parts = sorted(f'{component_id}x{int(quantity)}' for component_id, quantity in items)
+    raw = f'{base_product_id}|' + '|'.join(parts)
+    return sha256(raw.encode('utf-8')).hexdigest()[:40]

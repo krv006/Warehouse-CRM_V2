@@ -70,7 +70,7 @@ class LoanViewSet(BaseModelViewSet):
     serializer_class = LoanSerializer
     permission_classes = [IsAdminOrBugalter]
     search_fields = ['lender_name']
-    filterset_fields = ['status', 'currency']
+    filterset_fields = ['status', 'currency', 'source']
     ordering_fields = ['deadline', 'amount']
 
     def perform_create(self, serializer):

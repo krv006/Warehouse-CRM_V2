@@ -29,6 +29,14 @@ erDiagram
     Contract ||--o{ ContractApproval : "approvals"
     Contract ||--o{ ContractPayment : "payments"
     Contract ||--o{ Purchase : ""
+    Warehouse ||--o{ Replenishment : ""
+    Replenishment ||--o{ ReplenishmentItem : "items"
+    Replenishment ||--o{ ReplenishmentApproval : "approvals"
+    Replenishment ||--o{ ReplenishmentEvent : "events"
+    Product ||--o{ ReplenishmentItem : ""
+    Loan ||--o{ Replenishment : "debt"
+    Product ||--o{ Product : "base_model"
+    Configuration ||--o{ Product : "variant"
     CashCategory ||--o{ CashTransaction : ""
     CashCategory ||--o{ ExpenseRequest : ""
     Loan ||--o{ CashTransaction : ""
@@ -74,11 +82,11 @@ erDiagram
 ### `User(AbstractUser)`
 | Maydon | Tur | Izoh |
 |---|---|---|
-| `role` | `admin` / `bugalter` / `sales` | default `sales` |
+| `role` | `admin` / `bugalter` / `sales` / `buyurtmachi` | default `sales` |
 | `phone` | Char(20) | |
 | `language` | `uz` / `ru` / `en` | default `uz` |
 
-Property: `is_admin`, `is_bugalter`, `is_sales`.
+Property: `is_admin`, `is_bugalter`, `is_sales`, `is_supplier`.
 
 ---
 
@@ -92,11 +100,14 @@ Property: `is_admin`, `is_bugalter`, `is_sales`.
 | `passport` | Char(20), **unique** | jismoniy uchun |
 | `company_name` | Char(200), **unique** | yuridik uchun |
 | `inn` | Char(20), **unique** | yuridik uchun |
+| `mfo` | Char(20) | yuridik uchun |
+| `bank_name` | Char(200) | yuridik uchun |
+| `account_number` | Char(30), **unique** | yuridik uchun |
 | `director_name` | Char(200) | yuridik uchun |
 | `jshshir` | Char(20), **unique** | ikkalasi uchun |
 | `phone` | Char(20), **unique** | ha |
 | `email` | Email | yo'q |
-| `address` | Text | yuridik uchun |
+| `address` | Text | yo'q (TZ 2.1 da ixtiyoriy) |
 | `note` | Text | yo'q |
 | `created_by` | FK `accounts.User` | avtomatik |
 
@@ -125,8 +136,10 @@ Property: `display_name` (yuridik → `company_name`, jismoniy → `full_name`).
 | `reorder_level` | PositiveInteger |
 | `image` | Image |
 | `is_active` | Bool |
+| `base_model` | FK `inventory.Product` (SET_NULL) — variant uchun bazaviy model |
+| `signature` | Char(64), unique — konfiguratsiya tarkibi imzosi |
 
-Property: `total_stock`, `is_low_stock`.
+Property: `total_stock`, `is_low_stock`, `stock_price` (sotuv narxi, bo'lmasa tannarx), `is_variant`.
 
 ### `ProductSpec` — bazaviy model tarkibi
 `product` (FK Product, CASCADE, `specs`), `component` (FK Product, PROTECT, `spec_usages`), `label`, `quantity`.
@@ -163,14 +176,17 @@ Unique: (`product`, `component`).
 | `warehouse` | FK `inventory.Warehouse` (PROTECT, null) |
 | `act` | FK `configurator.Act` (PROTECT, null) |
 | `purchase` | FK `purchases.Purchase` (SET_NULL, null) |
+| `variant` | FK `inventory.Product` (SET_NULL) — tayyor pozitsiya |
 | `status` | `draft` / `ready` / `attached` / `cancelled` |
 | `note`, `created_by` | |
 
-Property: `total_price`, `missing_items`.
+Property: `items_total`, `total_price`, `signature`, `matching_variant`,
+`missing_items`, `items_without_price`.
 
 ### `ConfigurationItem`
 `configuration` (CASCADE, `items`), `component` (FK Product, PROTECT), `label`, `quantity`, `unit_price`.
-Property: `subtotal`, `available`, `shortage`, `source` (`stock` / `purchase`).
+`unit_price` bo'sh saqlansa — ombordagi narx avtomatik qo'yiladi.
+Property: `subtotal`, `stock_price`, `needs_price`, `available`, `shortage`, `source` (`stock` / `purchase`).
 
 ---
 
@@ -234,6 +250,41 @@ Property: `items_total`, `prepayment_amount`, `paid`, `balance`, `progress`, `da
 
 ---
 
+## procurement (Buyurtmachi moduli)
+
+### `Replenishment` — omborni to'ldirish hisobi
+| Maydon | Tur |
+|---|---|
+| `number` | `TLD-00001` (avtomatik) |
+| `warehouse` | FK Warehouse (PROTECT) |
+| `supplier` | Char(200) — ta'minotchi |
+| `status` | `draft` / `pending_bugalter` / `pending_admin` / `approved` / `ordered` / `in_transit` / `customs` / `delivered` / `rejected` / `cancelled` |
+| `currency` | default `UZS` |
+| `logistics_cost`, `other_cost` | Decimal(18,2) — buyurtmachi kiritadi |
+| `paid_amount` | Decimal(18,2) — kassadan to'langan qism |
+| `debt` | FK `finance.Loan` (SET_NULL) — qarzga o'tgan qism |
+| `expected_at`, `delivered_at` | Date |
+| `note`, `created_by` | |
+
+Property: `items_total`, `total_amount`, `cash_available`, `shortfall`,
+`debt_progress`, `debt_days_left`, `debt_color`, `default_debt_deadline`.
+
+Konstanta: `DEBT_TERM_DAYS = 60` (TZ 7.2 — mahsulot kelgandan keyin 2 oy).
+
+### `ReplenishmentItem`
+`replenishment` (CASCADE, `items`), `product` (PROTECT), `quantity`, `unit_price`,
+`supplier`, `note`. Property: `subtotal`, `needs_price`.
+
+### `ReplenishmentApproval`
+`replenishment` (CASCADE, `approvals`), `step` (`bugalter` / `admin`),
+`decision` (`approved` / `rejected`), `comment`, `decided_by`.
+
+### `ReplenishmentEvent` — yetkazib berish bosqichlari
+`replenishment` (CASCADE, `events`), `stage` (`ordered` / `shipped` / `customs` /
+`cleared` / `arrived` / `note`), `comment`, `happened_at`, `created_by`.
+
+---
+
 ## finance
 
 ### `CashCategory`
@@ -254,7 +305,8 @@ Property: `items_total`, `prepayment_amount`, `paid`, `balance`, `progress`, `da
 Property: `amount_uzs` (= `amount * exchange_rate`).
 
 ### `Loan`
-`lender_name`, `amount`, `currency`, `taken_at`, `deadline`, `status` (`active`/`closed`), `note`, `created_by`.
+`lender_name`, `amount`, `currency`, `taken_at`, `deadline`, `status` (`active`/`closed`),
+`source` (`personal` / `supplier`), `note`, `created_by`.
 Property: `term_days`, `days_left`, `color`, `repaid`, `balance`.
 
 ### `ExpenseRequest`

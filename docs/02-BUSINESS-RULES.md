@@ -119,14 +119,15 @@ total >= 1_000_000_000 →  15%
 
 Sanoq **pul kelgani bugalter tomonidan tasdiqlangan kundan** boshlanadi (`start_date`).
 
-| Holat | Rang |
-|---|---|
-| Boshidan muddatning 70% igacha | `green` (yashil) |
-| Oxirgi 30% (lekin 10 kundan ko'p qolgan) | `yellow` (sariq) |
-| **Oxirgi 10 kun va muddatdan o'tgan** | `red` (qizil) |
-| Sanoq boshlanmagan | `grey` |
+| Holat | Rang | 90 kunlik shartnomada |
+|---|---|---|
+| Muddat boshi | `green` (yashil) | 90–31 kun |
+| Oxirgi uchdan bir | `yellow` (sariq) | 30–11 kun |
+| **Oxirgi 10 kun va muddatdan o'tgan** | `red` (qizil) | 10–0 kun |
+| Sanoq boshlanmagan | `grey` | — |
 
-Qoida `apps/core/utils.py` da: `RED_ZONE_DAYS = 10`, `YELLOW_ZONE_RATIO = 0.3`.
+Qoida `apps/core/utils.py` da: `RED_ZONE_DAYS = 10`, `YELLOW_ZONE_RATIO = 1/3`.
+Chegaralar har bir shartnoma muddatiga proporsional hisoblanadi (TZ 5.3).
 
 `GET /api/contracts/{id}/timeline/` har bir kun uchun `{date, days_left, color}` qaytaradi — to'g'ridan-to'g'ri line chartga beriladi.
 
@@ -160,13 +161,27 @@ TZ misoli: HP 880 (SSD 512 GB, GPU 16, 4 yadro, RAM 8) → mijoz SSD 1 TB va GPU
    - `available` — omborda bor miqdor
    - `shortage` — yetishmaydigan miqdor
    - `source` = `stock` (ombordan olinadi) yoki `purchase` (kirim qilinishi kerak)
+   - `unit_price` — kiritilmagan bo'lsa **ombordagi narx avtomatik olinadi**
+     (sotuv narxi, bo'lmasa tannarx)
+   - `needs_price` — omborda ham narx yo'q; bunday qator bo'lsa yakunlash bloklanadi
 4. `GET /api/configurations/{id}/stock-check/` — shu ro'yxatni qaytaradi.
 5. **ACT majburiy:** `POST /{id}/finalize/` faqat `act` biriktirilgan va qatorlari bor bo'lsa ishlaydi.
    ACT ni **faqat admin** kiritadi (`/api/acts/` yozish `IsAdminOrReadOnly` bilan yopilgan).
 6. `GET /{id}/export-excel/` — chernovik Excel (butlovchi, miqdor, narx, omborda, yetishmaydi, manba, jami).
 7. Tayyor bo'lsa `POST /{id}/attach/` bilan kirim buyurtmasiga biriktiriladi → status `attached`.
 
-Configurator **barcha rollarga** ochiq (TZ: umumiy tushunchalar).
+### Tayyor variantni tanish (TZ 6.2)
+
+Har bir konfiguratsiya tarkibi **imzo** bilan saqlanadi (`Product.signature`) — bazaviy model +
+butlovchilar va ularning miqdori. Shu sababli:
+
+- Aynan shunday kombinatsiya avval yig'ilgan bo'lsa, tizim uni taniydi va
+  **ombordagi tayyor pozitsiya narxini** qo'llaydi (`ready_variant`, `total_price`)
+- Yangi kombinatsiya yakunlanganda omborga **alohida mahsulot** bo'lib qo'shiladi
+  (`sku` = `HP-880-V01`, `base_model` = bazaviy model), keyingi safar qayta ishlatiladi
+- Komponentlar tartibi ahamiyatsiz: `SSD + GPU` va `GPU + SSD` bir xil imzo beradi
+
+Configurator **barcha rollarga** ochiq (TZ 6.5).
 
 ---
 
@@ -177,16 +192,66 @@ Configurator **barcha rollarga** ochiq (TZ: umumiy tushunchalar).
 | F.I.SH — majburiy | Kompaniya nomi — majburiy, unique |
 | Passport — majburiy, unique | INN — majburiy, unique |
 | JSHSHIR — majburiy, unique | JSHSHIR — majburiy, unique |
-| Telefon — majburiy, unique | Rahbar F.I.SH — majburiy |
-| Email — optional | Telefon — majburiy, unique |
-| Izoh — optional | Manzil — majburiy |
-| | Email, izoh — optional |
+| Telefon — majburiy, unique | **MFO — majburiy** |
+| Email — optional | **Bank nomi — majburiy** |
+| Izoh — optional | **Hisob raqam — majburiy, unique** |
+| | Rahbar F.I.SH — majburiy |
+| | Telefon — majburiy, unique |
+| | Email, manzil, izoh — optional |
 
-Client qo'shish **bugalterda yo'q**, sales va adminda bor.
+> TZ 2.1 da bank rekvizitlari qo'shildi, manzil esa majburiydan ixtiyoriyga o'tdi.
+
+Client qo'shish **bugalterda yo'q** — sales, buyurtmachi va adminda bor (TZ 11).
 
 ---
 
-## 7. Audit
+## 7. Buyurtmachi — omborni to'ldirish (TZ 7)
+
+**Buyurtmachi** tashqi mijoz bilan emas, ombor va ta'minot bilan ishlaydi.
+
+### Jarayon
+
+| # | Bosqich | Kim | Endpoint |
+|---|---|---|---|
+| 1 | Yetishmayotganlar ro'yxati | hamma ko'radi | `GET /replenishments/low-stock/` |
+| 2 | Hisob shakllantirish | buyurtmachi | `POST /replenishments/from-low-stock/` |
+| 3 | Ta'minotchi narxlari, logistika va boshqa xarajatlar | buyurtmachi | `PATCH /replenishments/{id}/` |
+| 4 | Bugalterga yuborish | buyurtmachi | `POST /{id}/submit/` |
+| 5 | Tekshirish | bugalter | `POST /{id}/approve/` |
+| 6 | Tasdiqlash, miqdorni o'zgartirish, pozitsiya o'chirish | **admin** | `POST /{id}/approve/`, `PATCH/DELETE /replenishment-items/{id}/` |
+| 7 | To'lov | bugalter | `POST /{id}/pay/` |
+| 8 | Yetkazib berish bosqichlari (bojxona va h.k.) | buyurtmachi / bugalter | `POST /{id}/events/` |
+| 9 | Omborga kirim | buyurtmachi / bugalter | `POST /{id}/receive/` |
+
+### Pul yetmagan holat
+
+Admin oynasida doimo ko'rinadi:
+
+| Maydon | Ma'nosi |
+|---|---|
+| `items_total` | Pozitsiyalar yig'indisi |
+| `logistics_cost`, `other_cost` | Buyurtmachi kiritgan xarajatlar |
+| `total_amount` | Umumiy summa |
+| `cash_available` | Kassadagi mavjud pul |
+| `shortfall` | Yetmayotgan qism |
+
+TZ 7.1 misoli: summa **1 400 000**, kassada **500 000** → **900 000** avtomatik hisoblanadi va
+`POST /pay/` da shu qism **qarzga** o'tqaziladi.
+
+### Qarz (TZ 7.2)
+
+- `Loan` yaratiladi: `source = supplier`, `lender_name` = ta'minotchi
+- Muddat: **mahsulot omborga kirim qilingan kundan 60 kun** (`receive` da qayta hisoblanadi)
+- Rang kodi va eslatmalar shartnoma bilan bir xil (yashil → sariq → oxirgi 10 kun qizil)
+- Shaxsiy qarz (`source = personal`) va ta'minotchi qarzi bitta `Loan` modelida yuritiladi
+
+### Yetkazib berish kuzatuvi (TZ 7.3)
+
+Bosqichlar: `ordered` → `shipped` → `customs` → `cleared` → `arrived`.
+Har bir bosqich `ReplenishmentEvent` sifatida vaqti va izohi bilan saqlanadi,
+`GET /{id}/timeline/` da qarz muddati bilan birga qaytariladi.
+
+## 8. Audit
 
 Har bir yaratish / o'zgartirish / o'chirish / tasdiqlash `ActivityLog` ga tushadi
 (`BaseModelViewSet` avtomatik yozadi). Ro'yxat faqat adminga: `GET /api/activity-logs/`.

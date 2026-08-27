@@ -25,6 +25,21 @@ class ConfigurationItem(TimeStampedModel):
     def __str__(self):
         return f'{self.component} x {self.quantity}'
 
+    def save(self, *args, **kwargs):
+        # TZ 6.2: narx kiritilmagan bo'lsa, ombordagi narx avtomatik olinadi
+        if not self.unit_price and self.component_id:
+            self.unit_price = self.component.stock_price
+        super().save(*args, **kwargs)
+
+    @property
+    def stock_price(self):
+        return self.component.stock_price
+
+    @property
+    def needs_price(self):
+        """Omborda ham, qatorda ham narx yo'q — foydalanuvchi kiritishi kerak."""
+        return not self.unit_price
+
     @property
     def subtotal(self):
         return self.quantity * self.unit_price

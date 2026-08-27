@@ -60,3 +60,20 @@ def record_transaction(*, code, amount, occurred_at, description='', currency=No
     if currency:
         fields['currency'] = currency
     return CashTransaction.objects.create(**fields)
+
+
+def cash_balance():
+    """Kassadagi mavjud pul: barcha kirim minus barcha chiqim."""
+    from django.db.models import Sum
+
+    from apps.core.choices import Direction
+
+    totals = {
+        direction: (
+            CashTransaction.objects
+            .filter(direction=direction)
+            .aggregate(t=Sum('amount'))['t'] or 0
+        )
+        for direction in (Direction.IN, Direction.OUT)
+    }
+    return totals[Direction.IN] - totals[Direction.OUT]

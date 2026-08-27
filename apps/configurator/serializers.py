@@ -23,12 +23,15 @@ class ConfigurationItemSerializer(ModelSerializer):
     available = ReadOnlyField()
     shortage = ReadOnlyField()
     source = ReadOnlyField()
+    stock_price = ReadOnlyField()
+    needs_price = ReadOnlyField()
 
     class Meta:
         model = ConfigurationItem
         fields = [
             'id', 'component', 'component_name', 'label', 'quantity',
-            'unit_price', 'subtotal', 'available', 'shortage', 'source',
+            'unit_price', 'stock_price', 'needs_price', 'subtotal',
+            'available', 'shortage', 'source',
         ]
 
 
@@ -39,20 +42,31 @@ class ConfigurationSerializer(ModelSerializer):
     status_display = ReadOnlyField(source='get_status_display')
     act_number = ReadOnlyField(source='act.number')
     total_price = ReadOnlyField()
+    items_total = ReadOnlyField()
+    variant_sku = ReadOnlyField(source='variant.sku')
     missing_count = SerializerMethodField()
+    ready_variant = SerializerMethodField()
 
     class Meta:
         model = Configuration
         fields = [
             'id', 'number', 'client', 'client_name', 'base_product', 'base_product_name',
             'warehouse', 'act', 'act_number', 'purchase', 'status', 'status_display',
-            'note', 'items', 'total_price', 'missing_count',
+            'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
+            'ready_variant', 'missing_count',
             'created_by', 'created_at',
         ]
-        read_only_fields = ['number', 'created_by', 'purchase']
+        read_only_fields = ['number', 'created_by', 'purchase', 'variant']
 
     def get_missing_count(self, obj):
         return len(obj.missing_items)
+
+    def get_ready_variant(self, obj):
+        """Xuddi shu tarkib omborda tayyor pozitsiya sifatida bormi (TZ 6.2)."""
+        variant = obj.variant or obj.matching_variant
+        if not variant:
+            return None
+        return {'id': variant.id, 'sku': variant.sku, 'price': variant.stock_price}
 
     def create(self, validated_data):
         items = validated_data.pop('items', [])

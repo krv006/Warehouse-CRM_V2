@@ -53,8 +53,19 @@ class IsAdminOrSales(BasePermission):
         return _has_role(request.user, User.Role.SALES)
 
 
+class IsAdminOrSupplier(BasePermission):
+    """Omborni to'ldirish qismi: yozish admin yoki buyurtmachiga."""
+
+    message = 'Bu amal admin yoki buyurtmachi uchun.'
+
+    def has_permission(self, request, view):
+        if request.method in SAFE_METHODS:
+            return _authenticated(request.user)
+        return _has_role(request.user, User.Role.SUPPLIER)
+
+
 class CanManageClients(BasePermission):
-    """Client qo'shish bugalterda bo'lmaydi (TZ: umumiy tushunchalar)."""
+    """Client qo'shish Sales va Buyurtmachida bor, Bugalterda yo'q (TZ 11)."""
 
     message = "Client qo'shish bugalter uchun mavjud emas."
 

@@ -12,8 +12,10 @@ REQUIRED_BY_TYPE = {
         'company_name': 'Yuridik shaxs uchun kompaniya nomi majburiy.',
         'inn': 'Yuridik shaxs uchun INN majburiy.',
         'jshshir': 'Yuridik shaxs uchun JSHSHIR majburiy.',
+        'mfo': 'Yuridik shaxs uchun MFO majburiy.',
+        'bank_name': 'Yuridik shaxs uchun bank nomi majburiy.',
+        'account_number': 'Yuridik shaxs uchun hisob raqam majburiy.',
         'director_name': 'Yuridik shaxs uchun rahbar F.I.SH majburiy.',
-        'address': 'Yuridik shaxs uchun manzil majburiy.',
     },
 }
 
@@ -26,7 +28,8 @@ class ClientSerializer(ModelSerializer):
         model = Client
         fields = [
             'id', 'type', 'type_display', 'display_name', 'full_name', 'passport',
-            'company_name', 'inn', 'director_name', 'jshshir', 'phone', 'email',
+            'company_name', 'inn', 'mfo', 'bank_name', 'account_number',
+            'director_name', 'jshshir', 'phone', 'email',
             'address', 'note', 'created_by', 'created_at',
         ]
         read_only_fields = ['created_by']

@@ -54,6 +54,8 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 | [docs/08-TESTING.md](docs/08-TESTING.md) | Testlar, komandalar |
 | [docs/09-FRONTEND-REACT.md](docs/09-FRONTEND-REACT.md) | React integratsiyasi uchun qo'llanma |
 | [docs/10-DEPLOY.md](docs/10-DEPLOY.md) | Serverga o'rnatish: Docker yoki systemd + nginx |
+| [docs/11-FRONTEND-SCREENS.md](docs/11-FRONTEND-SCREENS.md) | Ekranlar bo'yicha topshiriq (frontend) |
+| [docs/12-CHANGELOG-TZ-2.1.md](docs/12-CHANGELOG-TZ-2.1.md) | TZ 2.1 o'zgarishlari |
 | [CLAUDE.md](CLAUDE.md) | AI yordamchi uchun qisqa qoidalar to'plami |
 
 ---
@@ -71,6 +73,7 @@ Warehouse_CRM_V2/
 │   ├── inventory/        # Category, Warehouse, Product, ProductSpec, Stock, StockMovement
 │   ├── configurator/     # Act, Configuration, ConfigurationItem, Excel eksport
 │   ├── purchases/        # Kirim: UZB ichidan / Import / Ustav
+│   ├── procurement/      # Buyurtmachi: omborni to'ldirish, qarz, yetkazib berish
 │   ├── sales/            # Lead, Contract, ContractItem, Approval, Payment
 │   └── finance/          # Kassa: kategoriya, tranzaksiya, qarz, xarajat so'rovi
 ├── deploy/               # entrypoint, nginx, systemd service, deploy.sh
@@ -129,7 +132,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (56 ta).
+Barcha testlar (93 ta).
 
 ---
 
@@ -142,7 +145,8 @@ Barcha testlar (56 ta).
 | Sales + shartnoma approve zanjiri | ✅ tayyor |
 | Configurator + ACT + Excel | ✅ tayyor |
 | Client (jismoniy / yuridik) | ✅ tayyor |
-| Rollar, audit, eslatmalar | ✅ tayyor |
+| Buyurtmachi moduli (to'ldirish, qarz, yetkazib berish) | ✅ tayyor |
+| Rollar (4 ta), audit, eslatmalar | ✅ tayyor |
 | Export (USD / EUR / CNY) | 🟡 modelda joy bor, jarayon yozilmagan |
 | Serverga o'rnatish (Docker / systemd + nginx) | ✅ tayyor |
 | React frontend | ⬜ keyingi bosqich |

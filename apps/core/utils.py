@@ -7,8 +7,10 @@ YELLOW = 'yellow'
 RED = 'red'
 GREY = 'grey'
 
+# TZ 5.3: oxirgi 10 kun qizil, muddatning oxirgi uchdan biri sariq
+# (90 kunlik shartnomada: yashil 90-31, sariq 30-11, qizil 10-0)
 RED_ZONE_DAYS = 10
-YELLOW_ZONE_RATIO = 0.3
+YELLOW_ZONE_RATIO = 1 / 3
 
 
 def deadline_color(days_left, term_days):

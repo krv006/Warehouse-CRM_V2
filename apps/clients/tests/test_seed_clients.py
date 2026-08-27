@@ -26,7 +26,8 @@ class SeedClientsTests(TestCase):
         legal = Client.objects.filter(type=Client.Type.LEGAL).first()
         for field in ['full_name', 'passport', 'jshshir', 'phone']:
             self.assertTrue(getattr(individual, field), field)
-        for field in ['company_name', 'inn', 'jshshir', 'director_name', 'address', 'phone']:
+        for field in ['company_name', 'inn', 'jshshir', 'mfo', 'bank_name',
+                      'account_number', 'director_name', 'phone']:
             self.assertTrue(getattr(legal, field), field)
 
     def test_second_run_does_not_duplicate(self):

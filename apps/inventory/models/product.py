@@ -1,5 +1,6 @@
 from django.db.models import (
     PROTECT,
+    SET_NULL,
     BooleanField,
     CharField,
     DecimalField,
@@ -42,11 +43,27 @@ class Product(TimeStampedModel):
     image = ImageField(upload_to='products/', null=True, blank=True)
     is_active = BooleanField(default=True)
 
+    # Configurator yaratgan variant uchun: bazaviy model va tarkib imzosi
+    base_model = ForeignKey(
+        'inventory.Product', SET_NULL, related_name='variants',
+        null=True, blank=True,
+    )
+    signature = CharField(max_length=64, unique=True, null=True, blank=True)
+
     class Meta:
         ordering = ['name']
 
     def __str__(self):
         return f'{self.name} ({self.sku})'
+
+    @property
+    def is_variant(self):
+        return self.base_model_id is not None
+
+    @property
+    def stock_price(self):
+        """Ombordagi narx: sotuv narxi, bo'lmasa tannarx."""
+        return self.sale_price or self.cost_price
 
     @property
     def total_stock(self):

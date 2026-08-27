@@ -7,6 +7,7 @@
 | Administrator | `admin` | Hamma narsani ko'radi va nazorat qiladi, ACT kiritadi, shartnomani oxirgi tasdiqlaydi, bugalterning har bir xarajatiga ruxsat beradi |
 | Bugalter | `bugalter` | Hujjatlar, pul kirdi-chiqdisi, shartnomaning birinchi tasdig'i, pul kelganini tasdiqlash |
 | Sales | `sales` | Zakaz shakllantiradi, configurator qiladi, client qo'shadi, sotuv narxini ko'radi |
+| Buyurtmachi | `buyurtmachi` | Omborda yetishmayotgan mahsulotlarni to'ldiradi: ta'minotchidan narx, logistika xarajati, yetkazib berish kuzatuvi |
 
 `is_superuser = True` bo'lgan foydalanuvchi ham admin sifatida qaraladi
 (`User.is_admin` property — `apps/accounts/models/user.py`).
@@ -21,7 +22,8 @@
 | `IsAdminOrReadOnly` | barcha login qilganlar | faqat admin |
 | `IsAdminOrBugalter` | barcha login qilganlar | admin, bugalter |
 | `IsAdminOrSales` | barcha login qilganlar | admin, sales |
-| `CanManageClients` | barcha login qilganlar | bugalterdan tashqari hamma |
+| `IsAdminOrSupplier` | barcha login qilganlar | admin, buyurtmachi |
+| `CanManageClients` | barcha login qilganlar | bugalterdan tashqari hamma (sales, buyurtmachi, admin) |
 
 Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan hech kim hech nimani ko'rmaydi.
 
@@ -36,6 +38,9 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | `/api/configurations/`, `/configuration-items/` | hamma | hamma | configurator hammaga ochiq |
 | `/api/purchases/`, `/purchase-items/` | hamma | admin, bugalter | `receive` — admin, bugalter |
 | `/api/leads/` | hamma | admin, sales | |
+| `/api/replenishments/` | hamma | admin, buyurtmachi | `approve`/`reject`/`pay` — admin, bugalter; `receive`/`events` — buyurtmachi va bugalter |
+| `/api/replenishment-items/` | hamma | admin, buyurtmachi | tekshiruvga yuborilgach faqat admin tahrirlaydi |
+| `/api/replenishment-approvals/`, `/replenishment-events/` | hamma | — | faqat o'qish |
 | `/api/contracts/` | hamma | admin, sales | `submit` — sales; `approve`/`reject`/`confirm-payment` — admin, bugalter |
 | `/api/contract-items/` | hamma | admin, sales | narx faqat sales va adminga ko'rinadi |
 | `/api/contract-payments/` | hamma | admin, bugalter | |
@@ -55,6 +60,19 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | `approve` (pending_bugalter → pending_admin) | bugalter, admin | `403` |
 | `approve` (pending_admin → approved) | **faqat admin** | `403` — bugalter ham o'tolmaydi |
 | `confirm-payment` (approved → active) | bugalter, admin | `403` |
+
+## To'ldirish (Buyurtmachi) zanjiridagi tekshiruv
+
+`apps/procurement/services.py`:
+
+| Amal | Kim bajara oladi |
+|---|---|
+| `from-low-stock`, `submit` | buyurtmachi, admin |
+| `approve` (pending_bugalter → pending_admin) | bugalter, admin |
+| `approve` (pending_admin → approved) | **faqat admin** |
+| `pay` | bugalter, admin |
+| `events`, `receive` | buyurtmachi, bugalter, admin |
+| Qatorni tahrirlash/o'chirish tekshiruvdan keyin | **faqat admin** (TZ 7.1) |
 
 Ya'ni bugalter admin bosqichini "sakrab" o'tolmaydi — bu testlar bilan qopalangan
 (`apps/sales/tests/test_contract_flow.py`).

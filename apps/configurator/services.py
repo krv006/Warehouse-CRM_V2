@@ -54,3 +54,43 @@ def build_configuration_workbook(configuration):
         sheet.column_dimensions[get_column_letter(index)].width = 18
 
     return workbook
+
+
+def resolve_variant(configuration):
+    """Konfiguratsiya uchun tayyor variantni topadi yoki yangisini yaratadi.
+
+    TZ 6.2: bir xil tarkib avval bo'lgan bo'lsa — ombordagi tayyor pozitsiya
+    va uning narxi ishlatiladi; bo'lmasa yangi variant omborga qo'shiladi va
+    keyingi safar qayta ishlatiladi.
+    """
+    from django.db.transaction import atomic
+
+    from apps.inventory.models import Product, ProductSpec
+
+    existing = configuration.matching_variant
+    if existing:
+        return existing, False
+
+    base = configuration.base_product
+    with atomic():
+        index = Product.objects.filter(base_model=base).count() + 1
+        variant = Product.objects.create(
+            sku=f'{base.sku}-V{index:02d}',
+            name=f'{base.name} ({configuration.number})',
+            kind=base.kind,
+            category=base.category,
+            unit=base.unit,
+            description=f'{base.name} bazasida yig\'ilgan konfiguratsiya',
+            cost_price=configuration.items_total,
+            sale_price=configuration.items_total,
+            base_model=base,
+            signature=configuration.signature,
+        )
+        for item in configuration.items.select_related('component'):
+            ProductSpec.objects.create(
+                product=variant,
+                component=item.component,
+                label=item.label,
+                quantity=item.quantity,
+            )
+    return variant, True

@@ -27,6 +27,9 @@ class Client(TimeStampedModel):
     # Yuridik shaxs
     company_name = CharField(max_length=200, unique=True, null=True, blank=True)
     inn = CharField(max_length=20, unique=True, null=True, blank=True)
+    mfo = CharField(max_length=20, blank=True)
+    bank_name = CharField(max_length=200, blank=True)
+    account_number = CharField(max_length=30, unique=True, null=True, blank=True)
     director_name = CharField(max_length=200, blank=True)
 
     # Umumiy
@@ -68,9 +71,13 @@ class Client(TimeStampedModel):
                 errors['inn'] = 'Yuridik shaxs uchun INN majburiy.'
             if not self.jshshir:
                 errors['jshshir'] = 'Yuridik shaxs uchun JSHSHIR majburiy.'
+            if not self.mfo:
+                errors['mfo'] = 'Yuridik shaxs uchun MFO majburiy.'
+            if not self.bank_name:
+                errors['bank_name'] = 'Yuridik shaxs uchun bank nomi majburiy.'
+            if not self.account_number:
+                errors['account_number'] = 'Yuridik shaxs uchun hisob raqam majburiy.'
             if not self.director_name:
-                errors['director_name'] = "Yuridik shaxs uchun rahbar F.I.SH majburiy."
-            if not self.address:
-                errors['address'] = 'Yuridik shaxs uchun manzil majburiy.'
+                errors['director_name'] = 'Yuridik shaxs uchun rahbar F.I.SH majburiy.'
         if errors:
             raise ValidationError(errors)
