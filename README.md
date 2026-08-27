@@ -40,6 +40,36 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 
 ---
 
+## Serverdagi holat
+
+Tizim ishlab turibdi: **https://ombor.thesofmebel.uz**
+
+| Manzil | Nima |
+|---|---|
+| https://ombor.thesofmebel.uz/api/docs/ | Swagger — barcha endpointlar |
+| https://ombor.thesofmebel.uz/api/schema/ | OpenAPI (frontend uchun TS tiplari) |
+| https://ombor.thesofmebel.uz/admin/ | Django admin |
+
+Sinov foydalanuvchilari (`make docker-demo` bilan yaratiladi), parol — `Ombor2026!`:
+
+| Login | Rol |
+|---|---|
+| `admin` | Administrator (superuser) |
+| `bugalter` | Bugalter |
+| `buyurtmachi` | Buyurtmachi |
+| `sales1`, `sales2` | Sales |
+
+> Bu sinov parollari kodda ham turibdi (`seed_users.py`). Haqiqiy ishga o'tishda
+> `manage.py changepassword <login>` bilan almashtiring yoki keraksizlarini o'chiring.
+
+Kodni yangilash (Caddy bilan to'g'ri ishlashi uchun aynan shu):
+
+```bash
+cd /var/www/ombor-crm && git pull origin main && make deploy
+```
+
+---
+
 ## Hujjatlar
 
 | Fayl | Nima haqida |
@@ -110,7 +140,8 @@ Har bir ilovada `models/` va `tests/` — papka ko'rinishida, `urls.py` esa har 
 |---|---|
 | `make up` | yig'ib ishga tushiradi |
 | `make logs` | jonli loglar |
-| `make deploy` | git pull + qayta yig'ish + migratsiya |
+| `make deploy` | git pull + to'liq o'rnatish (konteyner, Caddy, cron) |
+| `make docker-dbcheck` | qaysi baza ishlatilayotgani va migratsiya holati |
 | `make docker-superuser` | konteyner ichida admin ochish |
 | `make docker-demo` | serverda demo user va buyurtmachilar |
 | `make backup` | bazani zaxiralaydi |
@@ -132,7 +163,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (93 ta).
+Barcha testlar (96 ta).
 
 ---
 
@@ -150,4 +181,5 @@ Barcha testlar (93 ta).
 | Export (USD / EUR / CNY) | 🟡 modelda joy bor, jarayon yozilmagan |
 | Serverga o'rnatish (Docker / systemd + nginx) | ✅ tayyor |
 | React frontend | ⬜ keyingi bosqich |
+| Serverga o'rnatildi (ombor.thesofmebel.uz, Caddy + HTTPS) | ✅ ishlab turibdi |
 | Bojxona / soliq integratsiyasi | ⬜ hozircha qo'lda kiritiladi |

@@ -1,5 +1,10 @@
 # 10 — Serverga o'rnatish
 
+> **Hozirgi holat:** tizim `ombor.thesofmebel.uz` da ishlab turibdi.
+> Server: Docker konteyneri `127.0.0.1:8089` da, oldida serverning **Caddy**'si (80/443),
+> HTTPS sertifikati Caddy tomonidan avtomatik olinadi.
+> Kodni yangilash: `cd /var/www/ombor-crm && git pull origin main && make deploy`
+
 Ikki yo'l bor. **A — Docker** (eng oson, bitta komanda). **B — Docker'siz**: `/var/www/ombor-crm` + systemd + nginx.
 
 Ikkalasida ham natija bir xil: **https://ombor.thesofmebel.uz/api/docs/** ochiladi,

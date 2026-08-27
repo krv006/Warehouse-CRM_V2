@@ -159,6 +159,18 @@ Parol: `Ombor2026!` · Komanda: `make docker-demo`
 
 ---
 
+## 9.1 Serverdagi holat
+
+Yangi versiya `ombor.thesofmebel.uz` ga chiqarilgan va ishlab turibdi.
+Frontend to'g'ridan-to'g'ri shu manzil bilan ishlashi mumkin:
+
+```
+VITE_API_URL=https://ombor.thesofmebel.uz/api
+```
+
+Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
+`buyurtmachi`, `sales1`, `sales2` — ya'ni 4 rolning hammasi sinab ko'rilishi mumkin.
+
 ## 10. Statistika
 
 | Ko'rsatkich | Avval | Endi |
@@ -166,5 +178,5 @@ Parol: `Ombor2026!` · Komanda: `make docker-demo`
 | Endpoint | 72 | **89** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 20 | **24** |
-| Testlar | 66 | **93** |
+| Testlar | 66 | **96** |
 | Rollar | 3 | **4** |
