@@ -63,6 +63,22 @@ class DocsConsistencyTests(SimpleTestCase):
                 with self.subTest(file=md.name, name=name):
                     self.assertNotIn(name, text)
 
+    def test_model_count_matches_readme(self):
+        from django.apps import apps as django_apps
+
+        readme = (DOCS.parent / 'README.md').read_text(encoding='utf-8')
+        match = re.search(r'\| Modellar \| (\d+) ta \|', readme)
+        self.assertIsNotNone(match, 'README da modellar soni yozilmagan')
+
+        real = [
+            model for model in django_apps.get_models()
+            if model._meta.app_label not in {'admin', 'auth', 'contenttypes', 'sessions'}
+        ]
+        self.assertEqual(
+            int(match.group(1)), len(real),
+            'README dagi modellar soni haqiqiy songa mos emas',
+        )
+
     def test_endpoint_count_matches_readme(self):
         readme = (DOCS.parent / 'README.md').read_text(encoding='utf-8')
         match = re.search(r'(\d+) endpoint', readme)

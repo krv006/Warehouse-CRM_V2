@@ -215,6 +215,6 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 |---|---|---|
 | REST endpoint | 70 | **85** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
-| Modellar | 20 | **23** |
-| Testlar | 66 | **112** |
+| Modellar | 23 | **27** |
+| Testlar | 66 | **113** |
 | Rollar | 3 | **4** |
