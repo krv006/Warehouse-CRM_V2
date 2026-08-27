@@ -22,7 +22,6 @@
 | `IsAdminOrReadOnly` | barcha login qilganlar | faqat admin |
 | `IsAdminOrBugalter` | barcha login qilganlar | admin, bugalter |
 | `IsAdminOrSales` | barcha login qilganlar | admin, sales |
-| `IsAdminOrSupplier` | barcha login qilganlar | admin, buyurtmachi |
 | `CanManageClients` | barcha login qilganlar | admin, sales, buyurtmachi |
 | `FinanceAccess` | **admin, bugalter** | admin, bugalter |
 | `PurchaseAccess` | **admin, bugalter, buyurtmachi** | admin, bugalter |

@@ -88,7 +88,7 @@ Bosqichni o'zgartirish: `PATCH /leads/{id}/ {"stage": "verbal"}`
 | Qatorlar | `items[]`: `product_name`, `quantity`, `unit_price`*, `subtotal`* |
 | To'lovlar | `payments[]`: `amount`, `method_display`, `paid_at`, `is_prepayment` |
 | Tasdiqlar | `approvals[]`: `step_display`, `decision_display`, `decided_by_name`, `comment` |
-| Muddat grafigi | `GET /contracts/{id}/timeline/` → `points[]` |
+| Muddat grafigi | `GET /api/contracts/{id}/timeline/` → `points[]` |
 
 \* `unit_price` va `subtotal` bugalter javobida **yo'q** — ustunni shartli chizing.
 
@@ -96,10 +96,10 @@ Bosqichni o'zgartirish: `PATCH /leads/{id}/ {"stage": "verbal"}`
 
 | Status | Tugma | Kim |
 |---|---|---|
-| `draft` | Yuborish → `POST /submit/` | sales |
+| `draft` | Yuborish → `POST /api/contracts/{id}/submit/` | sales |
 | `pending_bugalter` | Tasdiqlash / Rad etish | bugalter |
 | `pending_admin` | Tasdiqlash / Rad etish | admin |
-| `approved` | To'lovni tasdiqlash → `POST /confirm-payment/` | bugalter |
+| `approved` | To'lovni tasdiqlash → `POST /api/contracts/{id}/confirm-payment/` | bugalter |
 | `active` | Qo'shimcha to'lov | bugalter |
 
 To'lov formasi: `amount` (default `prepayment_amount`), `method` (`cash`/`card`/`transfer`).
@@ -156,11 +156,11 @@ Tepada tugma: **"Hisob shakllantirish"** → `POST /replenishments/from-low-stoc
 
 | Status | Tugma | Kim |
 |---|---|---|
-| `draft` / `rejected` | Qator qo'shish, narx kiritish, **Yuborish** → `POST /submit/` | buyurtmachi |
-| `pending_bugalter` | Tekshirdim → `POST /approve/` · Qaytarish → `POST /reject/` | bugalter |
+| `draft` / `rejected` | Qator qo'shish, narx kiritish, **Yuborish** → `POST /api/contracts/{id}/submit/` | buyurtmachi |
+| `pending_bugalter` | Tekshirdim → `POST /api/replenishments/{id}/approve/` · Qaytarish → `POST /api/replenishments/{id}/reject/` | bugalter |
 | `pending_admin` | Tasdiqlash / Rad etish, **miqdorni o'zgartirish va pozitsiya o'chirish** | admin |
-| `approved` | **To'lash** → `POST /pay/` | bugalter |
-| `ordered` va keyin | Bosqich qo'shish → `POST /events/` · **Omborga kirim** → `POST /receive/` | buyurtmachi / bugalter |
+| `approved` | **To'lash** → `POST /api/replenishments/{id}/pay/` | bugalter |
+| `ordered` va keyin | Bosqich qo'shish → `POST /api/replenishments/{id}/events/` · **Omborga kirim** → `POST /api/replenishments/{id}/receive/` | buyurtmachi / bugalter |
 
 **Admin tahriri:** `PATCH /replenishment-items/{id}/ {"quantity": "3"}`,
 `DELETE /replenishment-items/{id}/`. Buyurtmachi buni faqat `draft`/`rejected` da qila oladi
@@ -226,8 +226,9 @@ Timeline ko'rinishi: `GET /replenishments/{id}/timeline/` → `events[]` + `debt
 | Jami | `items_total` (qatorlar) va `total_price` (tayyor variant narxi bo'lsa — o'sha) |
 | ACT | `act` select (`GET /acts/?is_active=true`) |
 
-**Tugmalar:** Ombor tekshiruvi (`GET /stock-check/`), **Yakunlash** (`POST /finalize/`),
-Excel (`GET /export-excel/`), Buyurtmaga biriktirish (`POST /attach/`).
+**Tugmalar:** Ombor tekshiruvi (`GET /api/configurations/{id}/stock-check/`), **Yakunlash**
+(`POST /api/configurations/{id}/finalize/`), Excel (`GET /api/configurations/{id}/export-excel/`),
+Buyurtmaga biriktirish (`POST /api/configurations/{id}/attach/`).
 
 `Yakunlash` faqat: ACT tanlangan **va** `needs_price: true` qator yo'q bo'lsa faol.
 Xato javobi narxi yo'q butlovchilar ro'yxatini beradi:
@@ -354,13 +355,13 @@ Audit ustunlari: `created_at`, `user_name`, `action_display`, `entity`, `object_
 | 2 | Dashboard | `GET /dashboard/` |
 | 3 | Leads (kanban) | `/leads/` |
 | 4 | Shartnomalar ro'yxati | `/contracts/` |
-| 5 | Shartnoma kartasi | `/contracts/{id}/` + `/timeline/` |
+| 5 | Shartnoma kartasi | `/contracts/{id}/` va `/contracts/{id}/timeline/` |
 | 6 | Yetishmayotgan mahsulotlar | `/replenishments/low-stock/` |
 | 7 | To'ldirish hisoblari | `/replenishments/` |
-| 8 | To'ldirish kartasi + to'lov | `/replenishments/{id}/` + `/pay/` |
+| 8 | To'ldirish kartasi + to'lov | `/replenishments/{id}/` va `/replenishments/{id}/pay/` |
 | 9 | Yetkazib berish kuzatuvi | `/replenishments/{id}/timeline/` |
 | 10 | Configurator | `/configurations/` |
-| 11 | Konfiguratsiya kartasi | `/configurations/{id}/` + `/stock-check/` |
+| 11 | Konfiguratsiya kartasi | `/configurations/{id}/` va `/configurations/{id}/stock-check/` |
 | 12 | Mahsulotlar / qoldiq / harakat | `/products/`, `/stocks/`, `/movements/` |
 | 13 | Kirim ro'yxati va kartasi | `/purchases/` |
 | 14 | Kassa hisoboti | `/cash-transactions/summary/` |
@@ -373,7 +374,30 @@ Audit ustunlari: `created_at`, `user_name`, `action_display`, `entity`, `object_
 
 ---
 
-## 12. Sinov foydalanuvchilari
+## 12. Yordamchi endpointlar
+
+Bular alohida ekran emas — yuqoridagi sahifalar ichida ishlatiladi.
+
+| Endpoint | Qayerda kerak | Metodlar |
+|---|---|---|
+| `/api/contract-items/` | Shartnoma kartasi — qatorni alohida qo'shish/tahrirlash | GET, POST, PATCH, DELETE |
+| `/api/contract-payments/` | Shartnoma kartasi — to'lovlar ro'yxati | GET, POST (bugalter) |
+| `/api/contract-approvals/` | Shartnoma kartasi — tasdiqlash tarixi | GET |
+| `/api/configuration-items/` | Configurator — qatorni alohida tahrirlash | GET, POST, PATCH, DELETE |
+| `/api/product-specs/` | Mahsulot kartasi — zavod tarkibi | GET |
+| `/api/purchase-items/` | Kirim kartasi — qatorlar | GET, POST, PATCH, DELETE |
+| `/api/replenishment-items/` | To'ldirish kartasi — qatorlar va **yangi mahsulot qo'shish** | GET, POST, PATCH, DELETE |
+| `/api/replenishment-approvals/` | To'ldirish kartasi — tasdiqlash tarixi | GET |
+| `/api/replenishment-events/` | To'ldirish kartasi — yetkazib berish bosqichlari | GET |
+| `/api/notifications/{id}/mark-read/` | Yuqori paneldagi qo'ng'iroq | POST |
+
+Ko'p hollarda bular kerak emas: asosiy kartalar (`/contracts/{id}/`, `/replenishments/{id}/`,
+`/configurations/{id}/`) javobida `items`, `payments`, `approvals`, `events` allaqachon
+ichma-ich keladi. Alohida endpointlar faqat bitta qatorni tahrirlash yoki o'chirish uchun.
+
+---
+
+## 13. Sinov foydalanuvchilari
 
 Serverda `make docker-demo` ishlatilgach (parol `Ombor2026!`):
 

@@ -73,28 +73,12 @@ class IsAdminOrSales(RoleAccess):
     message = 'Bu amal admin yoki sales uchun.'
 
 
-class IsAdminOrSupplier(RoleAccess):
-    """Ta'minot bo'limi: o'qish hammaga, yozish buyurtmachiga."""
-
-    read_roles = None
-    write_roles = (SUPPLIER,)
-    message = 'Bu amal admin yoki buyurtmachi uchun.'
-
-
 class CanManageClients(RoleAccess):
     """Client qo'shish Sales va Buyurtmachida bor, Bugalterda yo'q (TZ 11)."""
 
     read_roles = None
     write_roles = (SALES, SUPPLIER)
     message = "Client qo'shish bugalter uchun mavjud emas."
-
-
-class InventoryAccess(RoleAccess):
-    """Ombor: hamma ko'radi, lekin sales o'zgartira olmaydi (TZ 8.3)."""
-
-    read_roles = None
-    write_roles = (BUGALTER, SUPPLIER)
-    message = "Omborni o'zgartirish sales uchun mavjud emas."
 
 
 class FinanceAccess(RoleAccess):

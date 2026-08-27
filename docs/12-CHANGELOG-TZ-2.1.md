@@ -21,7 +21,7 @@ Rol bo'yicha menyu va tugmalar yig'ilishida `buyurtmachi` qo'shilishi kerak.
 
 ## 2. Yangi modul: omborni to'ldirish 🆕
 
-15 ta yangi endpoint qo'shildi:
+17 ta yangi endpoint qo'shildi:
 
 ```
 GET    /replenishments/low-stock/
@@ -213,8 +213,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| Endpoint | 72 | **87** |
+| REST endpoint | 70 | **85** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 20 | **23** |
-| Testlar | 66 | **108** |
+| Testlar | 66 | **112** |
 | Rollar | 3 | **4** |

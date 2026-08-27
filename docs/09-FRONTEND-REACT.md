@@ -1,6 +1,6 @@
 # 09 — Frontend (React) integratsiya qo'llanmasi
 
-Backend to'liq tayyor va **serverda ishlab turibdi**: **87 endpoint**, 100 test,
+Backend to'liq tayyor va **serverda ishlab turibdi**: **85 endpoint**, 112 test,
 OpenAPI sxemasi xatosiz. Ishchi manzil: https://ombor.thesofmebel.uz/api/docs/
 Bu fayl — frontend yozish uchun texnik kontrakt. Ekranlar bo'yicha batafsil topshiriq:
 [11-FRONTEND-SCREENS.md](11-FRONTEND-SCREENS.md).

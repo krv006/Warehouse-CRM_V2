@@ -104,7 +104,9 @@ urlpatterns = [
 | `buyurtmachi` | Omborni to'ldiradi: ta'minotchi narxi, logistika, yetkazib berish kuzatuvi, qarz |
 
 Permission klasslari: `apps/accounts/permissions.py` (`IsAdmin`, `IsAdminOrBugalter`,
-`IsAdminOrSales`, `IsAdminOrSupplier`, `CanManageClients`, `IsAdminOrReadOnly`).
+`IsAdminOrSales`, `CanManageClients`, `IsAdminOrReadOnly`, `FinanceAccess`,
+`PurchaseAccess`, `ProcurementAccess`, `ProcurementSharedAccess`) — hammasi `RoleAccess`
+asosida: `read_roles` / `write_roles`, admin doim o'tadi.
 
 ### 2.2 Client — `apps/clients`
 

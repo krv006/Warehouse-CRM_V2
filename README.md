@@ -40,6 +40,18 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 
 ---
 
+## Raqamlarda
+
+| Ko'rsatkich | Qiymat |
+|---|---|
+| REST endpoint | **85 endpoint** (Swagger va OpenAPI sahifalaridan tashqari) |
+| Django ilovalari | 9 ta (`core`, `accounts`, `clients`, `inventory`, `configurator`, `purchases`, `procurement`, `sales`, `finance`) |
+| Modellar | 23 ta |
+| Rollar | 4 ta: admin, bugalter, sales, buyurtmachi |
+| Testlar | **112 ta**, hammasi o'tadi |
+
+---
+
 ## Serverdagi holat
 
 Tizim ishlab turibdi: **https://ombor.thesofmebel.uz**
@@ -163,7 +175,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (108 ta).
+Barcha testlar (112 ta).
 
 ---
 
