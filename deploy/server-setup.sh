@@ -5,14 +5,15 @@
 #
 # Nima qiladi:
 #   1. Docker yo'q bo'lsa o'rnatadi
-#   2. .env bo'lmasa yaratadi va yangi SECRET_KEY qo'yadi
-#   3. Konteynerni yig'ib ishga tushiradi (127.0.0.1:8000)
-#   4. nginx saytini ombor.thesofmebel.uz uchun ulaydi
+#   2. .env bo'lmasa yaratadi, SECRET_KEY va WEB_PORT qo'yadi
+#   3. Port bo'shligini tekshiradi va konteynerni ishga tushiradi
+#   4. nginx saytini ombor.thesofmebel.uz uchun ulaydi (shu portga proxy)
 #   5. Kunlik eslatmalar uchun cron qo'yadi
 set -e
 
 DOMAIN=ombor.thesofmebel.uz
 APP_DIR=/var/www/ombor-crm
+DEFAULT_PORT=8089
 
 cd "$APP_DIR"
 
@@ -29,17 +30,43 @@ if [ ! -f .env ]; then
     echo "    .env yaratildi, SECRET_KEY qo'yildi"
 fi
 
+# Eski .env da WEB_PORT bo'lmasligi mumkin — qo'shib qo'yamiz
+if ! grep -q '^WEB_PORT=' .env; then
+    echo "WEB_PORT=$DEFAULT_PORT" >> .env
+    echo "    WEB_PORT=$DEFAULT_PORT qo'shildi"
+fi
+
+WEB_PORT=$(grep '^WEB_PORT=' .env | cut -d= -f2 | tr -d '[:space:]')
+WEB_PORT=${WEB_PORT:-$DEFAULT_PORT}
+echo "    port: 127.0.0.1:$WEB_PORT"
+
 echo "==> 3/5 Konteyner"
+# Port band bo'lsa, o'zimizning konteynerdan boshqasi ushlab turgan bo'lishi mumkin
+if ss -ltn 2>/dev/null | grep -q ":$WEB_PORT "; then
+    if docker ps --format '{{.Names}}' | grep -q '^ombor-crm$'; then
+        echo "    portni o'z konteynerimiz ushlab turibdi — qayta ishga tushiriladi"
+        docker compose down
+    else
+        echo
+        echo "XATO: $WEB_PORT porti band (boshqa dastur ishlatyapti)."
+        echo "      .env dagi WEB_PORT ni bo'sh portga o'zgartiring, masalan:"
+        echo "      sed -i 's|^WEB_PORT=.*|WEB_PORT=8090|' $APP_DIR/.env"
+        echo "      va skriptni qayta ishga tushiring."
+        exit 1
+    fi
+fi
+
 mkdir -p data media staticfiles
 docker compose up -d --build
 
 echo "==> 4/5 nginx"
 if command -v nginx >/dev/null 2>&1; then
-    cp deploy/nginx-docker.conf "/etc/nginx/sites-available/$DOMAIN"
+    sed "s|proxy_pass http://127.0.0.1:[0-9]*;|proxy_pass http://127.0.0.1:$WEB_PORT;|" \
+        deploy/nginx-docker.conf > "/etc/nginx/sites-available/$DOMAIN"
     ln -sf "/etc/nginx/sites-available/$DOMAIN" "/etc/nginx/sites-enabled/$DOMAIN"
     nginx -t
     systemctl reload nginx
-    echo "    $DOMAIN sayti ulandi"
+    echo "    $DOMAIN → 127.0.0.1:$WEB_PORT"
 else
     echo "    nginx yo'q — docker nginx'ini ishlating:"
     echo "    docker compose --profile with-nginx up -d"
@@ -51,6 +78,10 @@ CRON_LINE="0 8 * * * cd $APP_DIR && docker compose exec -T web python manage.py 
 
 echo
 echo "TAYYOR → http://$DOMAIN/api/docs/"
+echo
+echo "Tekshirish:"
+echo "  curl -I http://127.0.0.1:$WEB_PORT/api/docs/"
+echo "  docker compose logs -f web"
 echo
 echo "Admin ochish:"
 echo "  cd $APP_DIR && docker compose exec web python manage.py createsuperuser"

@@ -53,7 +53,7 @@ Tayyor: **https://ombor.thesofmebel.uz/api/docs/**
 Internet :443/:80
    └── serverning nginx'i  (deploy/nginx-docker.conf)
          ├── /static/ , /media/  → /var/www/ombor-crm/{staticfiles,media}
-         └── qolgani            → 127.0.0.1:8000
+         └── qolgani            → 127.0.0.1:8089   (.env dagi WEB_PORT)
                                      └── docker: ombor-crm (gunicorn, 3 worker)
                                            entrypoint: migrate → collectstatic → seed_finance
 volumelar (host papkasi):
@@ -62,7 +62,11 @@ volumelar (host papkasi):
    /var/www/ombor-crm/staticfiles  → static
 ```
 
-Konteyner faqat `127.0.0.1:8000` da turadi — serverdagi boshqa saytlarga (`thesofmebel.uz`) tegmaydi.
+Konteyner faqat `127.0.0.1:8089` da turadi — serverdagi boshqa saytlarga (`thesofmebel.uz`) tegmaydi.
+
+> **Port band bo'lsa** (`address already in use`): `.env` dagi `WEB_PORT` ni o'zgartiring va
+> `bash deploy/server-setup.sh` ni qayta ishga tushiring — nginx konfigi ham avtomatik shu portga moslanadi.
+> Qaysi port band ekanini ko'rish: `ss -ltnp | grep 8089`.
 
 > Serverda umuman nginx bo'lmasa: `docker compose --profile with-nginx up -d --build` —
 > shunda 80-portni docker ichidagi nginx egallaydi.
@@ -142,6 +146,7 @@ nginx portini `127.0.0.1:8080:80` ga o'zgartirish qulayroq.
 | `ALLOWED_HOSTS` | Ruxsat etilgan domen/IP, vergul bilan | `*` |
 | `CSRF_TRUSTED_ORIGINS` | Admin panel uchun domen | bo'sh |
 | `CORS_ALLOWED_ORIGINS` | React manzili | `http://localhost:5173,http://127.0.0.1:5173` |
+| `WEB_PORT` | Docker konteyneri turadigan port (127.0.0.1) | `8089` |
 | `SQLITE_PATH` | Baza fayli yo'li | `<loyiha>/db.sqlite3` |
 | `DJANGO_SUPERUSER_*` | Birinchi ishga tushishda admin ochish | bo'sh |
 

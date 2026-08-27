@@ -1,6 +1,7 @@
 services:
-  # Django + gunicorn. Faqat 127.0.0.1:8000 da ochiladi —
+  # Django + gunicorn. Faqat 127.0.0.1:${WEB_PORT} da ochiladi —
   # tashqariga serverning o'z nginx'i chiqaradi (deploy/nginx-docker.conf).
+  # Port band bo'lsa .env dagi WEB_PORT ni o'zgartiring.
   web:
     build: .
     container_name: ombor-crm
@@ -12,7 +13,7 @@ services:
       - ./media:/app/media               # yuklangan rasm va hujjatlar
       - ./staticfiles:/app/staticfiles   # nginx shu papkadan static beradi
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:${WEB_PORT:-8089}:8000"
 
   # Serverda nginx bo'lmasa: docker compose --profile with-nginx up -d --build
   nginx:
