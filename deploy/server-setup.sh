@@ -70,6 +70,24 @@ fi
 mkdir -p data media staticfiles
 $COMPOSE up -d --build
 
+# Reverse proxy'ga o'tishdan oldin ilova javob berishini kutamiz
+printf '    ilova javob berishini kutamiz'
+READY=0
+for _ in $(seq 1 30); do
+    if curl -fsS -o /dev/null "http://127.0.0.1:$WEB_PORT/api/docs/" 2>/dev/null; then
+        READY=1
+        break
+    fi
+    printf '.'
+    sleep 1
+done
+echo
+if [ "$READY" = "1" ]; then
+    echo "    ilova tayyor: 127.0.0.1:$WEB_PORT"
+else
+    echo "    OGOHLANTIRISH: ilova javob bermadi — docker compose logs -f web"
+fi
+
 # ------------------------------------------------------------ 4. Reverse proxy
 echo "==> 4/5 Reverse proxy"
 if [ -n "$CADDY" ]; then
@@ -87,7 +105,9 @@ if [ -n "$CADDY" ]; then
         fi
 
         if docker exec "$CADDY" caddy validate --config /etc/caddy/Caddyfile >/dev/null 2>&1; then
-            docker exec "$CADDY" caddy reload --config /etc/caddy/Caddyfile
+            # --force muhim: Caddyfile o'zgarmagan bo'lsa ham konteynerning yangi
+            # IP manzili qayta aniqlanadi, aks holda eski IP ga urinib 502 beradi
+            docker exec "$CADDY" caddy reload --config /etc/caddy/Caddyfile --force
             echo "    Caddy qayta yuklandi -> https://$DOMAIN"
         else
             echo "    OGOHLANTIRISH: Caddyfile validatsiyadan o'tmadi."

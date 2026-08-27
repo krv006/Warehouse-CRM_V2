@@ -161,11 +161,9 @@ docker-shell: ## Konteyner ichidagi bash
 	$(COMPOSE) exec web bash
 
 .PHONY: deploy
-deploy: ## Serverda yangilash: git pull + qayta yig'ish + migratsiya
+deploy: ## Serverda yangilash: git pull + to'liq o'rnatish skripti
 	git pull
-	$(COMPOSE) up -d --build
-	$(COMPOSE) exec -T web python manage.py migrate --noinput
-	@echo "https://$(DOMAIN)/api/docs/"
+	sudo bash deploy/server-setup.sh
 
 .PHONY: backup
 backup: ## Bazani zaxiralaydi ($(BACKUP_DIR) ga)

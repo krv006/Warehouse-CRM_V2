@@ -131,6 +131,22 @@ Mavjud foydalanuvchilar parolini qayta yozish: `--force`.
 > Ochiq domenda turgan tizimda demo parollarni ishga tushgach almashtiring
 > yoki keraksiz foydalanuvchilarni o'chiring.
 
+### Konteyner qayta qurilgandan keyin 502 chiqsa
+
+Konteyner har safar qayta yaratilganda yangi IP oladi. Caddy esa upstream IP sini
+eslab qoladi va Caddyfile o'zgarmagan bo'lsa oddiy `caddy reload` uni yangilamaydi
+(logda `"msg":"config is unchanged"` ko'rinadi, so'ng
+`dial tcp ...: connect: connection refused` va `502`).
+
+Shuning uchun `server-setup.sh` reload'ni **`--force`** bilan bajaradi:
+
+```bash
+docker exec edu_platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile --force
+```
+
+Xuddi shu sababdan kodni yangilashda `docker compose up -d --build` emas,
+**`make deploy`** yoki `sudo bash deploy/server-setup.sh` ishlating.
+
 ### Baza qayerda turadi
 
 Baza `SQLITE_PATH` bo'yicha ochiladi — u **Dockerfile ichida** `/app/data/db.sqlite3` qilib
