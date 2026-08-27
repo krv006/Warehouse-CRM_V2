@@ -1,6 +1,6 @@
 from rest_framework.serializers import ModelSerializer, ReadOnlyField
 
-from apps.purchases.models import Purchase, PurchaseItem
+from apps.purchases.models import Purchase, PurchaseItem, PurchaseDocument
 
 
 class PurchaseItemSerializer(ModelSerializer):
@@ -15,8 +15,24 @@ class PurchaseItemSerializer(ModelSerializer):
         ]
 
 
+class PurchaseDocumentSerializer(ModelSerializer):
+    """Kirimga biriktirilgan hujjat (TZ 2.2)."""
+
+    kind_display = ReadOnlyField(source='get_kind_display')
+    uploaded_by_name = ReadOnlyField(source='uploaded_by.username')
+
+    class Meta:
+        model = PurchaseDocument
+        fields = [
+            'id', 'purchase', 'kind', 'kind_display', 'title', 'file',
+            'uploaded_by', 'uploaded_by_name', 'created_at',
+        ]
+        read_only_fields = ['uploaded_by']
+
+
 class PurchaseSerializer(ModelSerializer):
     items = PurchaseItemSerializer(many=True)
+    documents = PurchaseDocumentSerializer(many=True, read_only=True)
     type_display = ReadOnlyField(source='get_type_display')
     status_display = ReadOnlyField(source='get_status_display')
     warehouse_name = ReadOnlyField(source='warehouse.name')
@@ -31,7 +47,7 @@ class PurchaseSerializer(ModelSerializer):
             'id', 'number', 'type', 'type_display', 'status', 'status_display',
             'supplier', 'warehouse', 'warehouse_name', 'contract', 'currency',
             'exchange_rate', 'lead_days', 'ordered_at', 'expected_at', 'received_at',
-            'customs_duty', 'tax_amount', 'invoice_number', 'note', 'items',
+            'customs_duty', 'tax_amount', 'invoice_number', 'note', 'items', 'documents',
             'items_total', 'total_amount', 'days_left', 'color',
             'created_by', 'created_at',
         ]

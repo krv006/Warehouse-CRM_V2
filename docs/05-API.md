@@ -182,6 +182,8 @@ POST /api/configurations/12/attach/
 | GET | `/purchases/{id}/timeline/` | import kunlari line chart |
 | GET | `/purchases/in-transit/` | yo'ldagilar |
 | GET/POST | `/purchase-items/` | |
+| GET/POST | `/purchase-documents/` | hujjat yuklash — bugalter (TZ 2.2) |
+| GET/PUT/PATCH/DELETE | `/purchase-documents/{id}/` | filtr: `purchase`, `kind` |
 
 Filtr: `type`, `status`, `warehouse`, `currency`.
 
@@ -204,6 +206,15 @@ POST /api/purchases/
   ]
 }
 ```
+
+**Hujjat biriktirish** (TZ 2.2 — import hujjatlari, bugalter yuklaydi):
+```
+POST /api/purchase-documents/   (multipart/form-data)
+purchase=3, kind=customs, title=Bojxona deklaratsiyasi, file=<fayl>
+```
+
+`kind`: `contract` (shartnoma), `invoice` (invoys), `customs` (bojxona deklaratsiyasi), `other`.
+Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmaydi (403).
 
 **Timeline javobi:**
 ```json

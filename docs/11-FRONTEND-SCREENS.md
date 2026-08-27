@@ -264,7 +264,8 @@ qator qo'shishda `product` o'rniga `product_name` yozilsa, mahsulot katalogga tu
 | Ekran | Endpoint |
 |---|---|
 | Ro'yxat | `GET /purchases/` · filtr `?type=local|import|ustav`, `?status=` |
-| Karta | `GET /purchases/{id}/` — `items[]`, `customs_duty`, `tax_amount`, `total_amount` |
+| Karta | `GET /purchases/{id}/` — `items[]`, `documents[]`, `customs_duty`, `tax_amount`, `total_amount` |
+| Hujjat yuklash | `POST /purchase-documents/` (multipart) — bugalter; `kind`: shartnoma / invoys / bojxona / boshqa |
 | Yo'ldagilar | `GET /purchases/in-transit/` |
 | Import grafigi | `GET /purchases/{id}/timeline/` |
 | Qabul qilish | `POST /purchases/{id}/receive/` (bugalter/admin) |
@@ -386,6 +387,7 @@ Bular alohida ekran emas — yuqoridagi sahifalar ichida ishlatiladi.
 | `/api/configuration-items/` | Configurator — qatorni alohida tahrirlash | GET, POST, PATCH, DELETE |
 | `/api/product-specs/` | Mahsulot kartasi — zavod tarkibi | GET |
 | `/api/purchase-items/` | Kirim kartasi — qatorlar | GET, POST, PATCH, DELETE |
+| `/api/purchase-documents/` | Kirim kartasi — biriktirilgan hujjatlar (TZ 2.2) | GET, POST (bugalter), PATCH, DELETE |
 | `/api/replenishment-items/` | To'ldirish kartasi — qatorlar va **yangi mahsulot qo'shish** | GET, POST, PATCH, DELETE |
 | `/api/replenishment-approvals/` | To'ldirish kartasi — tasdiqlash tarixi | GET |
 | `/api/replenishment-events/` | To'ldirish kartasi — yetkazib berish bosqichlari | GET |

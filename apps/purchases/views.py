@@ -3,8 +3,12 @@ from rest_framework.response import Response
 from apps.accounts.permissions import PurchaseAccess
 from apps.core.mixins import BaseModelViewSet
 from apps.core.models import ActivityLog
-from apps.purchases.models import Purchase, PurchaseItem
-from apps.purchases.serializers import PurchaseSerializer, PurchaseItemSerializer
+from apps.purchases.models import Purchase, PurchaseItem, PurchaseDocument
+from apps.purchases.serializers import (
+    PurchaseSerializer,
+    PurchaseItemSerializer,
+    PurchaseDocumentSerializer,
+)
 from apps.purchases.services import receive_purchase
 
 
@@ -14,7 +18,7 @@ class PurchaseViewSet(BaseModelViewSet):
     queryset = (
         Purchase.objects
         .select_related('warehouse', 'contract', 'created_by')
-        .prefetch_related('items__product')
+        .prefetch_related('items__product', 'documents__uploaded_by')
         .all()
     )
     serializer_class = PurchaseSerializer
@@ -63,3 +67,16 @@ class PurchaseItemViewSet(BaseModelViewSet):
     serializer_class = PurchaseItemSerializer
     permission_classes = [PurchaseAccess]
     filterset_fields = ['purchase', 'product']
+
+
+class PurchaseDocumentViewSet(BaseModelViewSet):
+    """Kirim hujjatlari — hujjatlar bilan bugalter ishlaydi (TZ 2.2, 8.2)."""
+
+    queryset = PurchaseDocument.objects.select_related('purchase', 'uploaded_by').all()
+    serializer_class = PurchaseDocumentSerializer
+    permission_classes = [PurchaseAccess]
+    filterset_fields = ['purchase', 'kind']
+
+    def perform_create(self, serializer):
+        document = serializer.save(uploaded_by=self._current_user())
+        self.log_action(ActivityLog.Action.CREATE, document)

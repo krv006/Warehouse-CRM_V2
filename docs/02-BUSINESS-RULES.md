@@ -25,6 +25,18 @@ Bu fayl TZ dagi talablarni kodga qanday tushirilgani bilan birga ko'rsatadi.
 
 Umumiy summa: `items_total + customs_duty + tax_amount`.
 
+### Import hujjatlari (TZ 2.2)
+
+Har bir kirimga bir nechta hujjat biriktiriladi — `PurchaseDocument`:
+`contract` (shartnoma), `invoice` (invoys), `customs` (bojxona deklaratsiyasi), `other`.
+Hujjatlar bilan **bugalter** ishlaydi (TZ 8.2): yuklash va o'zgartirish faqat unda
+(va adminda), buyurtmachi ko'radi, sales bu bo'limga kirmaydi.
+`POST /api/purchase-documents/` (multipart), kirim javobida `documents[]`.
+
+> Bojxona boji va soliq (`customs_duty`, `tax_amount`) hozircha **qo'lda** kiritiladi —
+> TZ "avtomatik hisoblanishi kerak" deydi, lekin stavkalar (qiymat chegaralari va foizlar)
+> TZ da berilmagan. Stavkalar aniqlashgach avtomatik hisob qo'shiladi.
+
 ---
 
 ## 2. Chiqim

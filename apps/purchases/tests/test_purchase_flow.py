@@ -8,7 +8,7 @@ from apps.accounts.models import User
 from apps.finance.models import CashTransaction
 from apps.inventory.models import Product, Warehouse
 from apps.inventory.services import available_quantity
-from apps.purchases.models import Purchase, PurchaseItem
+from apps.purchases.models import Purchase, PurchaseItem, PurchaseDocument
 
 
 class PurchaseFlowTests(APITestCase):
@@ -92,3 +92,62 @@ class PurchaseFlowTests(APITestCase):
             'items': [],
         }, format='json')
         self.assertEqual(response.status_code, 403)
+
+
+class PurchaseDocumentTests(APITestCase):
+    """TZ 2.2: import hujjatlari kirimga biriktiriladi, ular bilan bugalter ishlaydi."""
+
+    def setUp(self):
+        self.bugalter = User.objects.create_user('bug', password='p', role=User.Role.BUGALTER)
+        self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
+        self.supplier = User.objects.create_user(
+            'buyurtmachi', password='p', role=User.Role.SUPPLIER,
+        )
+        warehouse = Warehouse.objects.create(name='Asosiy ombor')
+        self.purchase = Purchase.objects.create(
+            type=Purchase.Type.IMPORT, supplier='Shenzhen Tech', warehouse=warehouse,
+        )
+        self.client.force_authenticate(self.bugalter)
+
+    def _upload(self, **extra):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        payload = {
+            'purchase': self.purchase.id,
+            'kind': PurchaseDocument.Kind.CUSTOMS,
+            'title': 'Bojxona deklaratsiyasi',
+            'file': SimpleUploadedFile('deklaratsiya.pdf', b'PDF-DATA'),
+        }
+        payload.update(extra)
+        return self.client.post('/api/purchase-documents/', payload, format='multipart')
+
+    def test_bugalter_uploads_document(self):
+        response = self._upload()
+        self.assertEqual(response.status_code, 201, response.data)
+        document = PurchaseDocument.objects.get()
+        self.assertEqual(document.uploaded_by, self.bugalter)
+        self.assertEqual(document.kind, PurchaseDocument.Kind.CUSTOMS)
+
+    def test_documents_come_inside_purchase(self):
+        self._upload()
+        response = self.client.get(f'/api/purchases/{self.purchase.id}/')
+        self.assertEqual(len(response.data['documents']), 1)
+        self.assertEqual(
+            response.data['documents'][0]['kind_display'], 'Bojxona deklaratsiyasi',
+        )
+
+    def test_multiple_documents_per_purchase(self):
+        for kind in [PurchaseDocument.Kind.CONTRACT, PurchaseDocument.Kind.INVOICE,
+                     PurchaseDocument.Kind.CUSTOMS]:
+            self._upload(kind=kind)
+        self.assertEqual(PurchaseDocument.objects.count(), 3)
+
+    def test_sales_cannot_even_read(self):
+        self.client.force_authenticate(self.sales)
+        self.assertEqual(self.client.get('/api/purchase-documents/').status_code, 403)
+
+    def test_supplier_reads_but_cannot_upload(self):
+        self._upload()
+        self.client.force_authenticate(self.supplier)
+        self.assertEqual(self.client.get('/api/purchase-documents/').status_code, 200)
+        self.assertEqual(self._upload().status_code, 403)

@@ -164,6 +164,18 @@ Ombor yozish endi admin, bugalter va buyurtmachida (avval barcha login qilganlar
 ombor sahifasida sales uchun "Qo'shish / Tahrirlash" tugmalarini yashiring.
 To'liq jadval: [03-ROLES-PERMISSIONS.md](03-ROLES-PERMISSIONS.md).
 
+## 8.1.1 Import hujjatlari 🆕
+
+TZ 2.2 dagi "document" qismi: kirimga fayl biriktirish qo'shildi.
+
+- `POST /purchase-documents/` (multipart) — `purchase`, `kind`, `title`, `file`
+- `kind`: `contract` / `invoice` / `customs` / `other`
+- Yuklash — bugalter (va admin); buyurtmachi ko'radi; sales — 403
+- Kirim javobida `documents[]` ichma-ich keladi
+
+**Frontendga ta'siri:** kirim kartasiga "Hujjatlar" bloki (ro'yxat + yuklash tugmasi
+bugalterga) qo'shilsin.
+
 ## 8.2 Katalog TZ ga moslandi 🔴 breaking
 
 TZ da mahsulot katalogini boshqarish bo'limi yo'q — shuning uchun:
@@ -213,8 +225,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **85** |
+| REST endpoint | 70 | **87** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
-| Modellar | 23 | **27** |
-| Testlar | 66 | **113** |
+| Modellar | 23 | **28** |
+| Testlar | 66 | **118** |
 | Rollar | 3 | **4** |

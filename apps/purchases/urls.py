@@ -3,7 +3,11 @@
 from django.urls import path
 
 from apps.core.routing import DETAIL, LIST
-from apps.purchases.views import PurchaseViewSet, PurchaseItemViewSet
+from apps.purchases.views import (
+    PurchaseViewSet,
+    PurchaseItemViewSet,
+    PurchaseDocumentViewSet,
+)
 
 urlpatterns = [
     path('purchases/', PurchaseViewSet.as_view(LIST), name='purchase-list'),
@@ -20,4 +24,7 @@ urlpatterns = [
 
     path('purchase-items/', PurchaseItemViewSet.as_view(LIST), name='purchaseitem-list'),
     path('purchase-items/<int:pk>/', PurchaseItemViewSet.as_view(DETAIL), name='purchaseitem-detail'),
+
+    path('purchase-documents/', PurchaseDocumentViewSet.as_view(LIST), name='purchasedocument-list'),
+    path('purchase-documents/<int:pk>/', PurchaseDocumentViewSet.as_view(DETAIL), name='purchasedocument-detail'),
 ]
