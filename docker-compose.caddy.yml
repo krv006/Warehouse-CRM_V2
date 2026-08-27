@@ -1,0 +1,19 @@
+# Serverda 80/443 ni Caddy egallagan bo'lsa ishlatiladi:
+#
+#   docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+#
+# Konteyner Caddy tarmog'iga ham ulanadi — shunda Caddy uni nomi bilan topadi
+# (reverse_proxy ombor-crm:8000) va bu ulanish qayta yig'ilganda ham yo'qolmaydi.
+#
+# Tarmoq nomi .env dagi CADDY_NETWORK dan olinadi.
+
+services:
+  web:
+    networks:
+      - default
+      - caddy
+
+networks:
+  caddy:
+    external: true
+    name: ${CADDY_NETWORK:-edu_platform_default}

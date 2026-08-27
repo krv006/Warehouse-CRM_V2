@@ -17,5 +17,6 @@ urlpatterns = [
     path('api/docs/', SpectacularSwaggerView.as_view(url_name='schema'), name='swagger-ui'),
 ]
 
-if settings.DEBUG:
+# Media fayllar: oldida nginx/Caddy file server bo'lmasa, Django o'zi beradi
+if settings.DEBUG or settings.SERVE_MEDIA:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

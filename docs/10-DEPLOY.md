@@ -71,6 +71,39 @@ Konteyner faqat `127.0.0.1:8089` da turadi — serverdagi boshqa saytlarga (`the
 > Serverda umuman nginx bo'lmasa: `docker compose --profile with-nginx up -d --build` —
 > shunda 80-portni docker ichidagi nginx egallaydi.
 
+### Agar serverda Caddy ishlayotgan bo'lsa
+
+80/443 portlarni Caddy (yoki boshqa reverse proxy) egallagan bo'lsa, nginx kerak emas —
+`server-setup.sh` buni o'zi aniqlaydi va:
+
+1. `.env` ga `CADDY_NETWORK` ni yozadi
+2. konteynerni `docker-compose.caddy.yml` bilan ko'taradi — shunda `ombor-crm` Caddy tarmog'ida
+   ham bo'ladi va qayta yig'ilganda ham shu tarmoqda qoladi
+3. Caddyfile ga blok qo'shadi (avval zaxira nusxa oladi), `caddy validate` qilib `caddy reload` beradi
+
+Caddyfile ga qo'shiladigan blok ([deploy/Caddyfile](../deploy/Caddyfile)):
+
+```
+ombor.thesofmebel.uz {
+    reverse_proxy ombor-crm:8000
+}
+```
+
+TLS sertifikatini Caddy o'zi oladi — `certbot` shart emas.
+
+Qo'lda qilmoqchi bo'lsangiz:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml up -d --build
+```
+
+```bash
+docker exec edu_platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile
+```
+
+> Static fayllarni **whitenoise** beradi, media fayllarni Django o'zi beradi (`SERVE_MEDIA=True`) —
+> shuning uchun proxy tomonda alohida `file_server` sozlash shart emas.
+
 ### Kundalik ishlar
 
 > `make` o'rnatilgan bo'lsa (`sudo apt install make`), shu jadvaldagilarni
@@ -147,6 +180,8 @@ nginx portini `127.0.0.1:8080:80` ga o'zgartirish qulayroq.
 | `CSRF_TRUSTED_ORIGINS` | Admin panel uchun domen | bo'sh |
 | `CORS_ALLOWED_ORIGINS` | React manzili | `http://localhost:5173,http://127.0.0.1:5173` |
 | `WEB_PORT` | Docker konteyneri turadigan port (127.0.0.1) | `8089` |
+| `CADDY_NETWORK` | Caddy docker tarmog'i (skript o'zi to'ldiradi) | — |
+| `SERVE_MEDIA` | Media fayllarni Django bersinmi | `True` |
 | `SQLITE_PATH` | Baza fayli yo'li | `<loyiha>/db.sqlite3` |
 | `DJANGO_SUPERUSER_*` | Birinchi ishga tushishda admin ochish | bo'sh |
 

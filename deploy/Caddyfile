@@ -1,0 +1,31 @@
+# Serverda 80/443 portlarni Caddy egallagan bo'lsa (nginx kerak emas),
+# shu blokni mavjud Caddyfile ga qo'shing.
+#
+# TLS sertifikatini Caddy o'zi oladi va yangilab turadi — certbot shart emas.
+#
+# 1) Ikkala konteyner bitta tarmoqda bo'lsin:
+#      docker network connect <caddy_tarmogi> ombor-crm
+#
+# 2) Shu blokni Caddyfile ga qo'shing
+#
+# 3) Caddy'ni qayta yuklang:
+#      docker exec <caddy_konteyner> caddy reload --config /etc/caddy/Caddyfile
+#
+# Static fayllarni whitenoise, media fayllarni Django o'zi beradi —
+# shuning uchun bu yerda alohida file_server sozlash shart emas.
+
+ombor.thesofmebel.uz {
+	reverse_proxy ombor-crm:8000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote}
+		header_up X-Forwarded-Proto {scheme}
+	}
+
+	# Mahsulot rasmi va ACT hujjatlari uchun
+	request_body {
+		max_size 25MB
+	}
+
+	encode gzip
+}
