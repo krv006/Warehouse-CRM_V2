@@ -22,7 +22,7 @@ Xato: `401` → "Login yoki parol noto'g'ri".
 | Dashboard | ✅ | ✅ | ✅ | ✅ |
 | Sotuv (Leads, Shartnomalar) | ✅ | ✅ | ✅ | 👁 |
 | To'ldirish (Buyurtmachi) | ✅ | ✅ | ⛔ | ✅ |
-| Ombor | ✅ | ✅ | 👁 | ✅ |
+| Ombor | 👁 | 👁 | 👁 | 👁 |
 | Configurator | ✅ | ✅ | ✅ | ✅ |
 | Kirim | ✅ | ✅ | ⛔ | 👁 |
 | Kassa | ✅ | ✅ | ⛔ | ⛔ |
@@ -242,16 +242,19 @@ Yakunlangach `variant_sku` paydo bo'ladi — bu ombordagi yangi tayyor pozitsiya
 
 ## 5. Ombor
 
+**Bu bo'lim faqat ko'rish uchun** — "Qo'shish / Tahrirlash" tugmalari bo'lmaydi.
+
 | Ekran | Endpoint | Izoh |
 |---|---|---|
-| Mahsulotlar | `GET /products/` | filtr: `kind`, `category`, `is_active`; `total_stock`, `is_low_stock` |
+| Mahsulotlar | `GET /products/` | filtr: `kind`, `is_active`, `base_model`; `total_stock`, `is_low_stock` |
 | Mahsulot kartasi | `GET /products/{id}/` | `specs[]` — tarkibi; `base_model` bo'lsa "variant" belgisi |
 | Qoldiqlar | `GET /stocks/` | filtr: `product`, `warehouse` |
-| Harakatlar | `GET /movements/` | filtr: `type`, `reason`, `warehouse` |
-| Qo'lda kirim/chiqim | `POST /movements/` | `type`: `in` / `out` / `adjust` |
-| Kategoriya, ombor | `GET/POST /categories/`, `/warehouses/` | |
+| Harakatlar tarixi | `GET /movements/` | filtr: `type`, `reason`, `warehouse` |
+| Omborlar | `GET /warehouses/` | |
 
-`adjust` — `quantity` yakuniy qoldiqni bildiradi (foydalanuvchiga tushuntiring).
+**Yangi mahsulot qayerdan qo'shiladi:** Buyurtmachining to'ldirish buyurtmasida —
+qator qo'shishda `product` o'rniga `product_name` yozilsa, mahsulot katalogga tushadi
+(§3.2 ga qarang). Configurator ham yakunlanganda yangi variant qo'shadi.
 
 ---
 

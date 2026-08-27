@@ -32,8 +32,6 @@ WRITE_MATRIX = {
     '/api/contracts/': {'admin', 'sales'},
     '/api/configurations/': {'admin', 'bugalter', 'sales', 'buyurtmachi'},
     '/api/acts/': {'admin'},
-    '/api/products/': {'admin', 'bugalter', 'buyurtmachi'},
-    '/api/movements/': {'admin', 'bugalter', 'buyurtmachi'},
     '/api/cash-transactions/': {'admin', 'bugalter'},
     '/api/loans/': {'admin', 'bugalter'},
     '/api/purchases/': {'admin', 'bugalter'},
@@ -82,10 +80,19 @@ class RoleMatrixTests(APITestCase):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 403)
 
-    def test_sales_reads_inventory_but_cannot_change_it(self):
-        """Sales narx va qoldiqni ko'radi, lekin omborni o'zgartira olmaydi."""
-        self.client.force_authenticate(self.users['sales'])
-        self.assertEqual(self.client.get('/api/products/').status_code, 200)
-        self.assertEqual(self.client.get('/api/stocks/').status_code, 200)
-        self.assertEqual(self.client.post('/api/products/', {}, format='json').status_code, 403)
-        self.assertEqual(self.client.post('/api/movements/', {}, format='json').status_code, 403)
+    def test_catalog_is_read_only_for_everyone(self):
+        """TZ da alohida "mahsulot qo'shish" yo'q — katalog faqat o'qish uchun.
+
+        Yangi mahsulot Buyurtmachi to'ldirish buyurtmasiga qator qo'shganda
+        paydo bo'ladi (TZ 7), ombor qoldig'i esa Kirim/Chiqim orqali o'zgaradi.
+        """
+        for role, user in self.users.items():
+            self.client.force_authenticate(user)
+            for url in ['/api/products/', '/api/stocks/', '/api/movements/',
+                        '/api/warehouses/', '/api/product-specs/']:
+                with self.subTest(role=role, url=url):
+                    self.assertEqual(self.client.get(url).status_code, 200)
+                    self.assertEqual(
+                        self.client.post(url, {}, format='json').status_code, 405,
+                        f"{url} yozish uchun ochiq bo'lmasligi kerak",
+                    )

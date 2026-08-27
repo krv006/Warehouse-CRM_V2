@@ -4,13 +4,12 @@ from django.test import TestCase
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import User
-from apps.inventory.models import Category, Product, Stock, StockMovement, Warehouse
+from apps.inventory.models import Product, Stock, StockMovement, Warehouse
 from apps.inventory.services import apply_movement, available_quantity
 
 
 def make_product(sku='SSD-1TB', name='SSD 1 TB', kind=Product.Kind.COMPONENT):
-    category = Category.objects.get_or_create(name='Butlovchilar')[0]
-    return Product.objects.create(sku=sku, name=name, kind=kind, category=category)
+    return Product.objects.create(sku=sku, name=name, kind=kind)
 
 
 class StockServiceTests(TestCase):
@@ -49,8 +48,8 @@ class StockServiceTests(TestCase):
         self.assertTrue(self.product.is_low_stock)
 
 
-class StockMovementApiTests(APITestCase):
-    """Movement API orqali qoldiq yangilanadi va created_by yoziladi."""
+class StockReadOnlyApiTests(APITestCase):
+    """Katalog va qoldiq API'da faqat o'qish uchun (TZ 1: qoldiq Kirim/Chiqim orqali)."""
 
     def setUp(self):
         self.user = User.objects.create_user('admin', password='p', role=User.Role.ADMIN)
@@ -58,13 +57,25 @@ class StockMovementApiTests(APITestCase):
         self.warehouse = Warehouse.objects.create(name='Ombor 1')
         self.client.force_authenticate(self.user)
 
-    def test_create_movement_updates_stock(self):
-        response = self.client.post('/api/movements/', {
-            'product': self.product.id,
-            'warehouse': self.warehouse.id,
-            'type': StockMovement.Type.IN,
-            'quantity': '7',
-        })
-        self.assertEqual(response.status_code, 201, response.data)
+    def test_read_endpoints_work(self):
+        for url in ['/api/products/', '/api/stocks/', '/api/movements/', '/api/warehouses/']:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.get(url).status_code, 200)
+
+    def test_manual_write_is_not_available(self):
+        """Qoldiqni qo'lda o'zgartirish yo'q — faqat jarayonlar orqali."""
+        for url in ['/api/products/', '/api/stocks/', '/api/movements/']:
+            with self.subTest(url=url):
+                self.assertEqual(self.client.post(url, {}, format='json').status_code, 405)
+
+    def test_service_records_movement(self):
+        apply_movement(
+            product=self.product,
+            warehouse=self.warehouse,
+            type=StockMovement.Type.IN,
+            quantity=Decimal('7'),
+            user=self.user,
+        )
         self.assertEqual(available_quantity(self.product), Decimal('7.00'))
-        self.assertEqual(StockMovement.objects.get().created_by, self.user)
+        movement = StockMovement.objects.get()
+        self.assertEqual(movement.created_by, self.user)

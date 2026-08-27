@@ -30,11 +30,11 @@ apps/<app>/
 `models/__init__.py` namunasi:
 
 ```python
-from apps.inventory.models.category import Category
 from apps.inventory.models.warehouse import Warehouse
 from apps.inventory.models.product import Product
+from apps.inventory.models.stock import Stock
 
-__all__ = ['Category', 'Warehouse', 'Product']
+__all__ = ['Warehouse', 'Product', 'Stock']
 ```
 
 Boshqa joydan import doim paketdan qilinadi:
@@ -79,7 +79,7 @@ Xuddi shu qoida hamma joyda:
 ## 3. ForeignKey — aniq "app.Model" satri
 
 ```python
-category = ForeignKey('inventory.Category', PROTECT, related_name='products')
+product = ForeignKey('inventory.Product', PROTECT, related_name='contract_items')
 created_by = ForeignKey('accounts.User', SET_NULL, related_name='orders', null=True, blank=True)
 ```
 
@@ -95,7 +95,7 @@ Qaysi `on_delete`?
 | Vaziyat | Tanlov |
 |---|---|
 | Qator o'z egasisiz mavjud bo'la olmaydi (`OrderItem` → `Order`) | `CASCADE` |
-| Ma'lumotnoma o'chib ketmasligi kerak (`Product` → `Category`) | `PROTECT` |
+| Ma'lumotnoma o'chib ketmasligi kerak (`ContractItem` → `Product`) | `PROTECT` |
 | Foydalanuvchi / ixtiyoriy bog'lanish | `SET_NULL` |
 
 ---
@@ -128,13 +128,12 @@ class Purchase(TimeStampedModel):
 
 ```python
 class ProductSerializer(ModelSerializer):
-    category_name = ReadOnlyField(source='category.name')
-    unit_display = ReadOnlyField(source='get_unit_display')
+    kind_display = ReadOnlyField(source='get_kind_display')
     total_stock = ReadOnlyField()
 
     class Meta:
         model = Product
-        fields = ['id', 'sku', 'name', 'category', 'category_name', 'unit', 'unit_display', 'total_stock']
+        fields = ['id', 'sku', 'name', 'kind', 'kind_display', 'sale_price', 'total_stock']
 ```
 
 - `get_x_display` va `..._name` maydonlari `ReadOnlyField` bilan.

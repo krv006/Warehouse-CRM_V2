@@ -44,7 +44,7 @@ root/urls.py
         └── apps/urls.py
               ├── apps/accounts/urls.py    → users/ + auth/login/ + auth/refresh/
               ├── apps/clients/urls.py     → clients/
-              ├── apps/inventory/urls.py   → categories/ warehouses/ products/ ...
+              ├── apps/inventory/urls.py   → warehouses/ products/ stocks/ ... (faqat GET)
               ├── apps/configurator/urls.py→ acts/ configurations/ ...
               ├── apps/purchases/urls.py   → purchases/ purchase-items/
               ├── apps/sales/urls.py       → leads/ contracts/ ...
@@ -105,9 +105,11 @@ Bitta `Client` modeli, ikki tur: `individual` va `legal`. Turga qarab majburiy m
 (serializer + model `clean()` da tekshiriladi).
 
 ### `apps/inventory` — ombor
-`Category`, `Warehouse`, `Product` (`machine` / `component` / `other`), `ProductSpec` (bazaviy model tarkibi),
+`Warehouse`, `Product` (`machine` / `component` / `other`), `ProductSpec` (bazaviy model tarkibi),
 `Stock`, `StockMovement`.
-`services.py`: `apply_movement()`, `sync_stock()`, `available_quantity()` — qoldiq faqat shu yerda o'zgaradi.
+`services.py`: `apply_movement()`, `sync_stock()`, `available_quantity()` — qoldiq faqat shu yerda o'zgaradi;
+`create_product_from_order()` — buyurtma qilinganda yangi mahsulotni katalogga qo'shadi (TZ 7).
+API tomonda bu ilova **faqat o'qish** uchun.
 
 ### `apps/configurator` — konfigurator
 `Act` (faqat admin kiritadi), `Configuration`, `ConfigurationItem`.

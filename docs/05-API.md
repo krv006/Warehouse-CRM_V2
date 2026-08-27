@@ -89,24 +89,28 @@ Bugalter `POST` qilsa → `403`.
 
 ## Ombor
 
-| Endpoint | Filtrlar |
+Ombor bo'limi **faqat o'qish uchun** — TZ da alohida "mahsulot qo'shish" oynasi yo'q.
+
+| Endpoint | Metod | Filtrlar |
+|---|---|---|
+| `/warehouses/` | GET | `is_active` |
+| `/products/` | GET | `kind`, `is_active`, `base_model` |
+| `/product-specs/` | GET | `product`, `component` |
+| `/stocks/` | GET | `product`, `warehouse` |
+| `/movements/` | GET | `product`, `warehouse`, `type`, `reason` |
+
+Mahsulot javobi: `sku`, `name`, `kind`, `cost_price`, `sale_price`, `stock_price`,
+`reorder_level`, `total_stock`, `is_low_stock`, `base_model`, `is_variant`, `signature`, `specs[]`.
+
+**Yangi mahsulot qayerdan keladi:**
+
+| Yo'l | Qanday |
 |---|---|
-| `/categories/` | `parent` |
-| `/warehouses/` | `is_active` |
-| `/products/` | `category`, `kind`, `unit`, `is_active` |
-| `/product-specs/` | `product`, `component` |
-| `/stocks/` | `product`, `warehouse` |
-| `/movements/` | `product`, `warehouse`, `type`, `reason` |
+| Buyurtmachi buyurtma qiladi | `POST /replenishment-items/` da `product_name` yuboriladi — mahsulot shu qator bilan katalogga tushadi (TZ 7) |
+| Configurator variant yaratadi | `POST /configurations/{id}/finalize/` yangi tarkibni tayyor pozitsiya qilib qo'shadi (TZ 6.2) |
 
-`POST /movements/` qoldiqni avtomatik yangilaydi:
-
-```json
-{"product": 5, "warehouse": 1, "type": "in", "quantity": "10"}
-```
-
-`type`: `in` (kirim), `out` (chiqim), `adjust` (yakuniy qoldiqni o'rnatadi).
-
-Mahsulot javobida `total_stock`, `is_low_stock` va `specs` bo'ladi.
+**Qoldiq qanday o'zgaradi:** faqat jarayonlar orqali — `POST /purchases/{id}/receive/`
+va `POST /replenishments/{id}/receive/` (TZ 1-bo'lim: Kirim va Chiqim).
 
 ---
 
@@ -309,6 +313,25 @@ Natija: `status = active`, `start_date = bugun`, kassaga `sale` kirimi tushadi.
 | POST | `/replenishments/{id}/receive/` | buyurtmachi / bugalter |
 | GET | `/replenishments/{id}/timeline/` | hamma |
 | GET/POST/PATCH/DELETE | `/replenishment-items/` | admin doim, buyurtmachi qoralamada |
+
+**Buyurtmaga qator qo'shish = mahsulot qo'shish (TZ 7):**
+
+```json
+POST /api/replenishment-items/
+{
+  "replenishment": 7,
+  "product_name": "RAM 16 GB",
+  "product_sku": "RAM-16",
+  "quantity": "5",
+  "unit_price": "350000"
+}
+```
+
+- `product_name` yuborilsa va bunday mahsulot bazada bo'lmasa — u **katalogga qo'shiladi**
+  (`product_sku` berilmasa, `MAH-00001` ko'rinishida raqam beriladi)
+- Bazada bor mahsulot uchun oddiy `"product": 5` yuboriladi
+- Nomi mos keladigan mahsulot bo'lsa, dublikat yaratilmaydi
+- `product` ham, `product_name` ham bo'lmasa — `400`
 | GET | `/replenishment-approvals/`, `/replenishment-events/` | faqat o'qish |
 
 **Yetishmayotganlar ro'yxati:**

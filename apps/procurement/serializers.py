@@ -1,5 +1,13 @@
-from rest_framework.serializers import ModelSerializer, ReadOnlyField
+from rest_framework.serializers import (
+    CharField,
+    ModelSerializer,
+    PrimaryKeyRelatedField,
+    ReadOnlyField,
+    ValidationError,
+)
 
+from apps.inventory.models import Product
+from apps.inventory.services import create_product_from_order
 from apps.procurement.models import (
     Replenishment,
     ReplenishmentApproval,
@@ -9,8 +17,21 @@ from apps.procurement.models import (
 
 
 class ReplenishmentItemSerializer(ModelSerializer):
-    product_name = ReadOnlyField(source='product.name')
-    product_sku = ReadOnlyField(source='product.sku')
+    """To'ldirish qatori.
+
+    TZ 7: buyurtma qilishning o'zi mahsulot qo'shish hisoblanadi. Shuning uchun
+    bazada hali yo'q tovar uchun `product` o'rniga `product_name` yuboriladi —
+    mahsulot shu qator bilan birga katalogga tushadi.
+    """
+
+    product = PrimaryKeyRelatedField(
+        queryset=Product.objects.all(), required=False, allow_null=True,
+    )
+    product_name = CharField(write_only=True, required=False, allow_blank=True)
+    product_sku = CharField(write_only=True, required=False, allow_blank=True)
+
+    product_display = ReadOnlyField(source='product.name')
+    product_code = ReadOnlyField(source='product.sku')
     subtotal = ReadOnlyField()
     needs_price = ReadOnlyField()
 
@@ -18,8 +39,35 @@ class ReplenishmentItemSerializer(ModelSerializer):
         model = ReplenishmentItem
         fields = [
             'id', 'replenishment', 'product', 'product_name', 'product_sku',
-            'quantity', 'unit_price', 'subtotal', 'needs_price', 'supplier', 'note',
+            'product_display', 'product_code', 'quantity', 'unit_price',
+            'subtotal', 'needs_price', 'supplier', 'note',
         ]
+
+    def validate(self, attrs):
+        has_product = attrs.get('product') or (self.instance and self.instance.product_id)
+        if not has_product and not (attrs.get('product_name') or attrs.get('product_sku')):
+            raise ValidationError({
+                'product': 'Mahsulotni tanlang yoki yangi mahsulot nomini kiriting.',
+            })
+        return attrs
+
+    def _resolve_product(self, validated_data):
+        name = validated_data.pop('product_name', '')
+        sku = validated_data.pop('product_sku', '')
+        if validated_data.get('product'):
+            return validated_data
+        validated_data['product'] = create_product_from_order(
+            name=name, sku=sku, cost_price=validated_data.get('unit_price') or 0,
+        )
+        return validated_data
+
+    def create(self, validated_data):
+        return super().create(self._resolve_product(validated_data))
+
+    def update(self, instance, validated_data):
+        validated_data.pop('product_name', None)
+        validated_data.pop('product_sku', None)
+        return super().update(instance, validated_data)
 
 
 class ReplenishmentApprovalSerializer(ModelSerializer):

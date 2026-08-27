@@ -5,25 +5,12 @@ from rest_framework.serializers import (
 )
 
 from apps.inventory.models import (
-    Category,
     Warehouse,
     Product,
     ProductSpec,
     Stock,
     StockMovement,
 )
-
-
-class CategorySerializer(ModelSerializer):
-    parent_name = ReadOnlyField(source='parent.name')
-    product_count = SerializerMethodField()
-
-    class Meta:
-        model = Category
-        fields = ['id', 'name', 'parent', 'parent_name', 'product_count']
-
-    def get_product_count(self, obj):
-        return obj.products.count()
 
 
 class WarehouseSerializer(ModelSerializer):
@@ -33,6 +20,8 @@ class WarehouseSerializer(ModelSerializer):
 
 
 class ProductSpecSerializer(ModelSerializer):
+    """Bazaviy modelning zavod tarkibi (TZ 6.1)."""
+
     component_name = ReadOnlyField(source='component.name')
     component_stock = SerializerMethodField()
 
@@ -48,19 +37,19 @@ class ProductSpecSerializer(ModelSerializer):
 
 
 class ProductSerializer(ModelSerializer):
-    category_name = ReadOnlyField(source='category.name')
-    unit_display = ReadOnlyField(source='get_unit_display')
     kind_display = ReadOnlyField(source='get_kind_display')
+    stock_price = ReadOnlyField()
     total_stock = ReadOnlyField()
     is_low_stock = ReadOnlyField()
+    is_variant = ReadOnlyField()
     specs = ProductSpecSerializer(many=True, read_only=True)
 
     class Meta:
         model = Product
         fields = [
-            'id', 'sku', 'barcode', 'name', 'kind', 'kind_display', 'description',
-            'category', 'category_name', 'unit', 'unit_display', 'cost_price',
-            'sale_price', 'reorder_level', 'image', 'is_active',
+            'id', 'sku', 'name', 'kind', 'kind_display', 'description',
+            'cost_price', 'sale_price', 'stock_price', 'reorder_level',
+            'is_active', 'base_model', 'is_variant', 'signature',
             'total_stock', 'is_low_stock', 'specs',
         ]
 
@@ -87,4 +76,3 @@ class StockMovementSerializer(ModelSerializer):
             'type', 'type_display', 'reason', 'reason_display', 'quantity',
             'reference', 'note', 'created_by', 'created_at',
         ]
-        read_only_fields = ['created_by']

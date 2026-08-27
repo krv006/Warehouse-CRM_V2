@@ -1,6 +1,6 @@
 # 09 — Frontend (React) integratsiya qo'llanmasi
 
-Backend to'liq tayyor va **serverda ishlab turibdi**: **89 endpoint**, 100 test,
+Backend to'liq tayyor va **serverda ishlab turibdi**: **87 endpoint**, 100 test,
 OpenAPI sxemasi xatosiz. Ishchi manzil: https://ombor.thesofmebel.uz/api/docs/
 Bu fayl — frontend yozish uchun texnik kontrakt. Ekranlar bo'yicha batafsil topshiriq:
 [11-FRONTEND-SCREENS.md](11-FRONTEND-SCREENS.md).
@@ -83,7 +83,7 @@ Kirgan foydalanuvchi: `GET /users/me/` → `{ id, username, first_name, last_nam
 | Bo'lim | admin | bugalter | sales | buyurtmachi |
 |---|:--:|:--:|:--:|:--:|
 | Dashboard | ✅ | ✅ | ✅ | ✅ |
-| Ombor (mahsulot, qoldiq, harakat) | ✅ | ✅ | 👁 | ✅ |
+| Ombor (mahsulot, qoldiq, harakat) | 👁 | 👁 | 👁 | 👁 |
 | Configurator | ✅ | ✅ | ✅ | ✅ |
 | ACT | ✅ yozadi | 👁 | 👁 | 👁 |
 | Clients | ✅ yozadi | 👁 | ✅ yozadi | ✅ yozadi |
@@ -99,6 +99,10 @@ Kirgan foydalanuvchi: `GET /users/me/` → `{ id, username, first_name, last_nam
 
 **Sales uchun muhim:** kassa, qarz, xarajat, kirim va to'ldirish bo'limlari umuman
 ochilmaydi — bu menyu bandlarini sales uchun ko'rsatmang (TZ 8.3).
+
+**Ombor bo'limi hamma uchun faqat o'qish:** "Mahsulot qo'shish" tugmasi umuman
+bo'lmasin. Yangi mahsulot Buyurtmachining to'ldirish buyurtmasida `product_name`
+yozilganda paydo bo'ladi (TZ 7), qoldiq esa Kirim/Chiqim orqali o'zgaradi.
 
 **Muhim:** UI ruxsatni yashirish uchun ishlatiladi, lekin backend baribir tekshiradi —
 `403` javobini har doim ushlab, tushunarli xabar chiqaring.

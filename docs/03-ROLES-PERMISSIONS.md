@@ -24,7 +24,6 @@
 | `IsAdminOrSales` | barcha login qilganlar | admin, sales |
 | `IsAdminOrSupplier` | barcha login qilganlar | admin, buyurtmachi |
 | `CanManageClients` | barcha login qilganlar | admin, sales, buyurtmachi |
-| `InventoryAccess` | barcha login qilganlar | admin, bugalter, buyurtmachi |
 | `FinanceAccess` | **admin, bugalter** | admin, bugalter |
 | `PurchaseAccess` | **admin, bugalter, buyurtmachi** | admin, bugalter |
 | `ProcurementAccess` | **admin, bugalter, buyurtmachi** | admin, buyurtmachi |
@@ -44,7 +43,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | `/api/activity-logs/` | **admin** | — | audit |
 | `/api/notifications/` | o'ziniki + umumiy | — | `mark-read` |
 | `/api/clients/` | hamma | admin, sales, buyurtmachi | bugalter faqat o'qiydi |
-| `/api/categories/`, `/warehouses/`, `/products/`, `/product-specs/`, `/stocks/`, `/movements/` | hamma | admin, bugalter, buyurtmachi | **sales faqat o'qiydi** |
+| `/api/warehouses/`, `/products/`, `/product-specs/`, `/stocks/`, `/movements/` | hamma | **hech kim** | katalog faqat o'qish uchun; yangi mahsulot buyurtma orqali qo'shiladi |
 | `/api/acts/` | hamma | **faqat admin** | ACT ni admin kiritadi |
 | `/api/configurations/`, `/configuration-items/` | hamma | hamma | configurator hammaga ochiq (TZ 6.5) |
 | `/api/leads/`, `/contracts/`, `/contract-items/` | hamma | admin, sales | narx faqat sales va adminga ko'rinadi |
@@ -64,7 +63,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | Shartnomalar | ✅ tuzadi, yuboradi, **sotuv narxini ko'radi** |
 | Configurator | ✅ to'liq ishlaydi |
 | ACT | 👁 faqat ko'radi |
-| Ombor (mahsulot, qoldiq, harakat) | 👁 **faqat ko'radi** — narx va qoldiqni bilish uchun |
+| Ombor (mahsulot, qoldiq, harakat) | 👁 **faqat ko'radi** — bu bo'lim hamma uchun faqat o'qish |
 | Eslatmalar | ✅ o'ziniki |
 | Kassa, qarzlar, xarajat so'rovlari | ⛔ **403** |
 | Kirim (purchases) | ⛔ **403** |

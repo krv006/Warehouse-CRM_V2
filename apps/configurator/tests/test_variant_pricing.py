@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import User
 from apps.configurator.models import Act, Configuration, ConfigurationItem
-from apps.inventory.models import Category, Product
+from apps.inventory.models import Product
 
 
 class VariantPricingTests(APITestCase):
@@ -14,20 +14,19 @@ class VariantPricingTests(APITestCase):
     def setUp(self):
         self.admin = User.objects.create_user('admin', password='p', role=User.Role.ADMIN)
         self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
-        self.category = Category.objects.create(name='Kompyuter')
         self.base = Product.objects.create(
-            sku='HP-880', name='HP 880', category=self.category, kind=Product.Kind.MACHINE,
+            sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
         )
         self.ssd = Product.objects.create(
-            sku='SSD-1TB', name='SSD 1 TB', category=self.category,
+            sku='SSD-1TB', name='SSD 1 TB',
             kind=Product.Kind.COMPONENT, sale_price=Decimal('1500000'),
         )
         self.gpu = Product.objects.create(
-            sku='GPU-32', name='GPU 32', category=self.category,
+            sku='GPU-32', name='GPU 32',
             kind=Product.Kind.COMPONENT, cost_price=Decimal('4000000'),
         )
         self.no_price = Product.objects.create(
-            sku='RAM-4', name='RAM 4', category=self.category, kind=Product.Kind.COMPONENT,
+            sku='RAM-4', name='RAM 4', kind=Product.Kind.COMPONENT,
         )
         self.act = Act.objects.create(number='ACT-001', title='ACT', issued_at=date.today())
         self.client.force_authenticate(self.sales)

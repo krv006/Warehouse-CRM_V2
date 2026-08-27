@@ -164,6 +164,27 @@ Ombor yozish endi admin, bugalter va buyurtmachida (avval barcha login qilganlar
 ombor sahifasida sales uchun "Qo'shish / Tahrirlash" tugmalarini yashiring.
 To'liq jadval: [03-ROLES-PERMISSIONS.md](03-ROLES-PERMISSIONS.md).
 
+## 8.2 Katalog TZ ga moslandi 🔴 breaking
+
+TZ da mahsulot katalogini boshqarish bo'limi yo'q — shuning uchun:
+
+| Nima | Avval | Endi |
+|---|---|---|
+| `Category` modeli va `/api/categories/` | bor edi | **butunlay o'chirildi** (TZ da yo'q) |
+| `Product.barcode`, `image`, `unit` | bor edi | **o'chirildi** (TZ da yo'q) |
+| `POST/PATCH/DELETE /products/` | ochiq edi | **yo'q** (405) |
+| `POST /movements/` (qo'lda kirim/chiqim) | ochiq edi | **yo'q** (405) — faqat jarayonlar orqali |
+| `/warehouses/`, `/stocks/`, `/product-specs/` yozish | ochiq edi | **yo'q** (405) |
+
+**Yangi mahsulot qanday qo'shiladi:** Buyurtmachi to'ldirish buyurtmasiga qator
+qo'shganda — `POST /replenishment-items/` da `product_name` (ixtiyoriy `product_sku`)
+yuboriladi va mahsulot katalogga tushadi. Ya'ni **buyurtma qilishning o'zi mahsulot
+qo'shish** (TZ 7).
+
+**Frontendga ta'siri:** ombor bo'limida "Mahsulot qo'shish", "Kategoriya" va
+"Qo'lda kirim/chiqim" oynalarini olib tashlang. To'ldirish buyurtmasi formasida esa
+mahsulot maydoni "bazadan tanlash **yoki** yangi nom yozish" ko'rinishida bo'lsin.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -192,8 +213,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| Endpoint | 72 | **89** |
+| Endpoint | 72 | **87** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
-| Modellar | 20 | **24** |
-| Testlar | 66 | **100** |
+| Modellar | 20 | **23** |
+| Testlar | 66 | **108** |
 | Rollar | 3 | **4** |

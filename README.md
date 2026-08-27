@@ -100,7 +100,7 @@ Warehouse_CRM_V2/
 │   ├── core/             # TimeStampedModel, ActivityLog, Notification, Dashboard
 │   ├── accounts/         # User (admin/bugalter/sales), permissions
 │   ├── clients/          # Client — jismoniy va yuridik shaxs
-│   ├── inventory/        # Category, Warehouse, Product, ProductSpec, Stock, StockMovement
+│   ├── inventory/        # Warehouse, Product, ProductSpec, Stock, StockMovement (API: faqat o'qish)
 │   ├── configurator/     # Act, Configuration, ConfigurationItem, Excel eksport
 │   ├── purchases/        # Kirim: UZB ichidan / Import / Ustav
 │   ├── procurement/      # Buyurtmachi: omborni to'ldirish, qarz, yetkazib berish
@@ -163,7 +163,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (100 ta).
+Barcha testlar (108 ta).
 
 ---
 

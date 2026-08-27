@@ -1,11 +1,9 @@
 from django.db.models import (
-    PROTECT,
     SET_NULL,
     BooleanField,
     CharField,
     DecimalField,
     ForeignKey,
-    ImageField,
     PositiveIntegerField,
     Sum,
     TextChoices,
@@ -16,34 +14,29 @@ from apps.core.models import TimeStampedModel
 
 
 class Product(TimeStampedModel):
-    """Ombordagi mahsulot: tayyor model yoki uning butlovchisi."""
+    """Ombordagi mahsulot: bazaviy model yoki uning butlovchisi (TZ 6.1).
+
+    Katalog ma'lumotnoma hisoblanadi — TZ mahsulot omborda mavjud deb qaraydi.
+    Qoldiq esa faqat Kirim va Chiqim jarayonlari orqali o'zgaradi (TZ 1-bo'lim).
+    """
 
     class Kind(TextChoices):
         MACHINE = 'machine', 'Tayyor model'
         COMPONENT = 'component', 'Butlovchi'
         OTHER = 'other', 'Boshqa'
 
-    class Unit(TextChoices):
-        PIECE = 'pcs', 'Dona'
-        KG = 'kg', 'Kilogramm'
-        LITER = 'l', 'Litr'
-        METER = 'm', 'Metr'
-        BOX = 'box', 'Quti'
-
     sku = CharField(max_length=50, unique=True)
-    barcode = CharField(max_length=50, blank=True)
     name = CharField(max_length=200)
     kind = CharField(max_length=20, choices=Kind.choices, default=Kind.MACHINE)
     description = TextField(blank=True)
-    category = ForeignKey('inventory.Category', PROTECT, related_name='products')
-    unit = CharField(max_length=10, choices=Unit.choices, default=Unit.PIECE)
     cost_price = DecimalField(max_digits=18, decimal_places=2, default=0)
     sale_price = DecimalField(max_digits=18, decimal_places=2, default=0)
+
+    # TZ 7.1: qoldiq shu darajadan pastga tushsa, to'ldirish ro'yxatiga tushadi
     reorder_level = PositiveIntegerField(default=0)
-    image = ImageField(upload_to='products/', null=True, blank=True)
     is_active = BooleanField(default=True)
 
-    # Configurator yaratgan variant uchun: bazaviy model va tarkib imzosi
+    # Configurator yaratgan variant uchun: bazaviy model va tarkib imzosi (TZ 6.2)
     base_model = ForeignKey(
         'inventory.Product', SET_NULL, related_name='variants',
         null=True, blank=True,
@@ -62,7 +55,7 @@ class Product(TimeStampedModel):
 
     @property
     def stock_price(self):
-        """Ombordagi narx: sotuv narxi, bo'lmasa tannarx."""
+        """Ombordagi narx: sotuv narxi, bo'lmasa tannarx (TZ 6.2)."""
         return self.sale_price or self.cost_price
 
     @property

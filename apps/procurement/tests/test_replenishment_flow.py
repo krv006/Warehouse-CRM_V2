@@ -8,7 +8,7 @@ from apps.accounts.models import User
 from apps.core.utils import RED, YELLOW
 from apps.finance.models import CashTransaction, Loan
 from apps.finance.services import ensure_default_categories, record_transaction
-from apps.inventory.models import Category, Product, StockMovement, Warehouse
+from apps.inventory.models import Product, StockMovement, Warehouse
 from apps.inventory.services import apply_movement, available_quantity
 from apps.procurement.models import Replenishment, ReplenishmentEvent, ReplenishmentItem
 
@@ -24,9 +24,8 @@ class ReplenishmentFlowTests(APITestCase):
         self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
 
         self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
-        category = Category.objects.create(name='Butlovchilar')
         self.product = Product.objects.create(
-            sku='GPU-32', name='GPU 32', category=category,
+            sku='GPU-32', name='GPU 32',
             reorder_level=10, cost_price=Decimal('400000'),
         )
         self.client.force_authenticate(self.supplier)
@@ -228,3 +227,87 @@ class ReplenishmentFlowTests(APITestCase):
         debt.taken_at = localdate() - timedelta(days=55)
         debt.save()
         self.assertEqual(replenishment.debt_color, RED)
+
+
+class ProductFromOrderTests(APITestCase):
+    """TZ 7: buyurtma qilishning o'zi mahsulot qo'shish hisoblanadi."""
+
+    def setUp(self):
+        self.supplier = User.objects.create_user(
+            'buyurtmachi', password='p', role=User.Role.SUPPLIER,
+        )
+        self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
+        self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
+        self.replenishment = Replenishment.objects.create(
+            warehouse=self.warehouse, supplier='Etuf MCHJ', created_by=self.supplier,
+        )
+        self.client.force_authenticate(self.supplier)
+
+    def test_new_product_appears_in_catalog_through_order(self):
+        """Bazada yo'q tovar buyurtmaga yozilsa, katalogga tushadi."""
+        self.assertEqual(Product.objects.count(), 0)
+
+        response = self.client.post('/api/replenishment-items/', {
+            'replenishment': self.replenishment.id,
+            'product_name': 'RAM 16 GB',
+            'quantity': '5',
+            'unit_price': '350000',
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+
+        product = Product.objects.get()
+        self.assertEqual(product.name, 'RAM 16 GB')
+        self.assertEqual(product.cost_price, Decimal('350000'))
+        self.assertTrue(product.sku)
+        self.assertEqual(response.data['product'], product.id)
+
+    def test_own_sku_is_respected(self):
+        self.client.post('/api/replenishment-items/', {
+            'replenishment': self.replenishment.id,
+            'product_name': 'SSD 2 TB',
+            'product_sku': 'SSD-2TB',
+            'quantity': '2',
+            'unit_price': '900000',
+        }, format='json')
+        self.assertEqual(Product.objects.get().sku, 'SSD-2TB')
+
+    def test_existing_product_is_reused_not_duplicated(self):
+        Product.objects.create(sku='GPU-32', name='GPU 32')
+        self.client.post('/api/replenishment-items/', {
+            'replenishment': self.replenishment.id,
+            'product_name': 'gpu 32',
+            'quantity': '1',
+            'unit_price': '400000',
+        }, format='json')
+        self.assertEqual(Product.objects.count(), 1)
+
+    def test_existing_product_can_be_chosen_by_id(self):
+        product = Product.objects.create(sku='GPU-32', name='GPU 32')
+        response = self.client.post('/api/replenishment-items/', {
+            'replenishment': self.replenishment.id,
+            'product': product.id,
+            'quantity': '3',
+            'unit_price': '400000',
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(Product.objects.count(), 1)
+
+    def test_name_or_product_is_required(self):
+        response = self.client.post('/api/replenishment-items/', {
+            'replenishment': self.replenishment.id,
+            'quantity': '1',
+            'unit_price': '100000',
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('product', response.data)
+
+    def test_sales_cannot_add_products_this_way(self):
+        self.client.force_authenticate(self.sales)
+        response = self.client.post('/api/replenishment-items/', {
+            'replenishment': self.replenishment.id,
+            'product_name': 'Yangi tovar',
+            'quantity': '1',
+            'unit_price': '100000',
+        }, format='json')
+        self.assertEqual(response.status_code, 403)
+        self.assertEqual(Product.objects.count(), 0)

@@ -59,3 +59,34 @@ def configuration_signature(base_product_id, items):
     parts = sorted(f'{component_id}x{int(quantity)}' for component_id, quantity in items)
     raw = f'{base_product_id}|' + '|'.join(parts)
     return sha256(raw.encode('utf-8')).hexdigest()[:40]
+
+
+def create_product_from_order(*, name, sku='', kind=None, cost_price=0):
+    """Buyurtma qilingan yangi mahsulotni katalogga qo'shadi (TZ 7).
+
+    Buyurtmachi to'ldirish hisobiga hali bazada yo'q tovarni yozganda,
+    o'sha tovar shu yerda mahsulot sifatida yaratiladi. Alohida "mahsulot
+    qo'shish" oynasi yo'q — buyurtma qilishning o'zi mahsulot qo'shishdir.
+    """
+    from apps.core.utils import next_number
+    from apps.inventory.models import Product
+
+    name = (name or '').strip()
+    sku = (sku or '').strip()
+    if not name and not sku:
+        raise ValueError('Mahsulot nomi yoki SKU kerak.')
+
+    existing = None
+    if sku:
+        existing = Product.objects.filter(sku=sku).first()
+    if not existing and name:
+        existing = Product.objects.filter(name__iexact=name).first()
+    if existing:
+        return existing
+
+    return Product.objects.create(
+        sku=sku or next_number(Product, 'MAH'),
+        name=name or sku,
+        kind=kind or Product.Kind.COMPONENT,
+        cost_price=cost_price or 0,
+    )

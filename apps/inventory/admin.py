@@ -1,7 +1,6 @@
 from django.contrib.admin import ModelAdmin, TabularInline, register
 
 from apps.inventory.models import (
-    Category,
     Warehouse,
     Product,
     ProductSpec,
@@ -16,12 +15,6 @@ class ProductSpecInline(TabularInline):
     extra = 1
 
 
-@register(Category)
-class CategoryAdmin(ModelAdmin):
-    list_display = ['name', 'parent']
-    search_fields = ['name']
-
-
 @register(Warehouse)
 class WarehouseAdmin(ModelAdmin):
     list_display = ['name', 'is_active']
@@ -29,9 +22,9 @@ class WarehouseAdmin(ModelAdmin):
 
 @register(Product)
 class ProductAdmin(ModelAdmin):
-    list_display = ['name', 'sku', 'kind', 'category', 'unit', 'sale_price', 'is_active']
-    list_filter = ['kind', 'category', 'is_active', 'unit']
-    search_fields = ['name', 'sku', 'barcode']
+    list_display = ['name', 'sku', 'kind', 'sale_price', 'reorder_level', 'is_active']
+    list_filter = ['kind', 'is_active']
+    search_fields = ['name', 'sku']
     inlines = [ProductSpecInline]
 
 

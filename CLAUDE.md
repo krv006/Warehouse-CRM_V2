@@ -51,7 +51,7 @@ Bu qoida `models/`, `serializers.py`, `views.py`, `admin.py` — hamma joyda ama
 ### 1.3 ForeignKey — doim aniq "app.Model" satri
 
 ```python
-category = ForeignKey('inventory.Category', PROTECT, related_name='products')
+product = ForeignKey('inventory.Product', PROTECT, related_name='contract_items')
 ```
 
 - Birinchi argument — `'<app_label>.<ModelName>'` satri, klass obyekti emas.

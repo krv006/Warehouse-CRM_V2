@@ -11,8 +11,6 @@ erDiagram
     Client ||--o{ Lead : ""
     Client ||--o{ Contract : ""
     Client ||--o{ Configuration : ""
-    Category ||--o{ Product : ""
-    Category ||--o{ Category : "parent"
     Product ||--o{ ProductSpec : "specs"
     Product ||--o{ Stock : ""
     Warehouse ||--o{ Stock : ""
@@ -117,8 +115,11 @@ Property: `display_name` (yuridik → `company_name`, jismoniy → `full_name`).
 
 ## inventory
 
-### `Category`
-`name`, `parent` (FK o'ziga, SET_NULL, `related_name='children'`)
+> **Katalog ma'lumotnoma.** TZ da alohida "mahsulot qo'shish" bo'limi yo'q:
+> yangi mahsulot Buyurtmachi to'ldirish buyurtmasiga qator qo'shganda paydo bo'ladi
+> (TZ 7), qoldiq esa faqat Kirim va Chiqim orqali o'zgaradi (TZ 1).
+> API tomonda bu modellar **faqat o'qish** uchun.
+
 
 ### `Warehouse`
 `name`, `address`, `is_active`
@@ -127,14 +128,11 @@ Property: `display_name` (yuridik → `company_name`, jismoniy → `full_name`).
 | Maydon | Tur |
 |---|---|
 | `sku` | Char(50), unique |
-| `barcode` | Char(50) |
 | `name` | Char(200) |
 | `kind` | `machine` / `component` / `other` |
-| `category` | FK `inventory.Category` (PROTECT) |
-| `unit` | `pcs` / `kg` / `l` / `m` / `box` |
+| `description` | Text |
 | `cost_price`, `sale_price` | Decimal(18,2) |
-| `reorder_level` | PositiveInteger |
-| `image` | Image |
+| `reorder_level` | PositiveInteger — TZ 7.1 to'ldirish chegarasi |
 | `is_active` | Bool |
 | `base_model` | FK `inventory.Product` (SET_NULL) — variant uchun bazaviy model |
 | `signature` | Char(64), unique — konfiguratsiya tarkibi imzosi |

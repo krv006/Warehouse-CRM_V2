@@ -8,7 +8,7 @@ from apps.accounts.models import User
 from apps.clients.models import Client
 from apps.core.utils import GREEN, RED, YELLOW
 from apps.finance.models import CashTransaction
-from apps.inventory.models import Category, Product
+from apps.inventory.models import Product
 from apps.sales.models import Contract, ContractApproval, ContractItem
 
 
@@ -23,8 +23,7 @@ class ContractFlowTests(APITestCase):
             type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
             passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
         )
-        category = Category.objects.create(name='Kompyuter')
-        self.product = Product.objects.create(sku='HP-880', name='HP 880', category=category)
+        self.product = Product.objects.create(sku='HP-880', name='HP 880')
 
     def _contract(self, total='500000000'):
         contract = Contract.objects.create(

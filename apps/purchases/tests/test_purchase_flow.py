@@ -6,7 +6,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import User
 from apps.finance.models import CashTransaction
-from apps.inventory.models import Category, Product, Warehouse
+from apps.inventory.models import Product, Warehouse
 from apps.inventory.services import available_quantity
 from apps.purchases.models import Purchase, PurchaseItem
 
@@ -18,8 +18,7 @@ class PurchaseFlowTests(APITestCase):
         self.bugalter = User.objects.create_user('bug', password='p', role=User.Role.BUGALTER)
         self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
         self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
-        category = Category.objects.create(name='Butlovchilar')
-        self.product = Product.objects.create(sku='GPU-32', name='GPU 32', category=category)
+        self.product = Product.objects.create(sku='GPU-32', name='GPU 32')
         self.client.force_authenticate(self.bugalter)
 
     def _purchase(self, type=Purchase.Type.LOCAL, **kwargs):

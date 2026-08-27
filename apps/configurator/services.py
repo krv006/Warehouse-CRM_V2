@@ -78,8 +78,6 @@ def resolve_variant(configuration):
             sku=f'{base.sku}-V{index:02d}',
             name=f'{base.name} ({configuration.number})',
             kind=base.kind,
-            category=base.category,
-            unit=base.unit,
             description=f'{base.name} bazasida yig\'ilgan konfiguratsiya',
             cost_price=configuration.items_total,
             sale_price=configuration.items_total,

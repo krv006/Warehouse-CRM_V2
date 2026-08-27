@@ -207,6 +207,10 @@ Client qo'shish **bugalterda yo'q** — sales, buyurtmachi va adminda bor (TZ 11
 
 ## 7. Buyurtmachi — omborni to'ldirish (TZ 7)
 
+> **Mahsulot qo'shish shu yerda bo'ladi.** TZ da alohida katalog boshqaruvi yo'q:
+> buyurtmachi to'ldirish hisobiga hali bazada yo'q tovarni yozsa (`product_name`),
+> o'sha tovar katalogga qo'shiladi. Ya'ni buyurtma qilishning o'zi mahsulot qo'shishdir.
+
 **Buyurtmachi** tashqi mijoz bilan emas, ombor va ta'minot bilan ishlaydi.
 
 ### Jarayon

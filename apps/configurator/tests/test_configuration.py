@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase
 
 from apps.accounts.models import User
 from apps.configurator.models import Act, Configuration, ConfigurationItem
-from apps.inventory.models import Category, Product, StockMovement, Warehouse
+from apps.inventory.models import Product, StockMovement, Warehouse
 from apps.inventory.services import apply_movement
 from apps.purchases.models import Purchase
 
@@ -16,16 +16,15 @@ class ConfigurationTests(APITestCase):
     def setUp(self):
         self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
         self.admin = User.objects.create_user('admin', password='p', role=User.Role.ADMIN)
-        self.category = Category.objects.create(name='Kompyuter')
         self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
         self.base = Product.objects.create(
-            sku='HP-880', name='HP 880', category=self.category, kind=Product.Kind.MACHINE,
+            sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
         )
         self.ssd = Product.objects.create(
-            sku='SSD-1TB', name='SSD 1 TB', category=self.category, kind=Product.Kind.COMPONENT,
+            sku='SSD-1TB', name='SSD 1 TB', kind=Product.Kind.COMPONENT,
         )
         self.gpu = Product.objects.create(
-            sku='GPU-32', name='GPU 32', category=self.category, kind=Product.Kind.COMPONENT,
+            sku='GPU-32', name='GPU 32', kind=Product.Kind.COMPONENT,
         )
         apply_movement(
             product=self.ssd, warehouse=self.warehouse,

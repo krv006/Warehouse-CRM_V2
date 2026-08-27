@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **100 ta test, hammasi OK**.
+Hozirgi holat: **108 ta test, hammasi OK**.
 
 ---
 
