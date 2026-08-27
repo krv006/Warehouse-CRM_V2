@@ -77,3 +77,49 @@ class SeedDemoTests(APITestCase):
         self.assertGreater(response.data['kassa']['income_total'], 0)
         self.assertTrue(response.data['deadlines'])
         self.assertTrue(response.data['ombor']['low_stock'])
+
+
+class SeedDemoResetTests(APITestCase):
+    """--reset: eski ma'lumotlar o'chadi, userlar qoladi, toza demo yuklanadi."""
+
+    def test_reset_wipes_junk_and_reseeds(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        from apps.accounts.models import User
+
+        call_command('seed_demo', stdout=StringIO())
+        # Foydalanuvchi "axlat" qo'shdi deb faraz qilamiz
+        junk_user = User.objects.create_user('mening_akkauntim', password='p')
+        Loan.objects.create(
+            lender_name='test', amount=100,
+            taken_at='2026-01-01', deadline='2026-02-01',
+        )
+        junk = Product.objects.create(sku='JUNK-1', name='Keraksiz mahsulot')
+
+        call_command('seed_demo', '--reset', stdout=StringIO())
+
+        # Axlat o'chdi, demo qayta yuklandi, akkauntlar joyida
+        self.assertFalse(Product.objects.filter(sku='JUNK-1').exists())
+        self.assertFalse(Loan.objects.filter(lender_name='test').exists())
+        self.assertEqual(Loan.objects.count(), 2)
+        self.assertEqual(Contract.objects.count(), 5)
+        self.assertTrue(User.objects.filter(username='mening_akkauntim').exists())
+        self.assertTrue(User.objects.filter(username='engineer').exists())
+
+    def test_engineer_included_in_demo(self):
+        from django.core.management import call_command
+        from io import StringIO
+
+        from apps.accounts.models import User
+        from apps.configurator.models import ConfigurationRequest
+
+        call_command('seed_demo', stdout=StringIO())
+        engineer = User.objects.get(username='engineer')
+        self.assertEqual(engineer.role, User.Role.ENGINEER)
+        self.assertTrue(engineer.check_password('Ombor2026!'))
+        # Zayavkalar: yangi va engineer bajargan
+        self.assertEqual(ConfigurationRequest.objects.count(), 2)
+        done = ConfigurationRequest.objects.get(status=ConfigurationRequest.Status.DONE)
+        self.assertEqual(done.taken_by, engineer)
+        self.assertIsNotNone(done.configuration)

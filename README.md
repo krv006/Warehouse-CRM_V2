@@ -48,7 +48,7 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 | Django ilovalari | 9 ta (`core`, `accounts`, `clients`, `inventory`, `configurator`, `purchases`, `procurement`, `sales`, `finance`) |
 | Modellar | 30 ta |
 | Rollar | 5 ta: admin, bugalter, sales, buyurtmachi, engineer |
-| Testlar | **148 ta**, hammasi o'tadi |
+| Testlar | **150 ta**, hammasi o'tadi |
 
 ---
 
@@ -149,6 +149,7 @@ Har bir ilovada `models/` va `tests/` — papka ko'rinishida, `urls.py` esa har 
 | `make ci` | check + test (commitdan oldin) |
 | `make superuser` | admin ochish |
 | `make demo` | to'liq demo: userlar, mijozlar, mahsulotlar, shartnomalar, kirim, kassa |
+| `make demo-reset` | bazani **tozalab** demo'ni qaytadan yuklaydi (akkauntlar qoladi) |
 | `make migrations` / `make migrate` | migratsiya yozish / qo'llash |
 | `make clean` | `__pycache__` tozalash |
 
@@ -160,6 +161,7 @@ Har bir ilovada `models/` va `tests/` — papka ko'rinishida, `urls.py` esa har 
 | `make docker-dbcheck` | qaysi baza ishlatilayotgani va migratsiya holati |
 | `make docker-superuser` | konteyner ichida admin ochish |
 | `make docker-demo` | serverda to'liq demo ma'lumotlar |
+| `make docker-demo-reset` | serverda bazani tozalab demo'ni qaytadan yuklaydi |
 | `make backup` | bazani zaxiralaydi |
 
 ---
@@ -179,7 +181,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (148 ta).
+Barcha testlar (150 ta).
 
 ---
 

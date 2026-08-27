@@ -20,9 +20,19 @@ class Command(BaseCommand):
 
     help = "To'liq demo: userlar, mijozlar, ombor, shartnomalar, kirim, kassa"
 
+    def add_arguments(self, parser):
+        parser.add_argument(
+            '--reset',
+            action='store_true',
+            help="Avval bazadagi barcha biznes ma'lumotni o'chiradi (userlar qoladi)",
+        )
+
     @atomic
     def handle(self, *args, **options):
         from apps.inventory.models import Product
+
+        if options['reset']:
+            self._wipe()
 
         quiet = StringIO()
         call_command('seed_finance', stdout=quiet)
@@ -31,7 +41,7 @@ class Command(BaseCommand):
 
         if Product.objects.filter(sku='HP-880').exists():
             self.stdout.write(self.style.WARNING(
-                'Demo ma\'lumotlar allaqachon yuklangan — qayta yozilmadi.'
+                'Demo ma\'lumotlar allaqachon yuklangan — qayta yozilmadi. Toza qayta yuklash: seed_demo --reset'
             ))
             return
 
@@ -52,6 +62,63 @@ class Command(BaseCommand):
         self._summary()
 
     # ------------------------------------------------------------------ yordam
+    def _wipe(self):
+        """Barcha biznes ma'lumotni o'chiradi. Foydalanuvchi akkauntlari qoladi.
+
+        O'chirish tartibi PROTECT bog'lanishlarga mos: avval bolalar, keyin otalar.
+        """
+        from apps.clients.models import Client
+        from apps.configurator.models import (
+            Act,
+            Configuration,
+            ConfigurationItem,
+            ConfigurationRemoval,
+            ConfigurationRequest,
+        )
+        from apps.core.models import ActivityLog, Notification
+        from apps.finance.models import CashTransaction, ExpenseRequest, Loan
+        from apps.inventory.models import (
+            Product,
+            ProductSpec,
+            Stock,
+            StockMovement,
+            Warehouse,
+        )
+        from apps.procurement.models import (
+            Replenishment,
+            ReplenishmentApproval,
+            ReplenishmentEvent,
+            ReplenishmentItem,
+        )
+        from apps.purchases.models import Purchase, PurchaseDocument, PurchaseItem
+        from apps.sales.models import (
+            Contract,
+            ContractApproval,
+            ContractItem,
+            ContractPayment,
+            Lead,
+        )
+
+        ordered = [
+            Notification, ActivityLog,
+            CashTransaction, ExpenseRequest,
+            ReplenishmentEvent, ReplenishmentApproval, ReplenishmentItem, Replenishment,
+            Loan,
+            PurchaseDocument, PurchaseItem,
+            ContractPayment, ContractApproval, ContractItem,
+            Lead,
+            ConfigurationRequest, ConfigurationRemoval, ConfigurationItem, Configuration,
+            Contract, Purchase,
+            Act,
+            StockMovement, Stock, ProductSpec, Product,
+            Warehouse, Client,
+        ]
+        for model in ordered:
+            model.objects.all().delete()
+        self.stdout.write(self.style.WARNING(
+            "Baza tozalandi (foydalanuvchi akkauntlari saqlab qolindi)."
+        ))
+
     def _users(self):
         from apps.accounts.models import User
 
@@ -449,4 +516,4 @@ class Command(BaseCommand):
         self.stdout.write(self.style.SUCCESS(
             f'Demo tayyor. Kassa qoldig\'i: {cash_balance():,.0f} so\'m'
         ))
-        self.stdout.write("Kirish: admin / bugalter / sales1 / buyurtmachi, parol: Ombor2026!")
+        self.stdout.write("Kirish: admin / bugalter / engineer / buyurtmachi / sales1, parol: Ombor2026!")

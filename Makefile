@@ -64,6 +64,10 @@ clients: ## Demo buyurtmachilar (2 jismoniy, 2 yuridik)
 demo: ## To'liq demo: userlar, mijozlar, ombor, shartnomalar, kirim, kassa
 	$(MANAGE) seed_demo
 
+.PHONY: demo-reset
+demo-reset: ## Bazani tozalab, demo'ni qaytadan yuklaydi (userlar qoladi)
+	$(MANAGE) seed_demo --reset
+
 .PHONY: deadlines
 deadlines: ## Muddat eslatmalarini tekshiradi
 	$(MANAGE) check_deadlines
@@ -148,6 +152,10 @@ docker-clients: ## Serverda demo buyurtmachilar
 .PHONY: docker-demo
 docker-demo: ## Serverda to'liq demo ma'lumotlar
 	$(COMPOSE) exec web python manage.py seed_demo
+
+.PHONY: docker-demo-reset
+docker-demo-reset: ## Serverda bazani tozalab demo'ni qaytadan yuklaydi
+	$(COMPOSE) exec web python manage.py seed_demo --reset
 
 .PHONY: docker-deadlines
 docker-deadlines: ## Konteyner ichida muddat eslatmalari

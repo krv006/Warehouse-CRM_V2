@@ -118,7 +118,12 @@ docker compose exec web python manage.py seed_demo
 Bitta komanda **butun tizimga** demo yuklaydi: foydalanuvchilar, mijozlar, mahsulotlar
 (qoldiq bilan), leadlar, shartnomalar (har bosqichdan), kirimlar (har turdan),
 to'ldirish hisoblari, qarzlar, xarajatlar va eslatmalar. Takror ishga tushirilsa
-qayta yozmaydi.
+qayta yozmaydi. **Toza qayta yuklash** (bazadagi hamma biznes ma'lumotni o'chirib,
+yangidan yuklaydi — akkauntlar qoladi):
+
+```bash
+docker compose exec web python manage.py seed_demo --reset
+```
 
 Foydalanuvchilar (parol: `Ombor2026!`):
 
