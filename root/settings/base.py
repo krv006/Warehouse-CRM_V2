@@ -110,6 +110,11 @@ STATIC_ROOT = BASE_DIR / 'staticfiles'
 MEDIA_URL = 'media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# Oldida reverse proxy (Caddy/nginx) turganda: HTTPS ni to'g'ri aniqlash uchun.
+# Proxy X-Forwarded-Proto sarlavhasini yuboradi, aks holda DRF havolalari http:// bo'lib qoladi.
+SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
+USE_X_FORWARDED_HOST = True
+
 STORAGES = {
     'default': {
         'BACKEND': 'django.core.files.storage.FileSystemStorage',
