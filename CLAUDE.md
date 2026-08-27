@@ -11,6 +11,9 @@ Config paketi: `root/`. Barcha ilovalar: `apps/`.
 ### 1.1 Papka tuzilishi
 
 ```
+root/
+    settings/          <-- paket: base, database, auth, rest, jwt, spectacular, cors, business
+    urls.py            <-- faqat admin/, api/ -> include('apps.urls'), schema/docs
 apps/
     urls.py            <-- barcha app urls.py larini yig'adi
 apps/<app>/
