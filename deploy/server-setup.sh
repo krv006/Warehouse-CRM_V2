@@ -65,8 +65,21 @@ if command -v nginx >/dev/null 2>&1; then
         deploy/nginx-docker.conf > "/etc/nginx/sites-available/$DOMAIN"
     ln -sf "/etc/nginx/sites-available/$DOMAIN" "/etc/nginx/sites-enabled/$DOMAIN"
     nginx -t
-    systemctl reload nginx
-    echo "    $DOMAIN → 127.0.0.1:$WEB_PORT"
+
+    # nginx o'chiq bo'lsa reload emas, start kerak
+    if systemctl is-active --quiet nginx; then
+        systemctl reload nginx
+        echo "    $DOMAIN → 127.0.0.1:$WEB_PORT"
+    elif systemctl start nginx 2>/dev/null; then
+        systemctl enable nginx >/dev/null 2>&1 || true
+        echo "    nginx ishga tushirildi: $DOMAIN → 127.0.0.1:$WEB_PORT"
+    else
+        echo
+        echo "OGOHLANTIRISH: nginx ishga tushmadi. 80-portni kim egallaganini ko'ring:"
+        echo "      ss -ltnp | grep ':80 '"
+        echo "      systemctl status nginx --no-pager | head -20"
+        echo "    Konteyner o'zi ishlayapti: http://127.0.0.1:$WEB_PORT/api/docs/"
+    fi
 else
     echo "    nginx yo'q — docker nginx'ini ishlating:"
     echo "    docker compose --profile with-nginx up -d"
