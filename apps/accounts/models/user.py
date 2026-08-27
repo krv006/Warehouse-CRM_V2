@@ -10,6 +10,7 @@ class User(AbstractUser):
         BUGALTER = 'bugalter', 'Bugalter'
         SALES = 'sales', 'Sales'
         SUPPLIER = 'buyurtmachi', 'Buyurtmachi'
+        ENGINEER = 'engineer', 'Engineer'
 
     class Language(TextChoices):
         UZ = 'uz', "O'zbekcha"
@@ -39,3 +40,8 @@ class User(AbstractUser):
     def is_supplier(self):
         """Buyurtmachi — omborni to'ldirish jarayoniga mas'ul."""
         return self.role == self.Role.SUPPLIER
+
+    @property
+    def is_engineer(self):
+        """Engineer — configurator ishlari to'liq unga tegishli."""
+        return self.role == self.Role.ENGINEER

@@ -114,12 +114,41 @@ va `POST /replenishments/{id}/receive/` (TZ 1-bo'lim: Kirim va Chiqim).
 
 ---
 
+## Zayavkalar — Sales → Engineer
+
+Sales client bilan gaplashib xohishni **matnda** yozadi va Engineerga yuboradi.
+Engineer configuratorda tayyorlab, konfiguratsiyani zayavkaga biriktiradi —
+sales'ga eslatma boradi va u shartnoma jarayonini boshlaydi.
+
+| Metod | Manzil | Kim |
+|---|---|---|
+| GET | `/configuration-requests/` | hamma |
+| POST | `/configuration-requests/` | sales (admin) |
+| GET/PUT/PATCH/DELETE | `/configuration-requests/{id}/` | sales, engineer, admin |
+| POST | `/configuration-requests/{id}/take/` | **engineer** — ishga oladi |
+| POST | `/configuration-requests/{id}/complete/` | **engineer** — konfiguratsiyani biriktiradi |
+
+```json
+POST /api/configuration-requests/
+{"client": 3, "text": "Client 2 ta kuchli kompyuter xohlaydi: SSD 2 TB, GPU zo'r bo'lsin."}
+```
+
+```json
+POST /api/configuration-requests/7/complete/
+{"configuration": 12}
+```
+
+Holatlar: `new` → `in_progress` (take) → `done` (complete). Raqam: `ZVK-00001`.
+`complete` da sales'ga (zayavka egasiga) notification tushadi.
+
+---
+
 ## Configurator
 
 | Metod | Manzil | Izoh |
 |---|---|---|
 | GET/POST | `/acts/` | yozish faqat admin |
-| GET/POST | `/configurations/` | qatorlar (`items`) bilan birga yuboriladi |
+| GET/POST | `/configurations/` | **yozish: engineer (admin)**; qatorlar ixtiyoriy |
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
 | POST | `/configurations/{id}/finalize/` | ACT majburiy |

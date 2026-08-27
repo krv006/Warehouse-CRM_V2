@@ -215,6 +215,40 @@ qo'shish** (TZ 7).
 "Qo'lda kirim/chiqim" oynalarini olib tashlang. To'ldirish buyurtmasi formasida esa
 mahsulot maydoni "bazadan tanlash **yoki** yangi nom yozish" ko'rinishida bo'lsin.
 
+## 8.2.1 Qarz `repaid` xatosi tuzatildi 🐛
+
+Yangi qarzda `repaid` darrov `amount` ga teng chiqar edi (qarz olinganda
+yoziladigan **kirim** ham yig'indiga qo'shilardi) — `balance` 0 bo'lib,
+ortiqcha to'lovga yo'l ochilardi.
+
+- `repaid` endi faqat **chiqim** (qaytarish) harakatlarini hisoblaydi
+- `POST /loans/{id}/repay/` endi tekshiradi: yopiq qarz — `400`,
+  musbat bo'lmagan summa — `400`, qoldiqdan ortiq — `400` (+`balance`)
+
+## 8.3 Yangi rol: Engineer 🔴 breaking
+
+`User.role` endi **5 xil**: `admin | bugalter | sales | buyurtmachi | engineer`.
+
+Configurator ishlari to'liq Engineerga o'tdi:
+
+| Nima | Avval | Endi |
+|---|---|---|
+| `/configurations/`, `/configuration-items/` yozish | hamma | **admin, engineer** |
+| Sales configuratorda | to'liq ishlardi | faqat ko'radi |
+
+Yangi oqim — matnli zayavka (`/configuration-requests/`, `ZVK-`):
+
+```
+sales POST (text) → engineer take → configurator'da tayyorlaydi
+→ engineer complete {configuration} → sales'ga notification → shartnoma
+```
+
+Demo user: `engineer` / `Ombor2026!`.
+
+**Frontendga ta'siri:** sidebar'da yangi "Zayavkalar" bo'limi; configuratorda
+yozish tugmalari faqat engineer'ga; sales'ning konfiguratsiya oynasi zayavka
+formasiga almashadi. Matritsalar: [09](09-FRONTEND-REACT.md), [11 §3.5](11-FRONTEND-SCREENS.md).
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -243,8 +277,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **88** |
+| REST endpoint | 70 | **92** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
-| Modellar | 23 | **29** |
-| Testlar | 66 | **136** |
-| Rollar | 3 | **4** |
+| Modellar | 23 | **30** |
+| Testlar | 66 | **146** |
+| Rollar | 3 | **5** |

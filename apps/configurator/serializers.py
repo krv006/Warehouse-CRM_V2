@@ -9,6 +9,7 @@ from apps.configurator.models import (
     Configuration,
     ConfigurationItem,
     ConfigurationRemoval,
+    ConfigurationRequest,
 )
 
 
@@ -126,3 +127,23 @@ class ConfigurationSerializer(ModelSerializer):
             for item in items:
                 ConfigurationItem.objects.create(configuration=instance, **item)
         return instance
+
+
+class ConfigurationRequestSerializer(ModelSerializer):
+    """Sales'dan Engineerga boradigan matnli zayavka."""
+
+    status_display = ReadOnlyField(source='get_status_display')
+    client_name = ReadOnlyField(source='client.display_name')
+    configuration_number = ReadOnlyField(source='configuration.number')
+    taken_by_name = ReadOnlyField(source='taken_by.username')
+    created_by_name = ReadOnlyField(source='created_by.username')
+
+    class Meta:
+        model = ConfigurationRequest
+        fields = [
+            'id', 'number', 'client', 'client_name', 'text', 'status',
+            'status_display', 'configuration', 'configuration_number',
+            'taken_by', 'taken_by_name', 'created_by', 'created_by_name',
+            'created_at',
+        ]
+        read_only_fields = ['number', 'status', 'configuration', 'taken_by', 'created_by']

@@ -1,5 +1,5 @@
 from django.db.transaction import atomic
-from django.utils.timezone import now
+from django.utils.timezone import localdate, now
 from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.core.models import Notification
@@ -128,7 +128,8 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
     )
 
     if first_payment:
-        contract.start_date = paid_at.date()
+        # localdate: yarim tunda UTC sana bilan mahalliy sana farq qiladi
+        contract.start_date = localdate(paid_at)
         contract.status = Contract.Status.ACTIVE
     if contract.balance <= 0:
         contract.status = Contract.Status.COMPLETED

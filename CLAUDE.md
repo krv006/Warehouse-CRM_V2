@@ -102,6 +102,7 @@ urlpatterns = [
 | `bugalter` | Hujjat va pul kirdi-chiqdisi, shartnomaning 1-tasdig'i, pul kelganini tasdiqlash. Client qo'sha olmaydi |
 | `sales` | Zakaz shakllantiradi, configurator qiladi, client qo'shadi, sotuv narxini ko'radi |
 | `buyurtmachi` | Omborni to'ldiradi: ta'minotchi narxi, logistika, yetkazib berish kuzatuvi, qarz |
+| `engineer` | Configurator ishlari to'liq unda; sales'dan `ZVK-` zayavka oladi (`/configuration-requests/`), konfiguratsiyani tayyorlab qaytaradi |
 
 Permission klasslari: `apps/accounts/permissions.py` (`IsAdmin`, `IsAdminOrBugalter`,
 `IsAdminOrSales`, `CanManageClients`, `IsAdminOrReadOnly`, `FinanceAccess`,
@@ -146,7 +147,7 @@ Bitta model, ikki tur: `individual` (F.I.SH, passport, JSHSHIR — unique) va
 
 ### 2.6 Configurator — `apps/configurator`
 
-Barcha rollarga ochiq. Bazaviy model (`Product.kind = machine`) tarkibi `ProductSpec` da.
+O'qish hammaga; **yozish faqat engineer** (admin). Sales matnli zayavka yuboradi. Bazaviy model (`Product.kind = machine`) tarkibi `ProductSpec` da.
 `Configuration` + `ConfigurationItem`: har bir qator uchun `available` / `shortage` / `source`
 (`stock` yoki `purchase`) hisoblanadi.
 - `GET /configurations/{id}/stock-check/`

@@ -109,3 +109,56 @@ class KassaTests(APITestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.data['status'], ExpenseRequest.Status.REJECTED)
         self.assertFalse(CashTransaction.objects.exists())
+
+
+class LoanRepaidBugTests(APITestCase):
+    """Bug: yangi qarzda repaid = amount bo'lib qolardi (kirim ham qo'shilardi)."""
+
+    def setUp(self):
+        ensure_default_categories()
+        self.bugalter = User.objects.create_user('bug2', password='p', role=User.Role.BUGALTER)
+        self.client.force_authenticate(self.bugalter)
+
+    def _loan(self, amount='10000'):
+        response = self.client.post('/api/loans/', {
+            'lender_name': 'Test qarz',
+            'amount': amount,
+            'taken_at': str(localdate()),
+            'deadline': str(localdate() + timedelta(days=30)),
+        })
+        self.assertEqual(response.status_code, 201, response.data)
+        return response.data
+
+    def test_new_loan_has_zero_repaid(self):
+        """Yaratilganda repaid 0, balance to'liq summa, status faol."""
+        data = self._loan('10000')
+        self.assertEqual(Decimal(str(data['repaid'])), Decimal('0'))
+        self.assertEqual(Decimal(str(data['balance'])), Decimal('10000'))
+        self.assertEqual(data['status'], Loan.Status.ACTIVE)
+        # Kirim yozilgan bo'lsa ham repaid ga qo'shilmaydi
+        loan = Loan.objects.get(pk=data['id'])
+        self.assertTrue(loan.cash_transactions.exists())
+
+    def test_partial_then_full_repay(self):
+        data = self._loan('10000')
+        response = self.client.post(f"/api/loans/{data['id']}/repay/", {'amount': '4000'})
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Decimal(str(response.data['repaid'])), Decimal('4000'))
+        self.assertEqual(Decimal(str(response.data['balance'])), Decimal('6000'))
+        self.assertEqual(response.data['status'], Loan.Status.ACTIVE)
+
+        response = self.client.post(f"/api/loans/{data['id']}/repay/")  # qolganini to'liq
+        self.assertEqual(Decimal(str(response.data['balance'])), Decimal('0'))
+        self.assertEqual(response.data['status'], Loan.Status.CLOSED)
+
+    def test_overpay_is_rejected(self):
+        data = self._loan('10000')
+        response = self.client.post(f"/api/loans/{data['id']}/repay/", {'amount': '15000'})
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('balance', response.data)
+
+    def test_repay_on_closed_loan_rejected(self):
+        data = self._loan('10000')
+        self.client.post(f"/api/loans/{data['id']}/repay/")
+        response = self.client.post(f"/api/loans/{data['id']}/repay/", {'amount': '1'})
+        self.assertEqual(response.status_code, 400)

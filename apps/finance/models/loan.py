@@ -62,7 +62,17 @@ class Loan(TimeStampedModel):
 
     @property
     def repaid(self):
-        return self.cash_transactions.aggregate(t=Sum('amount'))['t'] or 0
+        """Qaytarilgan summa — faqat chiqim (loan_repay) harakatlari.
+
+        Qarz olinganda yoziladigan kirim bu yig'indiga kirmaydi.
+        """
+        from apps.core.choices import Direction
+
+        return (
+            self.cash_transactions
+            .filter(direction=Direction.OUT)
+            .aggregate(t=Sum('amount'))['t'] or 0
+        )
 
     @property
     def balance(self):

@@ -16,8 +16,9 @@ class SeedUsersTests(TestCase):
 
     def test_creates_user_for_each_role(self):
         self._run()
-        self.assertEqual(User.objects.count(), 5)
+        self.assertEqual(User.objects.count(), 6)
         self.assertEqual(User.objects.get(username='buyurtmachi').role, User.Role.SUPPLIER)
+        self.assertEqual(User.objects.get(username='engineer').role, User.Role.ENGINEER)
         self.assertEqual(User.objects.get(username='admin').role, User.Role.ADMIN)
         self.assertEqual(User.objects.get(username='bugalter').role, User.Role.BUGALTER)
         self.assertEqual(User.objects.get(username='sales1').role, User.Role.SALES)
@@ -37,14 +38,14 @@ class SeedUsersTests(TestCase):
     def test_second_run_does_not_duplicate_or_reset(self):
         self._run(password='Birinchi123')
         self._run(password='Ikkinchi123')
-        self.assertEqual(User.objects.count(), 5)
+        self.assertEqual(User.objects.count(), 6)
         # --force siz mavjud parol saqlanadi
         self.assertTrue(User.objects.get(username='admin').check_password('Birinchi123'))
 
     def test_force_resets_password(self):
         self._run(password='Birinchi123')
         self._run(password='Ikkinchi123', force=True)
-        self.assertEqual(User.objects.count(), 5)
+        self.assertEqual(User.objects.count(), 6)
         self.assertTrue(User.objects.get(username='admin').check_password('Ikkinchi123'))
 
     def test_users_can_login_through_api(self):

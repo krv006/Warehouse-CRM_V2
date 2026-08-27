@@ -44,11 +44,11 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 
 | Ko'rsatkich | Qiymat |
 |---|---|
-| REST endpoint | **88 endpoint** (Swagger va OpenAPI sahifalaridan tashqari) |
+| REST endpoint | **92 endpoint** (Swagger va OpenAPI sahifalaridan tashqari) |
 | Django ilovalari | 9 ta (`core`, `accounts`, `clients`, `inventory`, `configurator`, `purchases`, `procurement`, `sales`, `finance`) |
-| Modellar | 29 ta |
-| Rollar | 4 ta: admin, bugalter, sales, buyurtmachi |
-| Testlar | **136 ta**, hammasi o'tadi |
+| Modellar | 30 ta |
+| Rollar | 5 ta: admin, bugalter, sales, buyurtmachi, engineer |
+| Testlar | **146 ta**, hammasi o'tadi |
 
 ---
 
@@ -72,6 +72,7 @@ Foydalanuvchilar, parol — `Ombor2026!`:
 | `admin` | Administrator (superuser) |
 | `bugalter` | Bugalter |
 | `buyurtmachi` | Buyurtmachi |
+| `engineer` | Engineer (configurator ishlari) |
 | `sales1`, `sales2` | Sales |
 
 > Bu sinov parollari kodda ham turibdi (`seed_users.py`). Haqiqiy ishga o'tishda
@@ -178,7 +179,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (136 ta).
+Barcha testlar (146 ta).
 
 ---
 
@@ -192,7 +193,7 @@ Barcha testlar (136 ta).
 | Configurator + ACT + Excel | ✅ tayyor |
 | Client (jismoniy / yuridik) | ✅ tayyor |
 | Buyurtmachi moduli (to'ldirish, qarz, yetkazib berish) | ✅ tayyor |
-| Rollar (4 ta), audit, eslatmalar | ✅ tayyor |
+| Rollar (5 ta), audit, eslatmalar | ✅ tayyor |
 | Export (USD / EUR / CNY) | 🟡 modelda joy bor, jarayon yozilmagan |
 | Serverga o'rnatish (Docker / systemd + nginx) | ✅ tayyor |
 | React frontend | ⬜ keyingi bosqich |

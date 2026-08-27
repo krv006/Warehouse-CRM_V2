@@ -5,6 +5,7 @@ from apps.configurator.models import (
     Configuration,
     ConfigurationItem,
     ConfigurationRemoval,
+    ConfigurationRequest,
 )
 
 
@@ -30,3 +31,10 @@ class ConfigurationAdmin(ModelAdmin):
     list_filter = ['mode', 'status']
     search_fields = ['number']
     inlines = [ConfigurationItemInline, ConfigurationRemovalInline]
+
+
+@register(ConfigurationRequest)
+class ConfigurationRequestAdmin(ModelAdmin):
+    list_display = ['number', 'client', 'status', 'taken_by', 'created_by', 'created_at']
+    list_filter = ['status']
+    search_fields = ['number', 'text']

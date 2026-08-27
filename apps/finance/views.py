@@ -87,9 +87,39 @@ class LoanViewSet(BaseModelViewSet):
         self.log_action(ActivityLog.Action.CREATE, loan)
 
     def repay(self, request, pk=None):
-        """POST /loans/{id}/repay/ — qarzni qisman yoki to'liq qaytarish."""
+        """POST /loans/{id}/repay/ — qarzni qisman yoki to'liq qaytarish.
+
+        Summa yuborilmasa qoldiq to'liq qaytariladi. Yopiq qarzga va
+        qoldiqdan ortiq summaga ruxsat berilmaydi.
+        """
+        from decimal import Decimal, InvalidOperation
+
         loan = self.get_object()
-        amount = request.data.get('amount') or loan.balance
+        if loan.status == Loan.Status.CLOSED:
+            return Response(
+                {'detail': 'Bu qarz allaqachon yopilgan.'},
+                status=HTTP_400_BAD_REQUEST,
+            )
+
+        raw = request.data.get('amount')
+        try:
+            amount = Decimal(str(raw)) if raw is not None else loan.balance
+        except InvalidOperation:
+            return Response({"amount": "Summa noto'g'ri."}, status=HTTP_400_BAD_REQUEST)
+
+        if amount <= 0:
+            return Response(
+                {"amount": "Summa musbat bo'lishi kerak."},
+                status=HTTP_400_BAD_REQUEST,
+            )
+        if amount > loan.balance:
+            return Response(
+                {
+                    "detail": "Qoldiqdan ortiq qaytarib bo'lmaydi.",
+                    'balance': loan.balance,
+                },
+                status=HTTP_400_BAD_REQUEST,
+            )
         record_transaction(
             code='loan_repay',
             amount=amount,

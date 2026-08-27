@@ -1,6 +1,6 @@
 # 09 — Frontend (React) integratsiya qo'llanmasi
 
-Backend to'liq tayyor va **serverda ishlab turibdi**: **88 endpoint**, 136 test,
+Backend to'liq tayyor va **serverda ishlab turibdi**: **92 endpoint**, 146 test,
 OpenAPI sxemasi xatosiz. Ishchi manzil: https://ombor.thesofmebel.uz/api/docs/
 Bu fayl — frontend yozish uchun texnik kontrakt. Ekranlar bo'yicha batafsil topshiriq:
 [11-FRONTEND-SCREENS.md](11-FRONTEND-SCREENS.md).
@@ -11,7 +11,7 @@ Bu fayl — frontend yozish uchun texnik kontrakt. Ekranlar bo'yicha batafsil to
 | Swagger | `/api/docs/` |
 | OpenAPI | `/api/schema/` |
 | Auth | JWT (Bearer), access 12 soat, refresh 7 kun |
-| Rollar | `admin`, `bugalter`, `sales`, `buyurtmachi` |
+| Rollar | `admin`, `bugalter`, `sales`, `buyurtmachi`, `engineer` |
 | Til | Backend javoblari va xato matnlari — o'zbekcha |
 
 ---
@@ -82,20 +82,21 @@ Kirgan foydalanuvchi: `GET /users/me/` → `{ id, username, first_name, last_nam
 
 ## 3. Rollar va ekranlar matritsasi
 
-| Bo'lim | admin | bugalter | sales | buyurtmachi |
-|---|:--:|:--:|:--:|:--:|
-| Dashboard | ✅ | ✅ | ✅ | ✅ |
-| Ombor (mahsulot, qoldiq, harakat) | 👁 | 👁 | 👁 | 👁 |
-| Configurator | ✅ | ✅ | ✅ | ✅ |
-| ACT | ✅ yozadi | 👁 | 👁 | 👁 |
-| Clients | ✅ yozadi | 👁 | ✅ yozadi | ✅ yozadi |
-| Leads / Shartnomalar | ✅ | 👁 + tasdiq | ✅ yozadi | 👁 |
-| To'ldirish (Buyurtmachi) | ✅ | 👁 + tasdiq/to'lov | ⛔ | ✅ yozadi |
-| Kirim (purchases) | ✅ | ✅ | ⛔ | 👁 |
-| Kassa, qarzlar | ✅ | ✅ | ⛔ | ⛔ |
-| Xarajat so'rovlari | ✅ tasdiq | ✅ so'raydi | ⛔ | ⛔ |
-| Foydalanuvchilar | ✅ | ⛔ | ⛔ | ⛔ |
-| Audit (activity-logs) | ✅ | ⛔ | ⛔ | ⛔ |
+| Bo'lim | admin | bugalter | sales | buyurtmachi | engineer |
+|---|:--:|:--:|:--:|:--:|:--:|
+| Dashboard | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Ombor (mahsulot, qoldiq, harakat) | 👁 | 👁 | 👁 | 👁 | 👁 |
+| Zayavkalar (config so'rovi) | ✅ | 👁 | ✅ yozadi | 👁 | ✅ bajaradi |
+| Configurator | ✅ | 👁 | 👁 | 👁 | ✅ **yozadi** |
+| ACT | ✅ yozadi | 👁 | 👁 | 👁 | 👁 |
+| Clients | ✅ yozadi | 👁 | ✅ yozadi | ✅ yozadi | 👁 |
+| Leads / Shartnomalar | ✅ | 👁 + tasdiq | ✅ yozadi | 👁 | 👁 |
+| To'ldirish (Buyurtmachi) | ✅ | 👁 + tasdiq/to'lov | ⛔ | ✅ yozadi | ⛔ |
+| Kirim (purchases) | ✅ | ✅ | ⛔ | 👁 | ⛔ |
+| Kassa, qarzlar | ✅ | ✅ | ⛔ | ⛔ | ⛔ |
+| Xarajat so'rovlari | ✅ tasdiq | ✅ so'raydi | ⛔ | ⛔ | ⛔ |
+| Foydalanuvchilar | ✅ | ⛔ | ⛔ | ⛔ | ⛔ |
+| Audit (activity-logs) | ✅ | ⛔ | ⛔ | ⛔ | ⛔ |
 
 👁 = faqat o'qish (GET ishlaydi, yozishda `403`) · ⛔ = GET ham `403`.
 

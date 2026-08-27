@@ -3,15 +3,17 @@ from rest_framework.test import APITestCase
 from apps.accounts.models import User
 
 # TZ 8: har bir rol qaysi bo'limni ko'radi (GET 200) va qaysisini ko'rmaydi (403)
+ALL = {'admin', 'bugalter', 'sales', 'buyurtmachi', 'engineer'}
+
 READ_MATRIX = {
-    '/api/dashboard/': {'admin', 'bugalter', 'sales', 'buyurtmachi'},
-    '/api/clients/': {'admin', 'bugalter', 'sales', 'buyurtmachi'},
-    '/api/leads/': {'admin', 'bugalter', 'sales', 'buyurtmachi'},
-    '/api/contracts/': {'admin', 'bugalter', 'sales', 'buyurtmachi'},
-    '/api/configurations/': {'admin', 'bugalter', 'sales', 'buyurtmachi'},
-    '/api/acts/': {'admin', 'bugalter', 'sales', 'buyurtmachi'},
-    '/api/products/': {'admin', 'bugalter', 'sales', 'buyurtmachi'},
-    '/api/stocks/': {'admin', 'bugalter', 'sales', 'buyurtmachi'},
+    '/api/dashboard/': ALL,
+    '/api/clients/': ALL,
+    '/api/leads/': ALL,
+    '/api/contracts/': ALL,
+    '/api/configurations/': ALL,
+    '/api/acts/': ALL,
+    '/api/products/': ALL,
+    '/api/stocks/': ALL,
 
     # TZ 8.3: sales bu bo'limlarni umuman ko'rmaydi
     '/api/cash-transactions/': {'admin', 'bugalter'},
@@ -19,6 +21,7 @@ READ_MATRIX = {
     '/api/expense-requests/': {'admin', 'bugalter'},
     '/api/purchases/': {'admin', 'bugalter', 'buyurtmachi'},
     '/api/replenishments/': {'admin', 'bugalter', 'buyurtmachi'},
+    '/api/configuration-requests/': ALL,
 
     # Faqat admin
     '/api/users/': {'admin'},
@@ -30,7 +33,7 @@ WRITE_MATRIX = {
     '/api/clients/': {'admin', 'sales', 'buyurtmachi'},
     '/api/leads/': {'admin', 'sales'},
     '/api/contracts/': {'admin', 'sales'},
-    '/api/configurations/': {'admin', 'bugalter', 'sales', 'buyurtmachi'},
+    '/api/configurations/': {'admin', 'engineer'},
     '/api/acts/': {'admin'},
     '/api/cash-transactions/': {'admin', 'bugalter'},
     '/api/loans/': {'admin', 'bugalter'},
@@ -48,6 +51,7 @@ class RoleMatrixTests(APITestCase):
             'bugalter': User.objects.create_user('b', password='p', role=User.Role.BUGALTER),
             'sales': User.objects.create_user('s', password='p', role=User.Role.SALES),
             'buyurtmachi': User.objects.create_user('q', password='p', role=User.Role.SUPPLIER),
+            'engineer': User.objects.create_user('e', password='p', role=User.Role.ENGINEER),
         }
 
     def test_read_access(self):
@@ -96,3 +100,15 @@ class RoleMatrixTests(APITestCase):
                         self.client.post(url, {}, format='json').status_code, 405,
                         f"{url} yozish uchun ochiq bo'lmasligi kerak",
                     )
+
+
+    def test_sales_cannot_write_configurations_anymore(self):
+        """Configurator ishlari Engineerga o'tdi — sales endi yoza olmaydi."""
+        self.client.force_authenticate(self.users['sales'])
+        self.assertEqual(
+            self.client.post('/api/configurations/', {}, format='json').status_code, 403,
+        )
+        # lekin zayavka yubora oladi
+        self.assertNotEqual(
+            self.client.post('/api/configuration-requests/', {}, format='json').status_code, 403,
+        )

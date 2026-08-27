@@ -13,7 +13,7 @@ class VariantPricingTests(APITestCase):
 
     def setUp(self):
         self.admin = User.objects.create_user('admin', password='p', role=User.Role.ADMIN)
-        self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
+        self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
         self.base = Product.objects.create(
             sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
         )
@@ -29,11 +29,11 @@ class VariantPricingTests(APITestCase):
             sku='RAM-4', name='RAM 4', kind=Product.Kind.COMPONENT,
         )
         self.act = Act.objects.create(number='ACT-001', title='ACT', issued_at=date.today())
-        self.client.force_authenticate(self.sales)
+        self.client.force_authenticate(self.engineer)
 
     def _configuration(self, components, act=True):
         configuration = Configuration.objects.create(
-            base_product=self.base, created_by=self.sales, act=self.act if act else None,
+            base_product=self.base, created_by=self.engineer, act=self.act if act else None,
         )
         for component, quantity in components:
             ConfigurationItem.objects.create(
@@ -125,7 +125,7 @@ class BaseModelAsReadyPositionTests(APITestCase):
     """TZ 6.1-6.2: bazaviy modelning o'zi ombordagi tayyor pozitsiya."""
 
     def setUp(self):
-        self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
+        self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
         self.base = Product.objects.create(
             sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
             sale_price=Decimal('25000000'),
@@ -150,7 +150,7 @@ class BaseModelAsReadyPositionTests(APITestCase):
             product=self.base, warehouse=warehouse,
             type=StockMovement.Type.IN, quantity=Decimal('3'),
         )
-        self.client.force_authenticate(self.sales)
+        self.client.force_authenticate(self.engineer)
 
     def test_items_autofilled_from_factory_specs(self):
         """Model tanlanganda tarkibi avtomatik yuklanadi — qo'lda kiritish shart emas."""
@@ -221,7 +221,7 @@ class ModifyModeTests(APITestCase):
         from apps.inventory.models import ProductSpec, StockMovement, Warehouse
         from apps.inventory.services import apply_movement
 
-        self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
+        self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
         self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
         self.act = Act.objects.create(number='ACT-01', title='ACT', issued_at=date.today())
 
@@ -246,7 +246,7 @@ class ModifyModeTests(APITestCase):
                 product=product, warehouse=self.warehouse,
                 type=StockMovement.Type.IN, quantity=Decimal(quantity),
             )
-        self.client.force_authenticate(self.sales)
+        self.client.force_authenticate(self.engineer)
 
     def _stock(self, product):
         from apps.inventory.services import available_quantity

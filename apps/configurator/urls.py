@@ -6,6 +6,7 @@ from apps.configurator.views import (
     ActViewSet,
     ConfigurationViewSet,
     ConfigurationItemViewSet,
+    ConfigurationRequestViewSet,
 )
 from apps.core.routing import DETAIL, LIST
 
@@ -30,6 +31,15 @@ urlpatterns = [
     path('configurations/<int:pk>/export-excel/', ConfigurationViewSet.as_view({
         'get': 'export_excel',
     }), name='configuration-export-excel'),
+
+    path('configuration-requests/', ConfigurationRequestViewSet.as_view(LIST), name='configurationrequest-list'),
+    path('configuration-requests/<int:pk>/', ConfigurationRequestViewSet.as_view(DETAIL), name='configurationrequest-detail'),
+    path('configuration-requests/<int:pk>/take/', ConfigurationRequestViewSet.as_view({
+        'post': 'take',
+    }), name='configurationrequest-take'),
+    path('configuration-requests/<int:pk>/complete/', ConfigurationRequestViewSet.as_view({
+        'post': 'complete',
+    }), name='configurationrequest-complete'),
 
     path('configuration-items/', ConfigurationItemViewSet.as_view(LIST), name='configurationitem-list'),
     path('configuration-items/<int:pk>/', ConfigurationItemViewSet.as_view(DETAIL), name='configurationitem-detail'),

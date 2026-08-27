@@ -65,6 +65,7 @@ class DemoUsersLoginTests(APITestCase):
         'admin': User.Role.ADMIN,
         'bugalter': User.Role.BUGALTER,
         'buyurtmachi': User.Role.SUPPLIER,
+        'engineer': User.Role.ENGINEER,
         'sales1': User.Role.SALES,
     }
 
@@ -101,6 +102,8 @@ class DemoUsersLoginTests(APITestCase):
             ('sales1', '/api/activity-logs/', 403),
             ('buyurtmachi', '/api/activity-logs/', 403),
             ('buyurtmachi', '/api/replenishments/', 200),
+            ('engineer', '/api/configurations/', 200),
+            ('engineer', '/api/cash-transactions/', 403),
             ('sales1', '/api/contracts/', 200),
             ('bugalter', '/api/cash-transactions/', 200),
         ]

@@ -17,19 +17,20 @@ Xato: `401` → "Login yoki parol noto'g'ri".
 
 ### 0.2 Sidebar (rol bo'yicha)
 
-| Menyu | admin | bugalter | sales | buyurtmachi |
-|---|:--:|:--:|:--:|:--:|
-| Dashboard | ✅ | ✅ | ✅ | ✅ |
-| Sotuv (Leads, Shartnomalar) | ✅ | ✅ | ✅ | 👁 |
-| To'ldirish (Buyurtmachi) | ✅ | ✅ | ⛔ | ✅ |
-| Ombor | 👁 | 👁 | 👁 | 👁 |
-| Configurator | ✅ | ✅ | ✅ | ✅ |
-| Kirim | ✅ | ✅ | ⛔ | 👁 |
-| Kassa | ✅ | ✅ | ⛔ | ⛔ |
-| Mijozlar | ✅ | 👁 | ✅ | ✅ |
-| ACT | ✅ | 👁 | 👁 | 👁 |
-| Foydalanuvchilar | ✅ | ⛔ | ⛔ | ⛔ |
-| Audit | ✅ | ⛔ | ⛔ | ⛔ |
+| Menyu | admin | bugalter | sales | buyurtmachi | engineer |
+|---|:--:|:--:|:--:|:--:|:--:|
+| Dashboard | ✅ | ✅ | ✅ | ✅ | ✅ |
+| Sotuv (Leads, Shartnomalar) | ✅ | ✅ | ✅ | 👁 | 👁 |
+| Zayavkalar | ✅ | 👁 | ✅ yozadi | 👁 | ✅ bajaradi |
+| To'ldirish (Buyurtmachi) | ✅ | ✅ | ⛔ | ✅ | ⛔ |
+| Ombor | 👁 | 👁 | 👁 | 👁 | 👁 |
+| Configurator | ✅ | 👁 | 👁 | 👁 | ✅ yozadi |
+| Kirim | ✅ | ✅ | ⛔ | 👁 | ⛔ |
+| Kassa | ✅ | ✅ | ⛔ | ⛔ | ⛔ |
+| Mijozlar | ✅ | 👁 | ✅ | ✅ | 👁 |
+| ACT | ✅ | 👁 | 👁 | 👁 | 👁 |
+| Foydalanuvchilar | ✅ | ⛔ | ⛔ | ⛔ | ⛔ |
+| Audit | ✅ | ⛔ | ⛔ | ⛔ | ⛔ |
 
 Yuqori panelda: eslatmalar qo'ng'irog'i (`GET /notifications/?is_read=false`), foydalanuvchi nomi va roli.
 
@@ -195,7 +196,24 @@ Timeline ko'rinishi: `GET /replenishments/{id}/timeline/` → `events[]` + `debt
 
 ---
 
+## 3.5 Zayavkalar — Sales ↔ Engineer (yangi)
+
+**Sales oynasi:** "Yangi zayavka" — client (select) + matn (textarea):
+`POST /configuration-requests/`. Ro'yxatda: `number`, `client_name`, `status_display`,
+`configuration_number` (tayyor bo'lsa havola).
+
+**Engineer oynasi:** `?status=new` ro'yxati → **Ishga olish** (`POST /{id}/take/`) →
+configuratorda tayyorlaydi → **Yakunlash** (`POST /{id}/complete/` `{configuration: id}`).
+
+Sales'ga eslatma tushadi; `done` zayavkada "Shartnoma tuzish" tugmasi —
+`configuration` bilan `POST /contracts/` ga o'tadi.
+
+---
+
 ## 4. Configurator
+
+> **Kim ishlaydi:** yozish — faqat **Engineer** (va admin). Sales bu bo'limda
+> faqat ko'radi; uning ishi zayavka yuborish (§3.5).
 
 ### 4.1 Konfiguratsiya yig'ish
 

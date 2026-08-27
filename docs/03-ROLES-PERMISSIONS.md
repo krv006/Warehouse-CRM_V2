@@ -8,6 +8,7 @@
 | Bugalter | `bugalter` | Hujjatlar, pul kirdi-chiqdisi, shartnomaning birinchi tasdig'i, pul kelganini tasdiqlash |
 | Sales | `sales` | Zakaz shakllantiradi, configurator qiladi, client qo'shadi, sotuv narxini ko'radi |
 | Buyurtmachi | `buyurtmachi` | Omborda yetishmayotgan mahsulotlarni to'ldiradi: ta'minotchidan narx, logistika xarajati, yetkazib berish kuzatuvi |
+| Engineer | `engineer` | **Configurator ishlari to'liq unda**: sales'dan matnli zayavka oladi, konfiguratsiyani tayyorlab qaytaradi |
 
 `is_superuser = True` bo'lgan foydalanuvchi ham admin sifatida qaraladi
 (`User.is_admin` property — `apps/accounts/models/user.py`).
@@ -27,6 +28,8 @@
 | `PurchaseAccess` | **admin, bugalter, buyurtmachi** | admin, bugalter |
 | `ProcurementAccess` | **admin, bugalter, buyurtmachi** | admin, buyurtmachi |
 | `ProcurementSharedAccess` | admin, bugalter, buyurtmachi | admin, buyurtmachi, bugalter |
+| `ConfiguratorAccess` | barcha login qilganlar | **admin, engineer** |
+| `ConfigurationRequestAccess` | barcha login qilganlar | admin, sales, engineer |
 
 Hammasi `RoleAccess` asosida: `read_roles` / `write_roles` ro'yxatlari, admin esa doim o'tadi.
 Qalin yozilgan qatorlar — **sales umuman ko'ra olmaydigan** bo'limlar (TZ 8.3).
@@ -44,7 +47,8 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | `/api/clients/` | hamma | admin, sales, buyurtmachi | bugalter faqat o'qiydi |
 | `/api/warehouses/`, `/products/`, `/product-specs/`, `/stocks/`, `/movements/` | hamma | **hech kim** | katalog faqat o'qish uchun; yangi mahsulot buyurtma orqali qo'shiladi |
 | `/api/acts/` | hamma | **faqat admin** | ACT ni admin kiritadi |
-| `/api/configurations/`, `/configuration-items/` | hamma | hamma | configurator hammaga ochiq (TZ 6.5) |
+| `/api/configurations/`, `/configuration-items/` | hamma | **admin, engineer** | sales configurator ishini qilmaydi — zayavka yuboradi |
+| `/api/configuration-requests/` | hamma | admin, sales, engineer | `take`/`complete` — faqat engineer (admin) |
 | `/api/leads/`, `/contracts/`, `/contract-items/` | hamma | admin, sales | narx faqat sales va adminga ko'rinadi |
 | `/api/contract-payments/` | hamma | admin, bugalter | |
 | `/api/contract-approvals/` | hamma | — | faqat o'qish |
@@ -60,7 +64,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | Mijozlar | ✅ ko'radi va qo'shadi |
 | Leads (og'zaki kelishuv) | ✅ ko'radi va yuritadi |
 | Shartnomalar | ✅ tuzadi, yuboradi, **sotuv narxini ko'radi** |
-| Configurator | ✅ to'liq ishlaydi |
+| Configurator | 👁 ko'radi; **zayavka yuboradi** (`/configuration-requests/`), tayyorini engineer qaytaradi |
 | ACT | 👁 faqat ko'radi |
 | Ombor (mahsulot, qoldiq, harakat) | 👁 **faqat ko'radi** — bu bo'lim hamma uchun faqat o'qish |
 | Eslatmalar | ✅ o'ziniki |
@@ -117,3 +121,14 @@ POST /api/users/
 ```
 
 Default rol — `sales`.
+
+
+## Sales → Engineer zayavka oqimi
+
+| Amal | Kim | Endpoint |
+|---|---|---|
+| Zayavka yozish (client xohishi matnda) | sales | `POST /api/configuration-requests/` |
+| Ishga olish | engineer | `POST /api/configuration-requests/{id}/take/` |
+| Konfiguratsiyani tayyorlash | engineer | configurator (`/configurations/...`) |
+| Zayavkani yakunlash (config biriktiriladi) | engineer | `POST /api/configuration-requests/{id}/complete/` |
+| Natijani olish, shartnoma boshlash | sales | eslatma keladi; `request.configuration` orqali |

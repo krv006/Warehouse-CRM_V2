@@ -200,3 +200,54 @@ def finalize_modification(configuration, user, removal_overrides=None):
         )
 
     return variant, created
+
+
+def take_request(request_obj, user):
+    """Engineer zayavkani ishga oladi."""
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import ConfigurationRequest
+
+    if not (user.is_admin or user.is_engineer):
+        raise PermissionDenied('Zayavkani faqat Engineer ishga oladi.')
+    if request_obj.status != ConfigurationRequest.Status.NEW:
+        raise ValidationError('Faqat yangi zayavkani ishga olish mumkin.')
+    request_obj.status = ConfigurationRequest.Status.IN_PROGRESS
+    request_obj.taken_by = user
+    request_obj.save()
+    return request_obj
+
+
+def complete_request(request_obj, user, configuration):
+    """Engineer tayyor konfiguratsiyani biriktiradi — sales'ga xabar boradi."""
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import ConfigurationRequest
+    from apps.core.models import Notification
+
+    if not (user.is_admin or user.is_engineer):
+        raise PermissionDenied('Zayavkani faqat Engineer yakunlaydi.')
+    if request_obj.status not in {
+        ConfigurationRequest.Status.NEW, ConfigurationRequest.Status.IN_PROGRESS,
+    }:
+        raise ValidationError('Zayavka allaqachon yakunlangan.')
+    if configuration is None:
+        raise ValidationError({'configuration': "Tayyor konfiguratsiya ko'rsatilishi shart."})
+
+    request_obj.configuration = configuration
+    request_obj.status = ConfigurationRequest.Status.DONE
+    request_obj.taken_by = request_obj.taken_by or user
+    request_obj.save()
+
+    Notification.objects.create(
+        user=request_obj.created_by,
+        title=f'{request_obj.number}: konfiguratsiya tayyor',
+        message=(
+            f'{configuration.number} — {configuration.base_product.name}. '
+            'Shartnoma jarayonini boshlashingiz mumkin.'
+        ),
+        level=Notification.Level.INFO,
+        entity='ConfigurationRequest',
+        object_id=str(request_obj.pk),
+    )
+    return request_obj

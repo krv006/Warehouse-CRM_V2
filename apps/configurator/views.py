@@ -2,17 +2,29 @@ from django.http import HttpResponse
 from rest_framework.response import Response
 from rest_framework.status import HTTP_400_BAD_REQUEST
 
-from apps.accounts.permissions import IsAdminOrReadOnly
-from apps.configurator.models import Act, Configuration, ConfigurationItem
+from apps.accounts.permissions import (
+    ConfigurationRequestAccess,
+    ConfiguratorAccess,
+    IsAdminOrReadOnly,
+)
+from apps.configurator.models import (
+    Act,
+    Configuration,
+    ConfigurationItem,
+    ConfigurationRequest,
+)
 from apps.configurator.serializers import (
     ActSerializer,
     ConfigurationSerializer,
     ConfigurationItemSerializer,
+    ConfigurationRequestSerializer,
 )
 from apps.configurator.services import (
     build_configuration_workbook,
+    complete_request,
     finalize_modification,
     resolve_variant,
+    take_request,
 )
 from apps.core.mixins import BaseModelViewSet
 from apps.core.models import ActivityLog
@@ -31,7 +43,13 @@ class ActViewSet(BaseModelViewSet):
 
 
 class ConfigurationViewSet(BaseModelViewSet):
-    """Configurator barcha rollarga ochiq (TZ: umumiy tushunchalar)."""
+    """Configurator: hamma ko'radi, yozish ishlari Engineerda.
+
+    Sales matnli zayavka yuboradi (ConfigurationRequest), Engineer shu yerda
+    konfiguratsiyani tayyorlab zayavkaga biriktiradi.
+    """
+
+    permission_classes = [ConfiguratorAccess]
 
     queryset = (
         Configuration.objects
@@ -185,4 +203,38 @@ class ConfigurationViewSet(BaseModelViewSet):
 class ConfigurationItemViewSet(BaseModelViewSet):
     queryset = ConfigurationItem.objects.select_related('configuration', 'component').all()
     serializer_class = ConfigurationItemSerializer
+    permission_classes = [ConfiguratorAccess]
     filterset_fields = ['configuration', 'component']
+
+
+class ConfigurationRequestViewSet(BaseModelViewSet):
+    """Zayavkalar: sales yozadi va Engineerga yuboradi, Engineer bajaradi."""
+
+    queryset = (
+        ConfigurationRequest.objects
+        .select_related('client', 'configuration', 'taken_by', 'created_by')
+        .all()
+    )
+    serializer_class = ConfigurationRequestSerializer
+    permission_classes = [ConfigurationRequestAccess]
+    search_fields = ['number', 'text', 'client__full_name', 'client__company_name']
+    filterset_fields = ['status', 'client', 'taken_by']
+    ordering_fields = ['created_at', 'number']
+
+    def take(self, request, pk=None):
+        """POST /configuration-requests/{id}/take/ — Engineer ishga oladi."""
+        request_obj = take_request(self.get_object(), request.user)
+        self.log_action(ActivityLog.Action.UPDATE, request_obj, 'Engineer ishga oldi')
+        return Response(self.get_serializer(request_obj).data)
+
+    def complete(self, request, pk=None):
+        """POST /configuration-requests/{id}/complete/ — konfiguratsiya biriktiriladi."""
+        configuration = Configuration.objects.filter(
+            pk=request.data.get('configuration'),
+        ).first()
+        request_obj = complete_request(self.get_object(), request.user, configuration)
+        self.log_action(
+            ActivityLog.Action.UPDATE, request_obj,
+            f'Konfiguratsiya tayyor: {configuration.number}',
+        )
+        return Response(self.get_serializer(request_obj).data)

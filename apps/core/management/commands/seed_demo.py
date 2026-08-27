@@ -41,6 +41,7 @@ class Command(BaseCommand):
         self._base_income()
         act = self._act(users)
         self._configurations(products, warehouses, act, users)
+        self._requests(users)
         contracts = self._contracts(products, users)
         self._leads(contracts, users)
         self._purchases(products, warehouses, users)
@@ -58,6 +59,7 @@ class Command(BaseCommand):
             'admin': User.objects.get(username='admin'),
             'bugalter': User.objects.get(username='bugalter'),
             'sales': User.objects.get(username='sales1'),
+            'engineer': User.objects.get(username='engineer'),
             'buyurtmachi': User.objects.get(username='buyurtmachi'),
         }
 
@@ -146,7 +148,7 @@ class Command(BaseCommand):
 
         draft = Configuration.objects.create(
             client=clients[0], base_product=products['HP-880'],
-            warehouse=warehouses['main'], created_by=users['sales'],
+            warehouse=warehouses['main'], created_by=users['engineer'],
             note='Mijoz hali o\'ylab ko\'rmoqda',
         )
         for sku, label in [('SSD-1TB', 'SSD'), ('GPU-32', 'GPU')]:
@@ -156,7 +158,7 @@ class Command(BaseCommand):
 
         ready = Configuration.objects.create(
             client=clients[2], base_product=products['HP-880'],
-            warehouse=warehouses['main'], act=act, created_by=users['sales'],
+            warehouse=warehouses['main'], act=act, created_by=users['engineer'],
             note='Kuchaytirilgan variant',
         )
         for sku, label, quantity in [('SSD-1TB', 'SSD', 2), ('GPU-32', 'GPU', 1),
@@ -168,6 +170,28 @@ class Command(BaseCommand):
         ready.variant = variant
         ready.status = Configuration.Status.READY
         ready.save()
+
+    def _requests(self, users):
+        """2 ta zayavka: yangi va bajarilgani (sales -> engineer oqimi)."""
+        from apps.clients.models import Client
+        from apps.configurator.models import Configuration, ConfigurationRequest
+
+        clients = list(Client.objects.order_by('id'))
+        ConfigurationRequest.objects.create(
+            client=clients[1],
+            text='Client 2 ta kuchli kompyuter xohlaydi: SSD kattaroq, GPU zo\'r bo\'lsin.',
+            created_by=users['sales'],
+        )
+        done = ConfigurationRequest.objects.create(
+            client=clients[2],
+            text='HP 880 ni SSD 2 ta bilan, protsessor kuchliroq qilib bering.',
+            status=ConfigurationRequest.Status.DONE,
+            configuration=Configuration.objects.filter(
+                status=Configuration.Status.READY,
+            ).first(),
+            taken_by=users['engineer'],
+            created_by=users['sales'],
+        )
 
     def _contracts(self, products, users):
         """5 ta shartnoma — jarayonning har bir bosqichidan bittadan."""
@@ -395,7 +419,7 @@ class Command(BaseCommand):
 
     def _summary(self):
         from apps.clients.models import Client
-        from apps.configurator.models import Configuration
+        from apps.configurator.models import Configuration, ConfigurationRequest
         from apps.core.models import Notification
         from apps.finance.models import CashTransaction, ExpenseRequest, Loan
         from apps.finance.services import cash_balance
@@ -410,6 +434,7 @@ class Command(BaseCommand):
             ('Leadlar', Lead.objects.count()),
             ('Shartnomalar', Contract.objects.count()),
             ('Konfiguratsiyalar', Configuration.objects.count()),
+            ('Zayavkalar', ConfigurationRequest.objects.count()),
             ('Kirimlar', Purchase.objects.count()),
             ("To'ldirish hisoblari", Replenishment.objects.count()),
             ('Qarzlar', Loan.objects.count()),

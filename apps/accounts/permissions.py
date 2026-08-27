@@ -16,6 +16,7 @@ ADMIN = User.Role.ADMIN
 BUGALTER = User.Role.BUGALTER
 SALES = User.Role.SALES
 SUPPLIER = User.Role.SUPPLIER
+ENGINEER = User.Role.ENGINEER
 
 
 def _authenticated(user):
@@ -79,6 +80,26 @@ class CanManageClients(RoleAccess):
     read_roles = None
     write_roles = (SALES, SUPPLIER)
     message = "Client qo'shish bugalter uchun mavjud emas."
+
+
+class ConfiguratorAccess(RoleAccess):
+    """Configurator: hamma ko'radi, yozish — faqat Engineer.
+
+    Sales configurator ishini qilmaydi — u matnli zayavka yuboradi,
+    Engineer esa konfiguratsiyani tayyorlab qaytaradi.
+    """
+
+    read_roles = None
+    write_roles = (ENGINEER,)
+    message = 'Konfiguratsiya bilan Engineer ishlaydi.'
+
+
+class ConfigurationRequestAccess(RoleAccess):
+    """Zayavka: sales yozadi, engineer bajaradi, hamma ko'radi."""
+
+    read_roles = None
+    write_roles = (SALES, ENGINEER)
+    message = 'Zayavka sales va engineer uchun.'
 
 
 class FinanceAccess(RoleAccess):

@@ -14,7 +14,7 @@ class ConfigurationTests(APITestCase):
     """Configurator: omborda bori olinadi, yetishmagani kirim qilinadi."""
 
     def setUp(self):
-        self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
+        self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
         self.admin = User.objects.create_user('admin', password='p', role=User.Role.ADMIN)
         self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
         self.base = Product.objects.create(
@@ -31,7 +31,7 @@ class ConfigurationTests(APITestCase):
             type=StockMovement.Type.IN, quantity=Decimal('5'),
         )
         self.configuration = Configuration.objects.create(
-            base_product=self.base, warehouse=self.warehouse, created_by=self.sales,
+            base_product=self.base, warehouse=self.warehouse, created_by=self.engineer,
         )
         ConfigurationItem.objects.create(
             configuration=self.configuration, component=self.ssd,
@@ -41,7 +41,7 @@ class ConfigurationTests(APITestCase):
             configuration=self.configuration, component=self.gpu,
             label='GPU', quantity=1, unit_price=Decimal('4500000'),
         )
-        self.client.force_authenticate(self.sales)
+        self.client.force_authenticate(self.engineer)
 
     def test_number_is_generated(self):
         self.assertTrue(self.configuration.number.startswith('CFG-'))
