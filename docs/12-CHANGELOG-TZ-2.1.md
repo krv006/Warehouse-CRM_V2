@@ -355,6 +355,44 @@ yo'ldan o'tadi:
 
 Minimal so'rov: `{"contract": 10, "amount": "350000000", "method": "cash"}`.
 
+## 8.7 Engineer istalgan tovarni qo'shadi, yetishmagani buyurtmachiga 🆕
+
+**1. Bazada yo'q tovar ham configuratordan qo'shiladi.** Qatorda `component`
+o'rniga `new_component_name` (ixtiyoriy `new_component_sku`) yuboriladi —
+tovar katalogga butlovchi bo'lib tushadi (TZ 7 uslubi: buyurtma qilishning
+o'zi mahsulot qo'shish). Mavjud nom takrorlanmaydi — bor mahsulot olinadi.
+
+```json
+POST /api/configuration-items/
+{"configuration": 12, "new_component_name": "RAM 32 GB",
+ "label": "RAM", "quantity": 2, "unit_price": "900000"}
+```
+
+Nested `items` ichida ham ishlaydi (`POST /configurations/`).
+
+**2. Yangi endpoint:** `POST /configurations/{id}/request-procurement/`
+(engineer, admin) — omborda yetishmagan qatorlardan **to'ldirish hisobi**
+(TLD-, chernovik) ochiladi va konfiguratsiyaga bog'lanadi (`Replenishment.configuration`,
+filtr: `GET /replenishments/?configuration=12`). Hammasi omborda bo'lsa — 400.
+
+**3. Xabarlar uchala tomonga boradi** (Notification, warning):
+
+| Kim | Xabar |
+|---|---|
+| buyurtmachi | kirim qilish kerak — buyurtmani rasmiylashtirib yuboring |
+| sales | kirim qilish kerak — mijoz buyurtmasi shu kirimni kutadi |
+| bugalter | tekshirib chiqing — buyurtmachi yuborgach tasdiq sizdan boshlanadi |
+
+**4. Keyin mavjud TZ 7 zanjiri ishlaydi:** buyurtmachi `submit` → bugalter
+`approve` → admin `approve` → bugalter `pay` (pul yetmasa qarzga) → `receive`
+— hammasi `GET /replenishments/{id}/timeline/` line chart bilan kuzatiladi.
+
+**Frontendga ta'siri:** engineer configurator oynasida (a) butlovchi selectiga
+"yangi tovar nomi yozish" rejimi; (b) `stock-check` da yetishmovchilik bo'lsa
+**"Buyurtmachiga yuborish"** tugmasi — javobdagi TLD raqami bilan to'ldirish
+kartasiga havola. Buyurtmachi/sales/bugalter dashboardlarida yangi warning
+notificationlar ko'rinadi.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -383,8 +421,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **92** |
+| REST endpoint | 70 | **93** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **176** |
+| Testlar | 66 | **185** |
 | Rollar | 3 | **5** |

@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **176 ta test, hammasi OK**.
+Hozirgi holat: **185 ta test, hammasi OK**.
 
 ---
 
@@ -49,6 +49,7 @@ Hozirgi holat: **176 ta test, hammasi OK**.
 | `apps/procurement/tests/test_replenishment_flow.py` | TZ 7: yetishmayotganlar ro'yxati, hisob shakllantirish, narxsiz yuborishning bloklanishi, buyurtmachi→bugalter→admin zanjiri, pul yetmasa qarzga o'tishi (1 400 000 / 500 000 / 900 000), qarz muddati kirimdan 60 kun, ombor qoldig'i, bojxona bosqichi, admin qatorni tahrirlashi |
 | `apps/configurator/tests/test_variant_pricing.py` | TZ 6.2: narx ombordan olinishi, narxsiz qatorning bloklanishi, variant yaratilishi, bir xil tarkibning qayta ishlatilishi, tayyor variant narxi |
 | `apps/configurator/tests/test_configuration_request.py` | Sales→Engineer zayavka oqimi: ZVK raqami, take/complete faqat engineerga, take'da konfiguratsiya avtomatik ochilishi, sales'ga notification, configuratsiz complete 400 |
+| `apps/configurator/tests/test_missing_to_procurement.py` | Engineer bazada yo'q tovarni configuratordan qo'shishi (`new_component_name`, takror nom yaratilmasligi), request-procurement: yetishmaganlardan TLD ochilishi, buyurtmachi/sales/bugalterga xabar, hammasi omborda bo'lsa 400, sales'ga 403, zanjir buyurtmachi submit'iga ulanishi |
 | `apps/configurator/tests/test_front_fixes.py` | Front topgan xatolar regressiyasi: configuration-items'da `configuration` maydoni (400, 500 emas), engineer notificationlari, `configuration` filtri, ready/attached qulfi, take'da zavod tarkibi va tana ustuvorligi, komponent bazaviy bo'la olmasligi, sales finalize tanadagi ACT bilan (engineer'ga 403), sales ACT yarata olishi |
 | `apps/finance/tests/test_kassa.py` (`LoanRepaidBugTests`) | Qarz bug'i regressiyasi: yangi qarzda repaid=0, qisman/to'liq qaytarish, ortiqcha to'lov va yopiq qarzga 400 |
 | `apps/core/tests/test_dashboard_and_audit.py` | dashboard bo'limlari va balans, `ActivityLog` yozilishi, audit faqat adminga, `check_deadlines` eslatmalari va idempotentligi, notification `mark-read` |

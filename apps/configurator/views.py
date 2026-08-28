@@ -26,6 +26,7 @@ from apps.configurator.services import (
     finalize_modification,
     notify_engineers_about_request,
     resolve_variant,
+    send_missing_to_procurement,
     take_request,
 )
 from apps.core.mixins import BaseModelViewSet
@@ -232,6 +233,24 @@ class ConfigurationViewSet(BaseModelViewSet):
             f'Konfiguratsiya {purchase.number} buyurtmasiga biriktirildi',
         )
         return Response(self.get_serializer(configuration).data)
+
+    def request_procurement(self, request, pk=None):
+        """POST /configurations/{id}/request-procurement/ — yetishmayotganlar buyurtmachiga.
+
+        Omborda yo'q butlovchilardan to'ldirish hisobi (TLD-) ochiladi;
+        buyurtmachi, sales va bugalterga xabar tushadi. Keyin TZ 7 zanjiri:
+        buyurtmachi submit -> bugalter -> admin -> to'lov -> kirim (timeline).
+        """
+        from apps.procurement.serializers import ReplenishmentSerializer
+
+        replenishment = send_missing_to_procurement(self.get_object(), request.user)
+        self.log_action(
+            ActivityLog.Action.CREATE, replenishment,
+            f"Configuratordan: yetishmayotganlar buyurtmachiga yuborildi",
+        )
+        return Response(
+            ReplenishmentSerializer(replenishment).data, status=201,
+        )
 
     def export_excel(self, request, pk=None):
         """GET /configurations/{id}/export-excel/ — chernovik Excel."""

@@ -37,6 +37,11 @@ class Replenishment(TimeStampedModel):
     number = CharField(max_length=30, unique=True, blank=True)
     warehouse = ForeignKey('inventory.Warehouse', PROTECT, related_name='replenishments')
     supplier = CharField(max_length=200, blank=True)
+    # Engineer configuratordan "omborda yo'q" deb yuborgan bo'lsa — manba
+    configuration = ForeignKey(
+        'configurator.Configuration', SET_NULL, related_name='replenishments',
+        null=True, blank=True,
+    )
     status = CharField(max_length=30, choices=Status.choices, default=Status.DRAFT)
     currency = CharField(max_length=3, choices=Currency.choices, default=Currency.UZS)
 

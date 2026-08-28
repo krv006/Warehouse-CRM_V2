@@ -44,11 +44,11 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 
 | Ko'rsatkich | Qiymat |
 |---|---|
-| REST endpoint | **92 endpoint** (Swagger va OpenAPI sahifalaridan tashqari) |
+| REST endpoint | **93 endpoint** (Swagger va OpenAPI sahifalaridan tashqari) |
 | Django ilovalari | 9 ta (`core`, `accounts`, `clients`, `inventory`, `configurator`, `purchases`, `procurement`, `sales`, `finance`) |
 | Modellar | 30 ta |
 | Rollar | 5 ta: admin, bugalter, sales, buyurtmachi, engineer |
-| Testlar | **176 ta**, hammasi o'tadi |
+| Testlar | **185 ta**, hammasi o'tadi |
 
 ---
 
@@ -189,7 +189,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (176 ta).
+Barcha testlar (185 ta).
 
 ---
 

@@ -136,6 +136,9 @@ POST /contracts/
    "reorder_level": 10, "needed": 10, "cost_price": "400000.00" }]
 ```
 
+`?configuration=12` filtri — configuratordan kelgan hisoblar (TLD kartasida
+`configuration_number` havolasi ko'rinadi).
+
 Tepada tugma: **"Hisob shakllantirish"** → `POST /replenishments/from-low-stock/`
 `{"supplier": "Etuf MCHJ"}` → yaratilgan hisob kartasiga o'ting
 (`warehouse` yuborish shart emas — tizimda bitta ombor, backend o'zi oladi).

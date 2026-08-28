@@ -108,6 +108,7 @@ class ReplenishmentSerializer(ModelSerializer):
     events = ReplenishmentEventSerializer(many=True, read_only=True)
     status_display = ReadOnlyField(source='get_status_display')
     warehouse_name = ReadOnlyField(source='warehouse.name')
+    configuration_number = ReadOnlyField(source='configuration.number')
     items_total = ReadOnlyField()
     total_amount = ReadOnlyField()
     cash_available = ReadOnlyField()
@@ -118,7 +119,8 @@ class ReplenishmentSerializer(ModelSerializer):
     class Meta:
         model = Replenishment
         fields = [
-            'id', 'number', 'warehouse', 'warehouse_name', 'supplier', 'status',
+            'id', 'number', 'warehouse', 'warehouse_name', 'supplier',
+            'configuration', 'configuration_number', 'status',
             'status_display', 'currency', 'logistics_cost', 'other_cost',
             'items_total', 'total_amount', 'cash_available', 'shortfall',
             'paid_amount', 'debt', 'debt_days_left', 'debt_color',

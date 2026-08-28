@@ -173,14 +173,27 @@ Holatlar: `new` → `in_progress` (take) → `done` (complete). Raqam: `ZVK-0000
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
 | POST | `/configurations/{id}/finalize/` | **sales bosqichi** (engineer 403); ACT majburiy, tanada berish mumkin: `{"act": 2}`; ombor tanlanmagan bo'lsa faol ombor o'zi olinadi |
 | POST | `/configurations/{id}/attach/` | kirim buyurtmasiga biriktirish |
+| POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan to'ldirish hisobi (TLD) ochib buyurtmachi/sales/bugalterga xabar beradi; hammasi omborda bo'lsa 400 |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
-| GET/POST | `/configuration-items/` | qatorni alohida qo'shish — `configuration` majburiy, faqat `draft` |
+| GET/POST | `/configuration-items/` | qatorni alohida qo'shish — `configuration` majburiy, faqat `draft`; bazada yo'q tovar uchun `new_component_name` |
 | GET/PUT/PATCH/DELETE | `/configuration-items/{id}/` | filtr: `configuration`, `component`; faqat `draft` da o'zgaradi |
 
 Qatorni alohida qo'shish:
 ```json
 POST /api/configuration-items/
 {"configuration": 12, "component": 7, "label": "SSD qo'shimcha", "quantity": 1}
+```
+
+Bazada yo'q tovar — `component` o'rniga nom yoziladi, tovar katalogga o'zi tushadi:
+```json
+POST /api/configuration-items/
+{"configuration": 12, "new_component_name": "RAM 32 GB", "label": "RAM",
+ "quantity": 2, "unit_price": "900000"}
+```
+
+Yetishmaganlarni buyurtmachiga yuborish (javob — yaratilgan TLD hisobi):
+```json
+POST /api/configurations/12/request-procurement/
 ```
 
 **Yaratish** (`items` ixtiyoriy — yuborilmasa zavod tarkibi avtomatik yuklanadi):

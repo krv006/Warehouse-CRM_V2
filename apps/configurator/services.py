@@ -309,6 +309,69 @@ def complete_request(request_obj, user, configuration):
     return request_obj
 
 
+def send_missing_to_procurement(configuration, user):
+    """Konfiguratsiyadagi omborda yo'q butlovchilarni buyurtmachiga yuboradi.
+
+    Yetishmayotgan qatorlardan to'ldirish hisobi (chernovik, TLD-) ochiladi va
+    konfiguratsiyaga bog'lanadi. Buyurtmachi, sales va bugalterga xabar boradi.
+    Keyingi zanjir — TZ 7: buyurtmachi yuboradi -> bugalter tekshiradi ->
+    admin tasdiqlaydi -> bugalter to'laydi -> kirim (timeline bilan kuzatiladi).
+    """
+    from django.db.transaction import atomic
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.accounts.models import User
+    from apps.core.models import Notification
+    from apps.inventory.services import main_warehouse
+    from apps.procurement.models import Replenishment, ReplenishmentItem
+
+    if not (user.is_admin or user.is_engineer):
+        raise PermissionDenied('Buyurtmachiga yuborishni Engineer bajaradi.')
+
+    missing = [
+        item for item in configuration.items.select_related('component')
+        if item.shortage > 0
+    ]
+    if not missing:
+        raise ValidationError({
+            'detail': "Barcha butlovchilar omborda yetarli — buyurtmachiga yuborish shart emas.",
+        })
+
+    with atomic():
+        replenishment = Replenishment.objects.create(
+            warehouse=configuration.warehouse or main_warehouse(),
+            configuration=configuration,
+            note=f"{configuration.number} uchun yetishmayotgan butlovchilar",
+            created_by=user,
+        )
+        for item in missing:
+            ReplenishmentItem.objects.create(
+                replenishment=replenishment,
+                product=item.component,
+                quantity=item.shortage,
+                unit_price=item.component.cost_price or 0,
+                note=f'{configuration.number} konfiguratsiyasi uchun',
+            )
+
+    messages = {
+        User.Role.SUPPLIER: 'kirim qilish kerak — buyurtmani rasmiylashtirib yuboring.',
+        User.Role.SALES: 'kirim qilish kerak — mijoz buyurtmasi shu kirimni kutadi.',
+        User.Role.BUGALTER: "tekshirib chiqing — buyurtmachi yuborgach tasdiq sizdan boshlanadi.",
+    }
+    names = ', '.join(item.component.name for item in missing)
+    recipients = User.objects.filter(role__in=messages.keys(), is_active=True)
+    for recipient in recipients:
+        Notification.objects.create(
+            user=recipient,
+            title=f"{configuration.number}: omborda yo'q butlovchilar ({replenishment.number})",
+            message=f'{names} — {messages[recipient.role]}',
+            level=Notification.Level.WARNING,
+            entity='Replenishment',
+            object_id=str(replenishment.pk),
+        )
+    return replenishment
+
+
 def notify_engineers_about_request(request_obj):
     """Yangi zayavka haqida barcha faol engineerlarga eslatma (3-xato tuzatmasi)."""
     from apps.accounts.models import User

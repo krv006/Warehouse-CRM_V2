@@ -28,6 +28,9 @@ urlpatterns = [
     path('configurations/<int:pk>/attach/', ConfigurationViewSet.as_view({
         'post': 'attach',
     }), name='configuration-attach'),
+    path('configurations/<int:pk>/request-procurement/', ConfigurationViewSet.as_view({
+        'post': 'request_procurement',
+    }), name='configuration-request-procurement'),
     path('configurations/<int:pk>/export-excel/', ConfigurationViewSet.as_view({
         'get': 'export_excel',
     }), name='configuration-export-excel'),

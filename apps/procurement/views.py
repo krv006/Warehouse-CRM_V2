@@ -51,7 +51,7 @@ class ReplenishmentViewSet(BaseModelViewSet):
     serializer_class = ReplenishmentSerializer
     permission_classes = [ProcurementAccess]
     search_fields = ['number', 'supplier']
-    filterset_fields = ['status', 'warehouse', 'currency']
+    filterset_fields = ['status', 'warehouse', 'currency', 'configuration']
     ordering_fields = ['created_at', 'number']
 
     def get_permissions(self):
