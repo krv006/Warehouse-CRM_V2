@@ -338,7 +338,7 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | Metod | Manzil | Kim |
 |---|---|---|
 | GET/POST | `/leads/` | admin, sales |
-| GET/POST | `/contracts/` | admin, sales |
+| GET/POST | `/contracts/` | admin, sales; filtr: `status`, `client`, `currency`, `configuration` |
 | POST | `/contracts/{id}/submit/` | sales |
 | POST | `/contracts/{id}/approve/` | bugalter → keyin admin |
 | POST | `/contracts/{id}/reject/` | bugalter / admin |

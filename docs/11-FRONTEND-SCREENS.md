@@ -71,7 +71,7 @@ Bosqichni o'zgartirish: `PATCH /leads/{id}/ {"stage": "verbal"}`
 
 ### 2.2 Shartnomalar ro'yxati
 
-**Endpoint:** `GET /contracts/` · filtr `?status=`, `?client=`, `?currency=`
+**Endpoint:** `GET /contracts/` · filtr `?status=`, `?client=`, `?currency=`, `?configuration=`
 
 **Ustunlar:** `number`, `client_name`, `status_display`, `total_amount`, `paid`, `balance`,
 `days_left` + `color` nuqtasi

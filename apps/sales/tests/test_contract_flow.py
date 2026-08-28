@@ -34,6 +34,22 @@ class ContractFlowTests(APITestCase):
         )
         return contract
 
+    def test_filter_by_configuration(self):
+        """Front CFG bo'yicha qidirganda faqat o'sha shartnoma chiqadi (server bug'i)."""
+        from apps.configurator.models import Configuration
+
+        configuration = Configuration.objects.create(base_product=self.product)
+        with_config = self._contract()
+        with_config.configuration = configuration
+        with_config.save()
+        self._contract()  # konfiguratsiyasiz ikkinchi shartnoma
+
+        self.client.force_authenticate(self.sales)
+        response = self.client.get(f'/api/contracts/?configuration={configuration.id}')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.data['count'], 1)
+        self.assertEqual(response.data['results'][0]['id'], with_config.id)
+
     def test_number_and_prepayment_percent_under_threshold(self):
         contract = self._contract('500000000')
         self.assertTrue(contract.number.startswith('SHT-'))

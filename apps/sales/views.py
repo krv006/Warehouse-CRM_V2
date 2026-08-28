@@ -40,7 +40,7 @@ class ContractViewSet(BaseModelViewSet):
     serializer_class = ContractSerializer
     permission_classes = [IsAdminOrSales]
     search_fields = ['number', 'client__full_name', 'client__company_name']
-    filterset_fields = ['status', 'client', 'currency']
+    filterset_fields = ['status', 'client', 'currency', 'configuration']
     ordering_fields = ['created_at', 'number', 'total_amount']
 
     def get_permissions(self):
