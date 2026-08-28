@@ -68,6 +68,10 @@ demo: ## To'liq demo: userlar, mijozlar, ombor, shartnomalar, kirim, kassa
 demo-reset: ## Bazani tozalab, demo'ni qaytadan yuklaydi (userlar qoladi)
 	$(MANAGE) seed_demo --reset
 
+.PHONY: stock
+stock: ## Kam qolgan mahsulotlarga demo kirim (har biriga kamida 10 dona)
+	$(MANAGE) seed_stock
+
 .PHONY: deadlines
 deadlines: ## Muddat eslatmalarini tekshiradi
 	$(MANAGE) check_deadlines
@@ -156,6 +160,10 @@ docker-demo: ## Serverda to'liq demo ma'lumotlar
 .PHONY: docker-demo-reset
 docker-demo-reset: ## Serverda bazani tozalab demo'ni qaytadan yuklaydi
 	$(COMPOSE) exec web python manage.py seed_demo --reset
+
+.PHONY: docker-stock
+docker-stock: ## Serverda kam qolgan mahsulotlarga demo kirim yozadi
+	$(COMPOSE) exec web python manage.py seed_stock
 
 .PHONY: docker-deadlines
 docker-deadlines: ## Konteyner ichida muddat eslatmalari

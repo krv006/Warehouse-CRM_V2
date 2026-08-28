@@ -48,7 +48,7 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 | Django ilovalari | 9 ta (`core`, `accounts`, `clients`, `inventory`, `configurator`, `purchases`, `procurement`, `sales`, `finance`) |
 | Modellar | 30 ta |
 | Rollar | 5 ta: admin, bugalter, sales, buyurtmachi, engineer |
-| Testlar | **171 ta**, hammasi o'tadi |
+| Testlar | **173 ta**, hammasi o'tadi |
 
 ---
 
@@ -150,6 +150,7 @@ Har bir ilovada `models/` va `tests/` — papka ko'rinishida, `urls.py` esa har 
 | `make superuser` | admin ochish |
 | `make demo` | to'liq demo: userlar, mijozlar, mahsulotlar, shartnomalar, kirim, kassa |
 | `make demo-reset` | bazani **tozalab** demo'ni qaytadan yuklaydi (akkauntlar qoladi) |
+| `make stock` | kam qolgan mahsulotlarga demo kirim — har biriga kamida 10 dona |
 | `make migrations` / `make migrate` | migratsiya yozish / qo'llash |
 | `make clean` | `__pycache__` tozalash |
 
@@ -162,6 +163,7 @@ Har bir ilovada `models/` va `tests/` — papka ko'rinishida, `urls.py` esa har 
 | `make docker-superuser` | konteyner ichida admin ochish |
 | `make docker-demo` | serverda to'liq demo ma'lumotlar |
 | `make docker-demo-reset` | serverda bazani tozalab demo'ni qaytadan yuklaydi |
+| `make docker-stock` | serverda kam qolgan mahsulotlarga demo kirim yozadi |
 | `make backup` | bazani zaxiralaydi |
 
 ---
@@ -174,6 +176,12 @@ Har bir ilovada `models/` va `tests/` — papka ko'rinishida, `urls.py` esa har 
 Kassa yacheykalarini yaratadi (sotuv, ustav, qarz, import, oylik, arenda, obed, ...).
 
 ```bash
+.venv/Scripts/python.exe manage.py seed_stock
+```
+Kam qolgan mahsulotlarga demo kirim yozadi (sinov uchun): har bir faol mahsulot
+yagona omborda kamida 10 dona bo'ladi. Idempotent — qayta yursa ortiqcha qo'shmaydi.
+
+```bash
 .venv/Scripts/python.exe manage.py check_deadlines
 ```
 Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi. Cron/Task Scheduler'ga kunlik qo'yiladi.
@@ -181,7 +189,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (171 ta).
+Barcha testlar (173 ta).
 
 ---
 
