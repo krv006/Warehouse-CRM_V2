@@ -48,7 +48,7 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 | Django ilovalari | 9 ta (`core`, `accounts`, `clients`, `inventory`, `configurator`, `purchases`, `procurement`, `sales`, `finance`) |
 | Modellar | 30 ta |
 | Rollar | 5 ta: admin, bugalter, sales, buyurtmachi, engineer |
-| Testlar | **185 ta**, hammasi o'tadi |
+| Testlar | **188 ta**, hammasi o'tadi |
 
 ---
 
@@ -62,9 +62,11 @@ Tizim ishlab turibdi: **https://ombor.thesofmebel.uz**
 | https://ombor.thesofmebel.uz/api/schema/ | OpenAPI (frontend uchun TS tiplari) |
 | https://ombor.thesofmebel.uz/admin/ | Django admin |
 
-`make docker-demo` bitta komanda bilan **butun tizimga** demo yuklaydi: 5 foydalanuvchi,
-4 mijoz, 5 mahsulot (qoldiq bilan), 5 lead, 5 shartnoma (har bosqichdan), 5 kirim
-(har turdan), 2 to'ldirish hisobi, qarzlar, xarajatlar va eslatmalar.
+`make docker-demo` bitta komanda bilan **butun tizimga** demo yuklaydi: 6 foydalanuvchi,
+4 mijoz, 6 mahsulot (qoldiq bilan; bittasi engineer configuratordan qo'shgan yangi tovar),
+2 zayavka, 2 konfiguratsiya, 5 lead, 5 shartnoma (har bosqichdan, faolida 2 ta to'lov),
+5 kirim (har turdan), 3 to'ldirish hisobi (bittasi configuratordan ochilgan),
+qarzlar, xarajatlar va eslatmalar.
 Foydalanuvchilar, parol — `Ombor2026!`:
 
 | Login | Rol |
@@ -189,7 +191,7 @@ Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (185 ta).
+Barcha testlar (188 ta).
 
 ---
 

@@ -20,12 +20,51 @@ class SeedDemoTests(APITestCase):
         call_command('seed_demo', stdout=StringIO())
 
     def test_counts_per_module(self):
-        self.assertEqual(Product.objects.filter(base_model__isnull=True).count(), 5)
+        # 5 asosiy mahsulot + engineer configuratordan qo'shgan Wi-Fi modul
+        self.assertEqual(Product.objects.filter(base_model__isnull=True).count(), 6)
         self.assertEqual(Contract.objects.count(), 5)
         self.assertEqual(Lead.objects.count(), 5)
         self.assertEqual(Purchase.objects.count(), 5)
-        self.assertEqual(Replenishment.objects.count(), 2)
+        self.assertEqual(Replenishment.objects.count(), 3)
         self.assertEqual(PurchaseDocument.objects.count(), 2)
+
+    def test_configurator_created_replenishment(self):
+        """Engineer 'omborda yo'q' deb yuborgani: TLD konfiguratsiyaga bog'langan."""
+        from apps.accounts.models import User
+        from apps.core.models import Notification
+
+        linked = Replenishment.objects.get(configuration__isnull=False)
+        self.assertEqual(linked.status, Replenishment.Status.DRAFT)
+        skus = set(linked.items.values_list('product__sku', flat=True))
+        self.assertIn('WIFI-6E', skus)
+
+        # Buyurtmachi, sales va bugalterga warning xabari tushgan
+        for username in ('buyurtmachi', 'sales1', 'bugalter'):
+            user = User.objects.get(username=username)
+            self.assertTrue(
+                Notification.objects.filter(
+                    user=user, entity='Replenishment',
+                    object_id=str(linked.pk),
+                ).exists(),
+                f'{username} uchun xabar topilmadi',
+            )
+
+    def test_engineer_added_product_from_configurator(self):
+        """Bazada yo'q tovar configuratordan qo'shilgan (new_component_name uslubi)."""
+        wifi = Product.objects.get(sku='WIFI-6E')
+        self.assertEqual(wifi.kind, Product.Kind.COMPONENT)
+        self.assertEqual(wifi.cost_price, Decimal('350000'))
+
+    def test_active_contract_has_additional_payment(self):
+        """Faol shartnomada 2 ta to'lov: 30% oldindan + qo'shimcha 5 mln."""
+        contract = Contract.objects.get(status=Contract.Status.ACTIVE)
+        self.assertEqual(contract.payments.count(), 2)
+        self.assertEqual(
+            contract.paid, contract.prepayment_amount + Decimal('5000000'),
+        )
+        self.assertEqual(
+            contract.payments.filter(is_prepayment=False).count(), 1,
+        )
 
     def test_contract_statuses_cover_the_chain(self):
         statuses = set(Contract.objects.values_list('status', flat=True))

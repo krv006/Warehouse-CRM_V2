@@ -195,19 +195,26 @@ class Command(BaseCommand):
     def _act(self, users):
         from apps.configurator.models import Act
 
+        # ACT — sales bosqichi: engineer tayyorlagach sales rasmiylashtiradi
         return Act.objects.create(
             number='ACT-0001',
             title='HP 880 tarkibini o\'zgartirish',
             description='Mijoz talabiga ko\'ra SSD va GPU almashtiriladi',
             issued_at=localdate(),
-            created_by=users['admin'],
+            created_by=users['sales'],
         )
 
     def _configurations(self, products, warehouses, act, users):
-        """2 ta konfiguratsiya: chernovik va yakunlangan (variant bilan)."""
+        """2 ta konfiguratsiya: chernovik (yangi tovar + buyurtmachiga yuborilgan)
+        va yakunlangan (sales ACT bilan yopgan, variant bilan)."""
         from apps.clients.models import Client
         from apps.configurator.models import Configuration, ConfigurationItem
-        from apps.configurator.services import resolve_variant
+        from apps.configurator.services import (
+            resolve_variant,
+            send_missing_to_procurement,
+        )
+        from apps.inventory.models import Product
+        from apps.inventory.services import create_product_from_order
 
         clients = list(Client.objects.order_by('id'))
 
@@ -220,11 +227,23 @@ class Command(BaseCommand):
             ConfigurationItem.objects.create(
                 configuration=draft, component=products[sku], label=label, quantity=1,
             )
+        # Engineer bazada yo'q tovarni configuratordan qo'shdi (new_component_name)
+        wifi = create_product_from_order(
+            name='Wi-Fi modul 6E', sku='WIFI-6E',
+            kind=Product.Kind.COMPONENT, cost_price=Decimal('350000'),
+        )
+        products['WIFI-6E'] = wifi
+        ConfigurationItem.objects.create(
+            configuration=draft, component=wifi, label='WIFI', quantity=1,
+        )
+        # Omborda yo'q — buyurtmachiga yuborildi: TLD ochiladi,
+        # buyurtmachi/sales/bugalterga xabar tushadi
+        send_missing_to_procurement(draft, users['engineer'])
 
         ready = Configuration.objects.create(
             client=clients[2], base_product=products['HP-880'],
             warehouse=warehouses['main'], act=act, created_by=users['engineer'],
-            note='Kuchaytirilgan variant',
+            note='Engineer tayyorladi, sales ACT bilan yakunladi',
         )
         for sku, label, quantity in [('SSD-1TB', 'SSD', 2), ('GPU-32', 'GPU', 1),
                                      ('CPU-8', 'CPU', 1)]:
@@ -310,9 +329,11 @@ class Command(BaseCommand):
             )
         contracts['approved'] = c4
 
-        # Faol shartnoma: to'lov haqiqiy servis orqali — kassaga kirim tushadi
+        # Faol shartnoma: to'lovlar haqiqiy servis orqali — kassaga kirim tushadi
         c5 = build(clients[0], 2, Contract.Status.APPROVED, 'Faol shartnoma')
         confirm_payment(c5, users['bugalter'], amount=c5.prepayment_amount)
+        # Qo'shimcha (2-) to'lov — oldindan to'lov emas, balansni kamaytiradi
+        confirm_payment(c5, users['bugalter'], amount=Decimal('5000000'))
         c5.refresh_from_db()
         # Muddat sanog'i ko'rinishi uchun boshlanishini orqaga suramiz (8 kun qoldi — qizil)
         c5.start_date = localdate() - timedelta(days=82)
@@ -407,7 +428,10 @@ class Command(BaseCommand):
         )
 
     def _replenishments(self, products, warehouses, users):
-        """2 ta to'ldirish hisobi: chernovik va to'liq jarayondan o'tgani."""
+        """Yana 2 ta to'ldirish hisobi: chernovik va to'liq jarayondan o'tgani.
+
+        (Uchinchisi configuratordan ochilgan — `_configurations` ichida.)
+        """
         from apps.procurement.models import Replenishment, ReplenishmentEvent, ReplenishmentItem
         from apps.procurement import services
 
