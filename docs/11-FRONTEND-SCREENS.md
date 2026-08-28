@@ -101,7 +101,7 @@ Bosqichni o'zgartirish: `PATCH /leads/{id}/ {"stage": "verbal"}`
 | `pending_bugalter` | Tasdiqlash / Rad etish | bugalter |
 | `pending_admin` | Tasdiqlash / Rad etish | admin |
 | `approved` | To'lovni tasdiqlash → `POST /api/contracts/{id}/confirm-payment/` | bugalter |
-| `active` | Qo'shimcha to'lov | bugalter |
+| `active` | Qo'shimcha to'lov — `POST /api/contract-payments/` `{contract, amount, method}` (`paid_at` shart emas) | bugalter |
 
 To'lov formasi: `amount` (default `prepayment_amount`), `method` (`cash`/`card`/`transfer`).
 
@@ -437,7 +437,7 @@ Bular alohida ekran emas — yuqoridagi sahifalar ichida ishlatiladi.
 | Endpoint | Qayerda kerak | Metodlar |
 |---|---|---|
 | `/api/contract-items/` | Shartnoma kartasi — qatorni alohida qo'shish/tahrirlash | GET, POST, PATCH, DELETE |
-| `/api/contract-payments/` | Shartnoma kartasi — to'lovlar ro'yxati | GET, POST (bugalter) |
+| `/api/contract-payments/` | Shartnoma kartasi — to'lovlar ro'yxati; POST kassa va balansni ham yangilaydi | GET, POST (bugalter) |
 | `/api/contract-approvals/` | Shartnoma kartasi — tasdiqlash tarixi | GET |
 | `/api/configuration-items/` | Configurator — qatorni alohida tahrirlash | GET, POST, PATCH, DELETE |
 | `/api/product-specs/` | Mahsulot kartasi — zavod tarkibi | GET |

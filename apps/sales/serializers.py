@@ -1,4 +1,8 @@
-from rest_framework.serializers import ModelSerializer, ReadOnlyField
+from rest_framework.serializers import (
+    DateTimeField,
+    ModelSerializer,
+    ReadOnlyField,
+)
 
 from apps.sales.models import (
     Contract,
@@ -45,6 +49,9 @@ class ContractApprovalSerializer(ModelSerializer):
 
 
 class ContractPaymentSerializer(ModelSerializer):
+    """To'lov. `paid_at` ixtiyoriy — yuborilmasa hozirgi vaqt olinadi."""
+
+    paid_at = DateTimeField(required=False)
     method_display = ReadOnlyField(source='get_method_display')
     contract_number = ReadOnlyField(source='contract.number')
 

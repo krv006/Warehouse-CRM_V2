@@ -34,6 +34,52 @@ class ContractFlowTests(APITestCase):
         )
         return contract
 
+    def test_additional_payment_via_contract_payments_endpoint(self):
+        """Front topgan xato: qo'shimcha to'lovda paid_at majburiy edi (400).
+
+        Endi paid_at ixtiyoriy va POST /contract-payments/ ham confirm-payment
+        yo'lidan o'tadi: kassaga tushadi, balans yangilanadi, yopilsa completed.
+        """
+        contract = self._contract('500000000')
+        contract.status = Contract.Status.APPROVED
+        contract.save()
+
+        self.client.force_authenticate(self.bugalter)
+        # 1-to'lov (30% oldindan) — paid_at yubormaymiz
+        response = self.client.post('/api/contract-payments/', {
+            'contract': contract.id, 'amount': '150000000',
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertTrue(response.data['is_prepayment'])
+        self.assertIsNotNone(response.data['paid_at'])
+        contract.refresh_from_db()
+        self.assertEqual(contract.status, Contract.Status.ACTIVE)
+
+        # 2-to'lov (qoldiq) — bu ham paid_at siz
+        response = self.client.post('/api/contract-payments/', {
+            'contract': contract.id, 'amount': '350000000', 'method': 'cash',
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertFalse(response.data['is_prepayment'])
+        contract.refresh_from_db()
+        self.assertEqual(contract.status, Contract.Status.COMPLETED)
+        self.assertEqual(contract.paid, Decimal('500000000'))
+        self.assertEqual(contract.balance, Decimal('0'))
+
+        # Ikkala to'lov ham kassaga kirim bo'lib tushdi
+        self.assertEqual(
+            CashTransaction.objects.filter(contract=contract).count(), 2,
+        )
+
+    def test_payment_on_draft_contract_is_400(self):
+        """Tasdiqlanmagan shartnomaga to'lov yozib bo'lmaydi."""
+        contract = self._contract()
+        self.client.force_authenticate(self.bugalter)
+        response = self.client.post('/api/contract-payments/', {
+            'contract': contract.id, 'amount': '1000',
+        }, format='json')
+        self.assertEqual(response.status_code, 400)
+
     def test_filter_by_configuration(self):
         """Front CFG bo'yicha qidirganda faqat o'sha shartnoma chiqadi (server bug'i)."""
         from apps.configurator.models import Configuration

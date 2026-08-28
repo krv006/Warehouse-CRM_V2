@@ -346,7 +346,7 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | GET | `/contracts/{id}/timeline/` | hamma |
 | GET | `/contracts/deadlines/` | hamma |
 | GET/POST | `/contract-items/` | admin, sales |
-| GET/POST | `/contract-payments/` | admin, bugalter |
+| GET/POST | `/contract-payments/` | admin, bugalter; POST `confirm-payment` bilan bir xil yo'ldan o'tadi: `paid_at` ixtiyoriy (default: hozir), kassaga kirim, balans yopilsa `completed` |
 | GET | `/contract-approvals/` | faqat o'qish |
 
 **Shartnoma yaratish:**

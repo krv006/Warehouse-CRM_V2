@@ -122,10 +122,39 @@ class ContractItemViewSet(BaseModelViewSet):
 
 
 class ContractPaymentViewSet(BaseModelViewSet):
+    """To'lovlar. POST ham `confirm-payment` bilan bir xil yo'ldan o'tadi.
+
+    Qo'shimcha to'lov shu yerdan yuborilsa ham: kassaga kirim yoziladi,
+    birinchi to'lovda muddat sanog'i boshlanib mahsulot ombordan chiqadi,
+    balans yopilsa shartnoma `completed` bo'ladi. `paid_at` ixtiyoriy.
+    """
+
     queryset = ContractPayment.objects.select_related('contract', 'created_by').all()
     serializer_class = ContractPaymentSerializer
     permission_classes = [IsAdminOrBugalter]
     filterset_fields = ['contract', 'method', 'is_prepayment']
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        data = serializer.validated_data
+
+        # Yuborilmagan bo'lsa None — servis o'zi aniqlaydi (birinchi to'lov = oldindan)
+        is_prepayment = (
+            data.get('is_prepayment') if 'is_prepayment' in request.data else None
+        )
+        payment = confirm_payment(
+            data['contract'], request.user,
+            amount=data['amount'],
+            method=data.get('method', ContractPayment.Method.TRANSFER),
+            paid_at=data.get('paid_at'),
+            is_prepayment=is_prepayment,
+        )
+        self.log_action(
+            ActivityLog.Action.CREATE, payment,
+            f"{payment.contract.number} bo'yicha to'lov: {payment.amount}",
+        )
+        return Response(self.get_serializer(payment).data, status=201)
 
 
 class ContractApprovalViewSet(BaseModelViewSet):

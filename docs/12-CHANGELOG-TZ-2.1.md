@@ -337,6 +337,24 @@ Endi bu tizim darajasida majburlanadi:
 `warehouse` ni umuman yubormang, backend o'zi hal qiladi. "Omborlar" sahifasi
 ham kerak emas (`GET /warehouses/` doim bitta yozuv qaytaradi).
 
+## 8.6 Qo'shimcha to'lov tuzatildi 🐛→✅
+
+Front topgan xato: `POST /contract-payments/` da `paid_at` majburiy edi
+(`400 {"paid_at": ["This field is required."]}`) va bu endpoint to'lovni
+shunchaki yozib qo'yardi — kassaga tushmasdi, balans yangilanmasdi.
+
+Endi `POST /contract-payments/` ham `confirm-payment` bilan **bir xil**
+yo'ldan o'tadi:
+
+- `paid_at` **ixtiyoriy** — yuborilmasa hozirgi vaqt olinadi;
+- kassaga `sale` kirimi yoziladi;
+- birinchi to'lov bo'lsa muddat sanog'i boshlanadi va mahsulot ombordan chiqadi;
+- balans yopilsa shartnoma `completed` bo'ladi;
+- `is_prepayment` yuborilmasa servis o'zi aniqlaydi (birinchi to'lov = oldindan);
+- tasdiqlanmagan (`draft`/`pending_*`) shartnomaga to'lov — 400.
+
+Minimal so'rov: `{"contract": 10, "amount": "350000000", "method": "cash"}`.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -368,5 +386,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **92** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **174** |
+| Testlar | 66 | **176** |
 | Rollar | 3 | **5** |
