@@ -16,6 +16,7 @@ class ConfigurationTests(APITestCase):
     def setUp(self):
         self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
         self.admin = User.objects.create_user('admin', password='p', role=User.Role.ADMIN)
+        self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
         self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
         self.base = Product.objects.create(
             sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
@@ -57,6 +58,8 @@ class ConfigurationTests(APITestCase):
         self.assertEqual(self.configuration.total_price, Decimal('6000000'))
 
     def test_finalize_requires_act(self):
+        # Yakunlash sales bosqichi (engineer emas)
+        self.client.force_authenticate(self.sales)
         response = self.client.post(f'/api/configurations/{self.configuration.id}/finalize/')
         self.assertEqual(response.status_code, 400)
 
@@ -91,9 +94,14 @@ class ConfigurationTests(APITestCase):
         self.assertIn('spreadsheetml', response['Content-Type'])
         self.assertIn(self.configuration.number, response['Content-Disposition'])
 
-    def test_act_is_admin_only(self):
+    def test_act_belongs_to_sales_stage(self):
+        """ACT ni sales (va admin) kiritadi — engineer emas, uning ishi configurator."""
         payload = {'number': 'ACT-003', 'title': 'Yangi', 'issued_at': str(date.today())}
         self.assertEqual(self.client.post('/api/acts/', payload).status_code, 403)
 
+        self.client.force_authenticate(self.sales)
+        self.assertEqual(self.client.post('/api/acts/', payload).status_code, 201)
+
         self.client.force_authenticate(self.admin)
+        payload['number'] = 'ACT-004'
         self.assertEqual(self.client.post('/api/acts/', payload).status_code, 201)

@@ -50,14 +50,6 @@ class IsAdmin(RoleAccess):
     message = 'Bu amal faqat admin uchun.'
 
 
-class IsAdminOrReadOnly(RoleAccess):
-    """O'qish — hammaga, yozish — adminga (ACT)."""
-
-    read_roles = None
-    write_roles = ()
-    message = "O'zgartirish faqat admin uchun."
-
-
 class IsAdminOrBugalter(RoleAccess):
     """O'qish hammaga, yozish bugalterga — shartnoma tasdig'i kabi amallar uchun."""
 

@@ -98,14 +98,14 @@ urlpatterns = [
 
 | Rol | Vazifasi |
 |---|---|
-| `admin` | Hamma narsani ko'radi, ACT kiritadi, shartnomani oxirgi tasdiqlaydi, bugalterning xarajatiga ruxsat beradi |
+| `admin` | Hamma narsani ko'radi, shartnomani oxirgi tasdiqlaydi, bugalterning xarajatiga ruxsat beradi |
 | `bugalter` | Hujjat va pul kirdi-chiqdisi, shartnomaning 1-tasdig'i, pul kelganini tasdiqlash. Client qo'sha olmaydi |
-| `sales` | Zakaz shakllantiradi, configurator qiladi, client qo'shadi, sotuv narxini ko'radi |
+| `sales` | Zakaz shakllantiradi, client qo'shadi, sotuv narxini ko'radi; engineer tayyorlagan konfiguratsiyaga **ACT kiritib yakunlaydi** va bugalterga yuboradi |
 | `buyurtmachi` | Omborni to'ldiradi: ta'minotchi narxi, logistika, yetkazib berish kuzatuvi, qarz |
 | `engineer` | Configurator ishlari to'liq unda; sales'dan `ZVK-` zayavka oladi (`/configuration-requests/`), konfiguratsiyani tayyorlab qaytaradi |
 
 Permission klasslari: `apps/accounts/permissions.py` (`IsAdmin`, `IsAdminOrBugalter`,
-`IsAdminOrSales`, `CanManageClients`, `IsAdminOrReadOnly`, `FinanceAccess`,
+`IsAdminOrSales`, `CanManageClients`, `FinanceAccess`,
 `PurchaseAccess`, `ProcurementAccess`, `ProcurementSharedAccess`) — hammasi `RoleAccess`
 asosida: `read_roles` / `write_roles`, admin doim o'tadi.
 
@@ -151,7 +151,7 @@ O'qish hammaga; **yozish faqat engineer** (admin). Sales matnli zayavka yuboradi
 `Configuration` + `ConfigurationItem`: har bir qator uchun `available` / `shortage` / `source`
 (`stock` yoki `purchase`) hisoblanadi.
 - `GET /configurations/{id}/stock-check/`
-- `POST /configurations/{id}/finalize/` — **ACT majburiy** (ACT ni faqat admin kiritadi)
+- `POST /configurations/{id}/finalize/` — **ACT majburiy**; ACT va yakunlash — **sales bosqichi** (engineer ACT'siz tayyorlab `complete` qiladi), tanada `{"act": id}` qabul qilinadi
 - `POST /configurations/{id}/attach/` — tayyor konfiguratsiyani kirim buyurtmasiga biriktiradi
 - `GET /configurations/{id}/export-excel/` — chernovik Excel (openpyxl)
 - Narx ombordan avtomatik olinadi; narxsiz qator bo'lsa `finalize` bloklanadi

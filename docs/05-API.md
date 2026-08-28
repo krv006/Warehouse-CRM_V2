@@ -117,8 +117,9 @@ va `POST /replenishments/{id}/receive/` (TZ 1-bo'lim: Kirim va Chiqim).
 ## Zayavkalar — Sales → Engineer
 
 Sales client bilan gaplashib xohishni **matnda** yozadi va Engineerga yuboradi.
-Engineer configuratorda tayyorlab, konfiguratsiyani zayavkaga biriktiradi —
-sales'ga eslatma boradi va u shartnoma jarayonini boshlaydi.
+Engineer configuratorda tayyorlab, konfiguratsiyani zayavkaga biriktiradi
+(**ACT'siz, chernovik holida**) — sales'ga eslatma boradi. Sales ACT kiritadi,
+`finalize` bilan yakunlaydi va shartnoma tuzib bugalterga yuboradi.
 
 | Metod | Manzil | Kim |
 |---|---|---|
@@ -162,12 +163,12 @@ Holatlar: `new` → `in_progress` (take) → `done` (complete). Raqam: `ZVK-0000
 
 | Metod | Manzil | Izoh |
 |---|---|---|
-| GET/POST | `/acts/` | yozish faqat admin |
+| GET/POST | `/acts/` | yozish **sales** (admin) — engineer tayyorlagach sales rasmiylashtiradi |
 | GET/POST | `/configurations/` | **yozish: engineer (admin)**; qatorlar ixtiyoriy |
 | PUT/PATCH/DELETE | `/configurations/{id}/` | faqat `draft` holatida — `ready`/`attached` 400 qaytaradi |
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
-| POST | `/configurations/{id}/finalize/` | ACT majburiy; tanada berish mumkin: `{"act": 2}` |
+| POST | `/configurations/{id}/finalize/` | **sales bosqichi** (engineer 403); ACT majburiy, tanada berish mumkin: `{"act": 2}` |
 | POST | `/configurations/{id}/attach/` | kirim buyurtmasiga biriktirish |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
 | GET/POST | `/configuration-items/` | qatorni alohida qo'shish — `configuration` majburiy, faqat `draft` |

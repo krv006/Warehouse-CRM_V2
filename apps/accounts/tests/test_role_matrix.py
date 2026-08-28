@@ -34,7 +34,7 @@ WRITE_MATRIX = {
     '/api/leads/': {'admin', 'sales'},
     '/api/contracts/': {'admin', 'sales'},
     '/api/configurations/': {'admin', 'engineer'},
-    '/api/acts/': {'admin'},
+    '/api/acts/': {'admin', 'sales'},
     '/api/cash-transactions/': {'admin', 'bugalter'},
     '/api/loans/': {'admin', 'bugalter'},
     '/api/purchases/': {'admin', 'bugalter'},

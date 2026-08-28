@@ -208,7 +208,8 @@ notification tushadi.
 **Engineer oynasi:** `?status=new` ro'yxati → **Ishga olish** (`POST /{id}/take/`) —
 backend chernovik konfiguratsiyani zavod tarkibi bilan **o'zi ochadi** va javobda
 `configuration` id qaytaradi → shu id bilan configurator sahifasiga o'ting →
-tayyorlagach **Yakunlash** (`POST /{id}/complete/` `{configuration: id}`).
+tayyorlagach **Salesga qaytarish** (`POST /{id}/complete/` `{configuration: id}`)
+— ACT'siz, chernovik holida. ACT va yakunlash sales bosqichida (§4.3).
 Zayavkada model tanlanmagan bo'lsa `take` tanasida yuboriladi:
 `{"base_product": id, "warehouse": id, "mode": "build|modify"}`; butunlay
 modelsiz `take` — 400.
@@ -257,7 +258,10 @@ Sales'ga eslatma tushadi; `done` zayavkada "Shartnoma tuzish" tugmasi —
 (`POST /api/configurations/{id}/finalize/`), Excel (`GET /api/configurations/{id}/export-excel/`),
 Buyurtmaga biriktirish (`POST /api/configurations/{id}/attach/`).
 
-`Yakunlash` faqat: ACT tanlangan **va** `needs_price: true` qator yo'q bo'lsa faol.
+`Yakunlash` — **sales oynasida** (engineer'da bu tugma bo'lmaydi, 403):
+ACT tanlangan (yoki tanada `{"act": id}` yuboriladi) **va** `needs_price: true`
+qator yo'q bo'lsa faol. Sales ACT ni o'zi yaratadi (`POST /acts/`), yakunlagach
+shartnoma tuzib bugalterga yuboradi.
 Xato javobi narxi yo'q butlovchilar ro'yxatini beradi:
 
 ```json

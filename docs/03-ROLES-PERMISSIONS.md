@@ -4,11 +4,11 @@
 
 | Rol | `role` qiymati | TZ dagi vazifasi |
 |---|---|---|
-| Administrator | `admin` | Hamma narsani ko'radi va nazorat qiladi, ACT kiritadi, shartnomani oxirgi tasdiqlaydi, bugalterning har bir xarajatiga ruxsat beradi |
+| Administrator | `admin` | Hamma narsani ko'radi va nazorat qiladi, shartnomani oxirgi tasdiqlaydi, bugalterning har bir xarajatiga ruxsat beradi |
 | Bugalter | `bugalter` | Hujjatlar, pul kirdi-chiqdisi, shartnomaning birinchi tasdig'i, pul kelganini tasdiqlash |
 | Sales | `sales` | Zakaz shakllantiradi, configurator qiladi, client qo'shadi, sotuv narxini ko'radi |
 | Buyurtmachi | `buyurtmachi` | Omborda yetishmayotgan mahsulotlarni to'ldiradi: ta'minotchidan narx, logistika xarajati, yetkazib berish kuzatuvi |
-| Engineer | `engineer` | **Configurator ishlari to'liq unda**: sales'dan matnli zayavka oladi, konfiguratsiyani tayyorlab qaytaradi |
+| Engineer | `engineer` | **Configurator tahriri to'liq unda**: sales'dan matnli zayavka oladi, konfiguratsiyani ACT'siz tayyorlab qaytaradi (ACT va yakunlash — sales'da) |
 
 `is_superuser = True` bo'lgan foydalanuvchi ham admin sifatida qaraladi
 (`User.is_admin` property — `apps/accounts/models/user.py`).
@@ -20,7 +20,6 @@
 | Klass | O'qish (GET) | Yozish (POST/PUT/PATCH/DELETE) |
 |---|---|---|
 | `IsAdmin` | faqat admin | faqat admin |
-| `IsAdminOrReadOnly` | barcha login qilganlar | faqat admin |
 | `IsAdminOrBugalter` | barcha login qilganlar | admin, bugalter |
 | `IsAdminOrSales` | barcha login qilganlar | admin, sales |
 | `CanManageClients` | barcha login qilganlar | admin, sales, buyurtmachi |
@@ -46,8 +45,8 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | `/api/notifications/` | o'ziniki + umumiy | — | `mark-read` |
 | `/api/clients/` | hamma | admin, sales, buyurtmachi | bugalter faqat o'qiydi |
 | `/api/warehouses/`, `/products/`, `/product-specs/`, `/stocks/`, `/movements/` | hamma | **hech kim** | katalog faqat o'qish uchun; yangi mahsulot buyurtma orqali qo'shiladi |
-| `/api/acts/` | hamma | **faqat admin** | ACT ni admin kiritadi |
-| `/api/configurations/`, `/configuration-items/` | hamma | **admin, engineer** | sales configurator ishini qilmaydi — zayavka yuboradi |
+| `/api/acts/` | hamma | **sales** (admin) | Engineer tayyorlagach ACT ni sales kiritadi |
+| `/api/configurations/`, `/configuration-items/` | hamma | **admin, engineer** | sales configurator ishini qilmaydi — zayavka yuboradi; `finalize` esa **sales** (admin) — engineer'ga 403 |
 | `/api/configuration-requests/` | hamma | admin, sales, engineer | `take`/`complete` — faqat engineer (admin) |
 | `/api/leads/`, `/contracts/`, `/contract-items/` | hamma | admin, sales | narx faqat sales va adminga ko'rinadi |
 | `/api/contract-payments/` | hamma | admin, bugalter | |
@@ -64,8 +63,8 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | Mijozlar | ✅ ko'radi va qo'shadi |
 | Leads (og'zaki kelishuv) | ✅ ko'radi va yuritadi |
 | Shartnomalar | ✅ tuzadi, yuboradi, **sotuv narxini ko'radi** |
-| Configurator | 👁 ko'radi; **zayavka yuboradi** (`/configuration-requests/`), tayyorini engineer qaytaradi |
-| ACT | 👁 faqat ko'radi |
+| Configurator | 👁 ko'radi; **zayavka yuboradi** (`/configuration-requests/`), tayyorini engineer qaytaradi; tayyorini **ACT bilan yakunlaydi** (`finalize`) |
+| ACT | ✅ **kiritadi** (`POST /acts/`) — engineer tayyorlagach shu bosqichda |
 | Ombor (mahsulot, qoldiq, harakat) | 👁 **faqat ko'radi** — bu bo'lim hamma uchun faqat o'qish |
 | Eslatmalar | ✅ o'ziniki |
 | Kassa, qarzlar, xarajat so'rovlari | ⛔ **403** |

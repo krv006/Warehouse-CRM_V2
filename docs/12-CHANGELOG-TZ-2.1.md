@@ -290,6 +290,31 @@ ko'rsatilmagan bo'lsa — 400.
 - `ready` konfiguratsiyada tahrir tugmalarini yashirish (baribir 400 qaytadi);
 - engineer dashboardida yangi zayavka notificationlari ko'rinadi.
 
+## 8.5 ACT va yakunlash — sales bosqichiga o'tdi 🔴 breaking
+
+Engineer'ning ishi **faqat configurator tahriri**. Oqim endi shunday:
+
+```
+sales zayavka (ZVK) → engineer take → configuratorda tayyorlaydi
+→ engineer complete (ACT'SIZ, chernovik holida) → sales'ga notification
+→ SALES: ACT yaratadi (POST /acts/) → finalize {"act": id} → ready
+→ sales shartnoma tuzadi → bugalter → admin → to'lov
+```
+
+| Nima | Avval | Endi |
+|---|---|---|
+| `POST /acts/` | faqat admin | **sales** (admin) |
+| `POST /configurations/{id}/finalize/` | engineer | **sales** (admin); engineer → 403 |
+| Engineer `complete` | konfiguratsiya tayyor bo'lishi kutilardi | chernovikni ham qaytaradi — ACT shart emas |
+
+**Frontendga ta'siri:** engineer oynasidan ACT tanlash va "Yakunlash" tugmasi
+olib tashlanadi; sales'ning `done` zayavka kartasiga "ACT kiritish + Yakunlash"
+bloki qo'shiladi, shundan keyingina "Shartnoma tuzish" ochiladi.
+
+Eslatma: `modify` rejimida yakunlashda ombor tekshiruvi bor — qo'shilayotgan
+butlovchi omborda yetarli bo'lmasa `400 {"items": ["GPU 32 (kerak: 4, omborda: 2)"]}`
+qaytadi. Bu xato emas, haqiqiy qoldiq nazorati — endi u sales bosqichida ko'rinadi.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -321,5 +346,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **92** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **163** |
+| Testlar | 66 | **164** |
 | Rollar | 3 | **5** |

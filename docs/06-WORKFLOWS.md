@@ -123,7 +123,8 @@ Narxlash qoidalari (TZ 6.2):
 Tarkib **imzo (signature)** bilan saqlanadi — komponentlar tartibi muhim emas,
 bir xil kombinatsiya doim bir xil imzo beradi.
 
-- ACT ni **faqat admin** kiritadi (`POST /acts/`).
+- ACT ni **sales** kiritadi (`POST /acts/`, admin ham mumkin) — engineer
+  konfiguratsiyani ACT'siz tayyorlab beradi, sales ACT bilan yakunlaydi.
 - Excel chernovik: butlovchi, belgi, miqdor, narx, summa, omborda, yetishmaydi, manba va jami.
 - Configurator barcha rollarga ochiq.
 

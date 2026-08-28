@@ -273,13 +273,13 @@ Qarz muddati: mahsulot omborga kirim qilingan kundan **60 kun**, rang kodi shart
 
 ### 6.3 Configurator
 
-| Amal | Endpoint |
-|---|---|
-| Yaratish | `POST /configurations/` (`items` bilan) |
-| Ombor tekshiruvi | `GET /configurations/{id}/stock-check/` |
-| Yakunlash | `POST /configurations/{id}/finalize/` |
-| Excel | `GET /configurations/{id}/export-excel/` |
-| Buyurtmaga biriktirish | `POST /configurations/{id}/attach/` |
+| Amal | Endpoint | Kim |
+|---|---|---|
+| Yaratish | `POST /configurations/` (`items` bilan) | engineer |
+| Ombor tekshiruvi | `GET /configurations/{id}/stock-check/` | hamma |
+| Yakunlash (ACT bilan) | `POST /configurations/{id}/finalize/` `{"act": id}` | **sales** (engineer 403) |
+| Excel | `GET /configurations/{id}/export-excel/` | hamma |
+| Buyurtmaga biriktirish | `POST /configurations/{id}/attach/` | engineer |
 
 Yangi narxlash mantig'i (TZ 6.2) frontendda shunday ko'rinadi:
 

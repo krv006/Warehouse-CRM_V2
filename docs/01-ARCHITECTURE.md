@@ -98,7 +98,7 @@ path('contracts/<int:pk>/confirm-payment/', ContractViewSet.as_view({
 
 ### `apps/accounts` — foydalanuvchi va ruxsat
 `User(AbstractUser)` + `role` (`admin` / `bugalter` / `sales`), `phone`, `language`.
-`permissions.py`: `IsAdmin`, `IsAdminOrReadOnly`, `IsAdminOrBugalter`, `IsAdminOrSales`, `CanManageClients`.
+`permissions.py`: `IsAdmin`, `IsAdminOrBugalter`, `IsAdminOrSales`, `CanManageClients`.
 
 ### `apps/clients` — mijozlar
 Bitta `Client` modeli, ikki tur: `individual` va `legal`. Turga qarab majburiy maydonlar farq qiladi

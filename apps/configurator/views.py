@@ -6,7 +6,7 @@ from rest_framework.status import HTTP_400_BAD_REQUEST
 from apps.accounts.permissions import (
     ConfigurationRequestAccess,
     ConfiguratorAccess,
-    IsAdminOrReadOnly,
+    IsAdminOrSales,
 )
 from apps.configurator.models import (
     Act,
@@ -35,11 +35,15 @@ XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml
 
 
 class ActViewSet(BaseModelViewSet):
-    """ACT hujjatlari — faqat admin kiritadi."""
+    """ACT hujjatlari — sales bosqichida kiritiladi (admin ham mumkin).
+
+    Engineer konfiguratsiyani ACT'siz tayyorlab qaytaradi; sales tayyor
+    konfiguratsiyani olgach ACT kiritadi va yakunlab bugalterga yuboradi.
+    """
 
     queryset = Act.objects.select_related('created_by').all()
     serializer_class = ActSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    permission_classes = [IsAdminOrSales]
     search_fields = ['number', 'title']
     filterset_fields = ['is_active']
 
@@ -63,6 +67,13 @@ class ConfigurationViewSet(BaseModelViewSet):
     search_fields = ['number', 'client__full_name', 'client__company_name']
     filterset_fields = ['status', 'client', 'base_product', 'act']
     ordering_fields = ['created_at', 'number']
+
+    def get_permissions(self):
+        # Yakunlash (ACT bilan) — sales bosqichi: engineer tayyorlab beradi,
+        # sales ACT kiritib rasmiylashtiradi va bugalterga yuboradi.
+        if self.action == 'finalize':
+            return [IsAdminOrSales()]
+        return super().get_permissions()
 
     def _check_draft(self, configuration):
         """Yakunlangan konfiguratsiya o'zgartirilmaydi — faqat chernovik (TZ 6.4)."""

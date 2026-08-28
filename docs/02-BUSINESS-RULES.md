@@ -178,7 +178,9 @@ TZ misoli: HP 880 (SSD 512 GB, GPU 16, 4 yadro, RAM 8) → mijoz SSD 1 TB va GPU
    - `needs_price` — omborda ham narx yo'q; bunday qator bo'lsa yakunlash bloklanadi
 4. `GET /api/configurations/{id}/stock-check/` — shu ro'yxatni qaytaradi.
 5. **ACT majburiy:** `POST /{id}/finalize/` faqat `act` biriktirilgan va qatorlari bor bo'lsa ishlaydi.
-   ACT ni **faqat admin** kiritadi (`/api/acts/` yozish `IsAdminOrReadOnly` bilan yopilgan).
+   ACT ni **sales** kiritadi (admin ham mumkin; `/api/acts/` yozish `IsAdminOrSales`).
+   Engineer konfiguratsiyani ACT'siz tayyorlab `complete` qiladi — ACT va
+   yakunlash sales bosqichida, so'ng shartnoma bugalterga yuboriladi.
 6. `GET /{id}/export-excel/` — chernovik Excel (butlovchi, miqdor, narx, omborda, yetishmaydi, manba, jami).
 7. Tayyor bo'lsa `POST /{id}/attach/` bilan kirim buyurtmasiga biriktiriladi → status `attached`.
 
