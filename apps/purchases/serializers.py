@@ -1,5 +1,11 @@
-from rest_framework.serializers import ModelSerializer, ReadOnlyField
+from rest_framework.serializers import (
+    ModelSerializer,
+    PrimaryKeyRelatedField,
+    ReadOnlyField,
+)
 
+from apps.inventory.models import Warehouse
+from apps.inventory.services import main_warehouse
 from apps.purchases.models import Purchase, PurchaseItem, PurchaseDocument
 
 
@@ -31,6 +37,11 @@ class PurchaseDocumentSerializer(ModelSerializer):
 
 
 class PurchaseSerializer(ModelSerializer):
+    """Biznesda bitta ombor — `warehouse` yuborilmasa yagona ombor olinadi."""
+
+    warehouse = PrimaryKeyRelatedField(
+        queryset=Warehouse.objects.all(), required=False,
+    )
     items = PurchaseItemSerializer(many=True)
     documents = PurchaseDocumentSerializer(many=True, read_only=True)
     type_display = ReadOnlyField(source='get_type_display')
@@ -55,6 +66,8 @@ class PurchaseSerializer(ModelSerializer):
 
     def create(self, validated_data):
         items = validated_data.pop('items', [])
+        if not validated_data.get('warehouse'):
+            validated_data['warehouse'] = main_warehouse()
         purchase = Purchase.objects.create(**validated_data)
         for item in items:
             PurchaseItem.objects.create(purchase=purchase, **item)

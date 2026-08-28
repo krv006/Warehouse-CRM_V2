@@ -104,7 +104,8 @@ def _ship_contract_items(contract, user):
     from apps.inventory.models import StockMovement, Warehouse
     from apps.inventory.services import apply_movement, available_quantity
 
-    warehouse = Warehouse.objects.filter(is_active=True).first()
+    # Biznesda bitta ombor — chiqim doim yagona ombordan
+    warehouse = Warehouse.objects.filter(is_active=True).order_by('id').first()
     if warehouse is None:
         return
 

@@ -137,7 +137,8 @@ POST /contracts/
 ```
 
 Tepada tugma: **"Hisob shakllantirish"** → `POST /replenishments/from-low-stock/`
-`{"warehouse": 1, "supplier": "Etuf MCHJ"}` → yaratilgan hisob kartasiga o'ting.
+`{"supplier": "Etuf MCHJ"}` → yaratilgan hisob kartasiga o'ting
+(`warehouse` yuborish shart emas — tizimda bitta ombor, backend o'zi oladi).
 
 ### 3.2 To'ldirish hisobi kartasi
 

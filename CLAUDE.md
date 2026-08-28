@@ -94,6 +94,10 @@ urlpatterns = [
 
 ## 2. Biznes mantiq (TZ asosida)
 
+**Ombor bitta** — filial yo'q: ikkinchi `Warehouse` yaratish model darajasida
+bloklangan, `warehouse` maydonlari hamma joyda ixtiyoriy
+(`apps.inventory.services.main_warehouse()` yagona omborni qaytaradi).
+
 ### 2.1 Rollar — `apps/accounts`
 
 | Rol | Vazifasi |

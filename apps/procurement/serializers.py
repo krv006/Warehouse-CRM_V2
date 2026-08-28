@@ -6,8 +6,8 @@ from rest_framework.serializers import (
     ValidationError,
 )
 
-from apps.inventory.models import Product
-from apps.inventory.services import create_product_from_order
+from apps.inventory.models import Product, Warehouse
+from apps.inventory.services import create_product_from_order, main_warehouse
 from apps.procurement.models import (
     Replenishment,
     ReplenishmentApproval,
@@ -98,6 +98,11 @@ class ReplenishmentEventSerializer(ModelSerializer):
 
 
 class ReplenishmentSerializer(ModelSerializer):
+    """Biznesda bitta ombor — `warehouse` yuborilmasa yagona ombor olinadi."""
+
+    warehouse = PrimaryKeyRelatedField(
+        queryset=Warehouse.objects.all(), required=False,
+    )
     items = ReplenishmentItemSerializer(many=True, read_only=True)
     approvals = ReplenishmentApprovalSerializer(many=True, read_only=True)
     events = ReplenishmentEventSerializer(many=True, read_only=True)
@@ -123,3 +128,8 @@ class ReplenishmentSerializer(ModelSerializer):
         read_only_fields = [
             'number', 'status', 'created_by', 'paid_amount', 'debt', 'delivered_at',
         ]
+
+    def create(self, validated_data):
+        if not validated_data.get('warehouse'):
+            validated_data['warehouse'] = main_warehouse()
+        return super().create(validated_data)

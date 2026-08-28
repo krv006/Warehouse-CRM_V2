@@ -105,7 +105,12 @@ class ConfigurationSerializer(ModelSerializer):
         }
 
     def create(self, validated_data):
+        from apps.inventory.services import main_warehouse
+
         items = validated_data.pop('items', [])
+        if not validated_data.get('warehouse'):
+            # Biznesda bitta ombor — tanlash shart emas, yagona ombor olinadi
+            validated_data['warehouse'] = main_warehouse()
         configuration = Configuration.objects.create(**validated_data)
         if items:
             for item in items:

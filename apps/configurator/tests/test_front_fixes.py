@@ -111,6 +111,14 @@ class FrontFixesTests(APITestCase):
             400,
         )
 
+    def test_configuration_without_warehouse_gets_the_single_one(self):
+        """Bitta ombor — front warehouse yubormasa ham backend o'zi qo'yadi."""
+        response = self.client.post('/api/configurations/', {
+            'base_product': self.base.id,
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data['warehouse'], self.warehouse.id)
+
     def test_draft_configuration_is_editable(self):
         response = self.client.patch(
             f'/api/configurations/{self.configuration.id}/',

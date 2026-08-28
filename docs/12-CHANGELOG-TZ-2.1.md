@@ -315,19 +315,27 @@ Eslatma: `modify` rejimida yakunlashda ombor tekshiruvi bor — qo'shilayotgan
 butlovchi omborda yetarli bo'lmasa `400 {"items": ["GPU 32 (kerak: 4, omborda: 2)"]}`
 qaytadi. Bu xato emas, haqiqiy qoldiq nazorati — endi u sales bosqichida ko'rinadi.
 
-## 8.5.1 Bitta ombor 🟢
+## 8.5.1 Bitta ombor — qat'iy qoida 🔴 breaking
 
-Biznesda **bitta ombor** ishlatiladi:
+Biznesda **BITTA ombor** ishlatiladi, filial degan tushuncha **yo'q**.
+Endi bu tizim darajasida majburlanadi:
 
-- demo endi faqat "Asosiy ombor" yaratadi ("Samarqand filiali" olib tashlandi);
-- `finalize` (modify) da konfiguratsiyada ombor tanlanmagan bo'lsa — yagona
-  faol ombor avtomatik olinadi (avval 400 qaytarardi);
-- qoldiq yetmasa xato xabari endi **qaysi ombor** tekshirilganini aytadi:
-  `"'Asosiy ombor' omborida tayyor HP 880 qolmagan — ..."` — mahsulot boshqa
-  omborda turgan-turmaganini darrov ko'rsatadi.
+- **ikkinchi ombor yaratib bo'lmaydi** — model darajasida bloklangan
+  (admin panelda ham "qo'shish" tugmasi chiqmaydi);
+- demo faqat "Asosiy ombor" yaratadi ("Samarqand filiali" olib tashlandi);
+- `warehouse` maydoni endi **hamma joyda ixtiyoriy** — yuborilmasa backend
+  yagona omborni o'zi oladi:
+  - `POST /configurations/` va `take/`
+  - `POST /configurations/{id}/finalize/` (modify)
+  - `POST /purchases/`
+  - `POST /replenishments/` va `POST /replenishments/from-low-stock/`
+  - sotuvda chiqim (`confirm-payment`)
+- qoldiq yetmasa xato xabari qaysi ombor tekshirilganini aytadi:
+  `"'Asosiy ombor' omborida tayyor HP 880 qolmagan — ..."`.
 
-**Frontendga ta'siri:** konfiguratsiya formasida ombor selecti shart emas —
-bo'sh qoldirilsa backend o'zi to'g'ri omborni oladi.
+**Frontendga ta'siri:** barcha formalardan **ombor selectini olib tashlang** —
+`warehouse` ni umuman yubormang, backend o'zi hal qiladi. "Omborlar" sahifasi
+ham kerak emas (`GET /warehouses/` doim bitta yozuv qaytaradi).
 
 ## 9. Nima o'zgarmadi
 
@@ -360,5 +368,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **92** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **166** |
+| Testlar | 66 | **171** |
 | Rollar | 3 | **5** |

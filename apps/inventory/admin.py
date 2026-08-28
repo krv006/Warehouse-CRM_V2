@@ -17,7 +17,12 @@ class ProductSpecInline(TabularInline):
 
 @register(Warehouse)
 class WarehouseAdmin(ModelAdmin):
+    """Biznesda bitta ombor — ikkinchisini qo'shish tugmasi chiqmaydi."""
+
     list_display = ['name', 'is_active']
+
+    def has_add_permission(self, request):
+        return not Warehouse.objects.exists()
 
 
 @register(Product)

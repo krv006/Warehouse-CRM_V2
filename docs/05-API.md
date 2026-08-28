@@ -90,6 +90,9 @@ Bugalter `POST` qilsa → `403`.
 ## Ombor
 
 Ombor bo'limi **faqat o'qish uchun** — TZ da alohida "mahsulot qo'shish" oynasi yo'q.
+Biznesda **BITTA ombor** bor (filial yo'q): ikkinchi ombor yaratib bo'lmaydi,
+`GET /warehouses/` doim bitta yozuv qaytaradi. `warehouse` maydoni barcha
+jarayonlarda **ixtiyoriy** — yuborilmasa yagona ombor avtomatik olinadi.
 
 | Endpoint | Metod | Filtrlar |
 |---|---|---|

@@ -118,12 +118,10 @@ def finalize_modification(configuration, user, removal_overrides=None):
 
     warehouse = configuration.warehouse
     if warehouse is None:
-        # Biznesda bitta ombor bor — tanlanmagan bo'lsa faol omborning o'zi olinadi
-        from apps.inventory.models import Warehouse
+        # Biznesda bitta ombor bor — tanlanmagan bo'lsa yagona ombor olinadi
+        from apps.inventory.services import main_warehouse
 
-        warehouse = Warehouse.objects.filter(is_active=True).first()
-        if warehouse is None:
-            raise ValidationError({'warehouse': 'Faol ombor topilmadi.'})
+        warehouse = main_warehouse()
         configuration.warehouse = warehouse
 
     base = configuration.base_product
@@ -255,11 +253,13 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
     if base_product.kind != Product.Kind.MACHINE:
         raise ValidationError({'base_product': 'Faqat tayyor model tanlanadi.'})
 
+    from apps.inventory.services import main_warehouse
+
     with atomic():
         configuration = Configuration.objects.create(
             base_product=base_product,
             client=request_obj.client,
-            warehouse=warehouse or request_obj.warehouse,
+            warehouse=warehouse or request_obj.warehouse or main_warehouse(),
             mode=mode or Configuration.Mode.BUILD,
             note=f'{request_obj.number}: {request_obj.text}',
             created_by=user,

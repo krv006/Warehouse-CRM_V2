@@ -78,10 +78,15 @@ class ReplenishmentViewSet(BaseModelViewSet):
         ])
 
     def from_low_stock(self, request):
-        """POST /replenishments/from-low-stock/ — ro'yxatdan hisob shakllantiradi."""
+        """POST /replenishments/from-low-stock/ — ro'yxatdan hisob shakllantiradi.
+
+        Biznesda bitta ombor — `warehouse` yuborilmasa yagona ombor olinadi.
+        """
+        from apps.inventory.services import main_warehouse
+
         warehouse = Warehouse.objects.filter(pk=request.data.get('warehouse')).first()
         if not warehouse:
-            raise ValidationError({'warehouse': 'Ombor tanlanmagan.'})
+            warehouse = main_warehouse()
         replenishment = build_from_low_stock(
             warehouse, request.user, request.data.get('supplier', ''),
         )

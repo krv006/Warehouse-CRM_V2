@@ -4,6 +4,22 @@ from django.db.transaction import atomic
 from apps.inventory.models import Stock, StockMovement
 
 
+def main_warehouse():
+    """Tizimdagi yagona ombor — biznesda bitta ombor bor (filial yo'q).
+
+    Ombor hali ochilmagan bo'lsa "Asosiy ombor" yaratib qaytaradi, shuning
+    uchun jarayonlar hech qachon "ombor tanlanmagan" deb to'xtab qolmaydi.
+    """
+    from apps.inventory.models import Warehouse
+
+    warehouse = Warehouse.objects.filter(is_active=True).order_by('id').first()
+    if warehouse is None:
+        warehouse = Warehouse.objects.first()
+    if warehouse is None:
+        warehouse = Warehouse.objects.create(name='Asosiy ombor')
+    return warehouse
+
+
 def available_quantity(product, warehouse=None):
     """Mahsulotning ombordagi (yoki barcha omborlardagi) qoldigi."""
     stocks = Stock.objects.filter(product=product)
