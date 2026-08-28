@@ -315,6 +315,20 @@ Eslatma: `modify` rejimida yakunlashda ombor tekshiruvi bor — qo'shilayotgan
 butlovchi omborda yetarli bo'lmasa `400 {"items": ["GPU 32 (kerak: 4, omborda: 2)"]}`
 qaytadi. Bu xato emas, haqiqiy qoldiq nazorati — endi u sales bosqichida ko'rinadi.
 
+## 8.5.1 Bitta ombor 🟢
+
+Biznesda **bitta ombor** ishlatiladi:
+
+- demo endi faqat "Asosiy ombor" yaratadi ("Samarqand filiali" olib tashlandi);
+- `finalize` (modify) da konfiguratsiyada ombor tanlanmagan bo'lsa — yagona
+  faol ombor avtomatik olinadi (avval 400 qaytarardi);
+- qoldiq yetmasa xato xabari endi **qaysi ombor** tekshirilganini aytadi:
+  `"'Asosiy ombor' omborida tayyor HP 880 qolmagan — ..."` — mahsulot boshqa
+  omborda turgan-turmaganini darrov ko'rsatadi.
+
+**Frontendga ta'siri:** konfiguratsiya formasida ombor selecti shart emas —
+bo'sh qoldirilsa backend o'zi to'g'ri omborni oladi.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -346,5 +360,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **92** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **164** |
+| Testlar | 66 | **166** |
 | Rollar | 3 | **5** |

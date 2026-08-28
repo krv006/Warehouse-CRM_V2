@@ -107,6 +107,17 @@ class SeedDemoResetTests(APITestCase):
         self.assertTrue(User.objects.filter(username='mening_akkauntim').exists())
         self.assertTrue(User.objects.filter(username='engineer').exists())
 
+    def test_single_warehouse_only(self):
+        """Biznesda bitta ombor — demo ikkinchi ombor yaratmaydi."""
+        from django.core.management import call_command
+        from io import StringIO
+
+        from apps.inventory.models import Warehouse
+
+        call_command('seed_demo', stdout=StringIO())
+        self.assertEqual(Warehouse.objects.count(), 1)
+        self.assertEqual(Warehouse.objects.get().name, 'Asosiy ombor')
+
     def test_engineer_included_in_demo(self):
         from django.core.management import call_command
         from io import StringIO

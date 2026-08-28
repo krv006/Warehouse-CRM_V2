@@ -330,6 +330,18 @@ class ModifyModeTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('RAM 8 GB', str(response.data['items']))
 
+    def test_finalize_without_warehouse_falls_back_to_single_active(self):
+        """Biznesda bitta ombor — konfiguratsiyada tanlanmagan bo'lsa o'zi olinadi."""
+        response = self.client.post('/api/configurations/', {
+            'base_product': self.base.id, 'act': self.act.id, 'mode': 'modify',
+            'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 1}],
+        }, format='json')
+        config_id = response.data['id']
+        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['warehouse'], self.warehouse.id)
+        self.assertEqual(self._stock(self.base), Decimal('1'))
+
     def test_build_mode_does_not_touch_stock(self):
         from apps.inventory.models import StockMovement
 

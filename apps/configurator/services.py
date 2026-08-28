@@ -116,15 +116,25 @@ def finalize_modification(configuration, user, removal_overrides=None):
     from apps.inventory.models import StockMovement
     from apps.inventory.services import apply_movement, available_quantity
 
-    if not configuration.warehouse:
-        raise ValidationError({'warehouse': "Tayyor mahsulotni o'zgartirish uchun ombor tanlanishi shart."})
-
     warehouse = configuration.warehouse
+    if warehouse is None:
+        # Biznesda bitta ombor bor — tanlanmagan bo'lsa faol omborning o'zi olinadi
+        from apps.inventory.models import Warehouse
+
+        warehouse = Warehouse.objects.filter(is_active=True).first()
+        if warehouse is None:
+            raise ValidationError({'warehouse': 'Faol ombor topilmadi.'})
+        configuration.warehouse = warehouse
+
     base = configuration.base_product
 
     if available_quantity(base, warehouse) < 1:
         raise ValidationError({
-            'detail': f'Omborda tayyor {base.name} qolmagan — o\'zgartirish uchun kamida 1 dona kerak.',
+            'detail': (
+                f"'{warehouse.name}' omborida tayyor {base.name} qolmagan — "
+                "o'zgartirish uchun kamida 1 dona kerak. Qoldiq boshqa omborda "
+                "bo'lsa, konfiguratsiyada o'sha omborni tanlang."
+            ),
         })
 
     changes = configuration.changes

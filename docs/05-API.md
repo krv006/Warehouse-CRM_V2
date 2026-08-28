@@ -168,7 +168,7 @@ Holatlar: `new` → `in_progress` (take) → `done` (complete). Raqam: `ZVK-0000
 | PUT/PATCH/DELETE | `/configurations/{id}/` | faqat `draft` holatida — `ready`/`attached` 400 qaytaradi |
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
-| POST | `/configurations/{id}/finalize/` | **sales bosqichi** (engineer 403); ACT majburiy, tanada berish mumkin: `{"act": 2}` |
+| POST | `/configurations/{id}/finalize/` | **sales bosqichi** (engineer 403); ACT majburiy, tanada berish mumkin: `{"act": 2}`; ombor tanlanmagan bo'lsa faol ombor o'zi olinadi |
 | POST | `/configurations/{id}/attach/` | kirim buyurtmasiga biriktirish |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
 | GET/POST | `/configuration-items/` | qatorni alohida qo'shish — `configuration` majburiy, faqat `draft` |

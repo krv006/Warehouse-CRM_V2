@@ -133,13 +133,11 @@ class Command(BaseCommand):
     def _warehouses(self):
         from apps.inventory.models import Warehouse
 
+        # Biznesda BITTA ombor bor — ikkinchi ombor yaratilmaydi
         main, _ = Warehouse.objects.get_or_create(
             name='Asosiy ombor', defaults={'address': 'Toshkent, Sergeli 7-mavze'},
         )
-        branch, _ = Warehouse.objects.get_or_create(
-            name='Samarqand filiali', defaults={'address': 'Samarqand, Ipak yo\'li 12'},
-        )
-        return {'main': main, 'branch': branch}
+        return {'main': main}
 
     def _products(self, warehouses, users):
         """5 ta mahsulot: 1 bazaviy model + 4 butlovchi, qoldiq bilan."""
