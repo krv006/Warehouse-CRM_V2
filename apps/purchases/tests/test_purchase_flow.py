@@ -142,6 +142,23 @@ class PurchaseDocumentTests(APITestCase):
             self._upload(kind=kind)
         self.assertEqual(PurchaseDocument.objects.count(), 3)
 
+    def test_executable_file_is_rejected(self):
+        """Xavfsizlik: bajariladigan fayllar qabul qilinmaydi."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        response = self._upload(file=SimpleUploadedFile('zararli.exe', b'MZ-DATA'))
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('file', response.data)
+
+    def test_oversized_file_is_rejected(self):
+        """Xavfsizlik: 10 MB dan katta fayl qabul qilinmaydi."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        big = SimpleUploadedFile('katta.pdf', b'x' * (10 * 1024 * 1024 + 1))
+        response = self._upload(file=big)
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('file', response.data)
+
     def test_sales_cannot_even_read(self):
         self.client.force_authenticate(self.sales)
         self.assertEqual(self.client.get('/api/purchase-documents/').status_code, 403)

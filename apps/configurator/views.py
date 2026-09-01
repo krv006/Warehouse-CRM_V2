@@ -1,3 +1,4 @@
+from django.db.transaction import atomic
 from django.http import HttpResponse
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
@@ -191,17 +192,20 @@ class ConfigurationViewSet(BaseModelViewSet):
                 status=HTTP_400_BAD_REQUEST,
             )
 
-        if configuration.mode == Configuration.Mode.MODIFY:
-            # Tayyor mahsulot fizik o'zgartiriladi: ombor harakatlari + bugalterga xabar
-            variant, created = finalize_modification(
-                configuration, request.user, request.data.get('removals'),
-            )
-        else:
-            variant, created = resolve_variant(configuration)
+        # Bitta tranzaksiya: variant yaratish, ombor harakatlari va statusning
+        # o'zgarishi yo to'liq bajariladi, yo umuman yo'q (yarim holat qolmaydi)
+        with atomic():
+            if configuration.mode == Configuration.Mode.MODIFY:
+                # Tayyor mahsulot fizik o'zgartiriladi: ombor harakatlari + bugalterga xabar
+                variant, created = finalize_modification(
+                    configuration, request.user, request.data.get('removals'),
+                )
+            else:
+                variant, created = resolve_variant(configuration)
 
-        configuration.variant = variant
-        configuration.status = Configuration.Status.READY
-        configuration.save()
+            configuration.variant = variant
+            configuration.status = Configuration.Status.READY
+            configuration.save()
         self.log_action(
             ActivityLog.Action.UPDATE, configuration,
             f'Yakunlandi ({configuration.get_mode_display()}), variant: {variant.sku} '

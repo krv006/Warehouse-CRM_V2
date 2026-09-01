@@ -1,9 +1,12 @@
+from os import environ
+
 from django.core.management.base import BaseCommand
 from django.db.transaction import atomic
 
 from apps.accounts.models import User
 
-DEFAULT_PASSWORD = 'Ombor2026!'
+# Serverda .env orqali almashtirsa bo'ladi: DEMO_PASSWORD=boshqa-parol
+DEFAULT_PASSWORD = environ.get('DEMO_PASSWORD', 'Ombor2026!')
 
 DEMO_USERS = [
     {

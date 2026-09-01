@@ -2,7 +2,9 @@
 
 from pathlib import Path
 
-from root.settings.env import env_bool, env_list, env_str
+from django.core.exceptions import ImproperlyConfigured
+
+from root.settings.env import env_bool, env_int, env_list, env_str
 
 # root/settings/base.py -> root/settings -> root -> loyiha ildizi
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -16,10 +18,31 @@ SECRET_KEY = env_str(
 # Serverda: DEBUG=False
 DEBUG = env_bool('DEBUG', True)
 
+# Prod'da zaif kalit bilan ishga tushirish mumkin emas — deploy skripti
+# (.env yaratilganda) kuchli kalitni o'zi generatsiya qiladi
+if not DEBUG and ('insecure' in SECRET_KEY or len(SECRET_KEY) < 32):
+    raise ImproperlyConfigured(
+        "SECRET_KEY zaif yoki default holatda. .env ga kuchli kalit qo'ying: "
+        'python -c "from django.core.management.utils import '
+        'get_random_secret_key; print(get_random_secret_key())"'
+    )
+
 ALLOWED_HOSTS = env_list('ALLOWED_HOSTS', '*')
 
 # Domen orqali admin panelga kirish uchun (masalan: https://crm.example.uz)
 CSRF_TRUSTED_ORIGINS = env_list('CSRF_TRUSTED_ORIGINS')
+
+# ------------------------------------------------ prod xavfsizlik sozlamalari
+# Sayt HTTPS ortida (Caddy) ishlaydi — cookie'lar faqat HTTPS orqali yuriladi.
+if not DEBUG:
+    SESSION_COOKIE_SECURE = True
+    CSRF_COOKIE_SECURE = True
+    SECURE_REFERRER_POLICY = 'same-origin'
+    # HSTS: brauzer domenni faqat HTTPS'da ochadi (default 30 kun, .env da o'zgaradi)
+    SECURE_HSTS_SECONDS = env_int('SECURE_HSTS_SECONDS', 2592000)
+
+SESSION_COOKIE_HTTPONLY = True
+X_FRAME_OPTIONS = 'DENY'
 
 
 # Ilovalar

@@ -393,6 +393,24 @@ filtr: `GET /replenishments/?configuration=12`). Hammasi omborda bo'lsa — 400.
 kartasiga havola. Buyurtmachi/sales/bugalter dashboardlarida yangi warning
 notificationlar ko'rinadi.
 
+## 8.8 Xavfsizlik va arxitektura audit 🔒
+
+Loyiha xavfsizlik auditidan o'tkazildi, tuzatmalar:
+
+| Nima | Avval | Endi |
+|---|---|---|
+| SECRET_KEY | zaif default bilan prod'da ham ishlayverardi | `DEBUG=False` da zaif/qisqa kalit — ilova ishga tushmaydi (ImproperlyConfigured) |
+| Login brute-force | cheklovsiz | IP bo'yicha **30 urinish/daqiqa** (`/auth/login/`, `/auth/refresh/`) — keyin 429 |
+| Fayl yuklash (ACT, kirim hujjati) | istalgan tur/hajm | faqat pdf / rasm / doc(x) / xls(x), maksimal **10 MB** — aks holda 400 |
+| Prod cookie'lar | oddiy | `SESSION_COOKIE_SECURE`, `CSRF_COOKIE_SECURE`, HttpOnly, `X-Frame-Options: DENY` |
+| HSTS | yo'q | `DEBUG=False` da 30 kun (`SECURE_HSTS_SECONDS` bilan boshqariladi) |
+| Demo parol | kodda qotib qolgan | `.env` dagi `DEMO_PASSWORD` bilan almashtiriladi |
+| `finalize` tranzaksiyasi | variant/ombor/status alohida yozilardi | bitta atomic blok — yarim holat qolmaydi |
+
+**Frontendga ta'siri:** login formada 429 kelsa "Urinishlar ko'payib ketdi,
+bir daqiqadan keyin qayta urining" deb ko'rsating; fayl yuklashda 400 dagi
+`file` xabarini foydalanuvchiga chiqaring.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -424,5 +442,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **93** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **188** |
+| Testlar | 66 | **191** |
 | Rollar | 3 | **5** |

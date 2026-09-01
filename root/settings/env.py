@@ -17,6 +17,11 @@ def env_bool(name, default=False):
     return os.environ.get(name, str(default)).strip().lower() in TRUE_VALUES
 
 
+def env_int(name, default=0):
+    raw = os.environ.get(name, '').strip()
+    return int(raw) if raw.isdigit() else default
+
+
 def env_list(name, default=''):
     raw = os.environ.get(name, default)
     return [item.strip() for item in raw.split(',') if item.strip()]

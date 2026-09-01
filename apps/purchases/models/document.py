@@ -8,6 +8,7 @@ from django.db.models import (
 )
 
 from apps.core.models import TimeStampedModel
+from apps.core.validators import document_extension_validator, validate_upload_size
 
 
 class PurchaseDocument(TimeStampedModel):
@@ -26,7 +27,10 @@ class PurchaseDocument(TimeStampedModel):
     purchase = ForeignKey('purchases.Purchase', CASCADE, related_name='documents')
     kind = CharField(max_length=20, choices=Kind.choices, default=Kind.OTHER)
     title = CharField(max_length=200, blank=True)
-    file = FileField(upload_to='purchase-documents/')
+    file = FileField(
+        upload_to='purchase-documents/',
+        validators=[document_extension_validator, validate_upload_size],
+    )
     uploaded_by = ForeignKey(
         'accounts.User', SET_NULL, related_name='purchase_documents',
         null=True, blank=True,

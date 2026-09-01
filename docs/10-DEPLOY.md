@@ -1,5 +1,12 @@
 # 10 — Serverga o'rnatish
 
+> **Xavfsizlik:** `DEBUG=False` da tizim zaif `SECRET_KEY` bilan ishga tushmaydi —
+> `deploy/server-setup.sh` .env yaratganda kuchli kalitni o'zi qo'yadi. Login
+> IP bo'yicha cheklangan (30/min), fayl yuklash 10 MB va xavfsiz turlar bilan
+> chegaralangan, cookie'lar faqat HTTPS, HSTS 30 kun. Demo parollarni
+> `.env` dagi `DEMO_PASSWORD` bilan almashtiring va admin parolini
+> `manage.py changepassword admin` bilan yangilang.
+
 > **Hozirgi holat:** tizim `ombor.thesofmebel.uz` da ishlab turibdi.
 > Server: Docker konteyneri `127.0.0.1:8089` da, oldida serverning **Caddy**'si (80/443),
 > HTTPS sertifikati Caddy tomonidan avtomatik olinadi.

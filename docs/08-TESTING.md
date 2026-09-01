@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **188 ta test, hammasi OK**.
+Hozirgi holat: **191 ta test, hammasi OK**.
 
 ---
 
@@ -37,14 +37,14 @@ Hozirgi holat: **188 ta test, hammasi OK**.
 | `apps/core/tests/test_docs_consistency.py` | Hujjatlar kod bilan mos turishi: har bir endpoint 05-API.md da, har bir permission sinfi 03-ROLES da yozilgani, o'chirilgan nomlar qolmagani, README dagi endpoint soni haqiqiy songa mosligi |
 | `apps/accounts/tests/test_role_matrix.py` | TZ 8: 4 rol × 15 bo'lim o'qish matritsasi va 11 bo'lim yozish matritsasi; sales uchun kassa/kirim/to'ldirish yopiqligi va ombor faqat o'qish uchun ekani |
 | `apps/accounts/tests/test_jwt_auth.py` (`DemoUsersLoginTests`) | 4 rolning har biri JWT bilan kirishi, `/users/me/` dan o'z rolini olishi, login'dan keyin rol bo'yicha ruxsatlar (audit faqat adminga, replenishments buyurtmachiga, kassa bugalterga) |
-| `apps/accounts/tests/test_jwt_auth.py` | login token juftligini qaytarishi, noto'g'ri parol 401, access token bilan himoyalangan endpoint ochilishi, refresh rotatsiyasi, token muddatlari sozlamadan |
+| `apps/accounts/tests/test_jwt_auth.py` | login throttle (31-urinish 429), login token juftligini qaytarishi, noto'g'ri parol 401, access token bilan himoyalangan endpoint ochilishi, refresh rotatsiyasi, token muddatlari sozlamadan |
 | `apps/clients/tests/test_client_api.py` | jismoniy shaxs uchun passport/JSHSHIR majburiyligi, yuridik uchun INN/manzil, telefon unique, bugalter client qo'sha olmasligi |
 | `apps/inventory/tests/test_seed_stock.py` | seed_stock: bo'sh/kam mahsulot maqsad darajaga to'ladi (reorder_level*2 yoki 10), yetarlisiga tegilmaydi, idempotent |
 | `apps/inventory/tests/test_single_warehouse.py` | Bitta ombor qoidasi: ikkinchi ombor bloklanadi, mavjudini tahrirlash mumkin, `main_warehouse()` yagona omborni qaytaradi va bo'sh tizimda o'zi ochadi |
 | `apps/inventory/tests/test_stock_services.py` | `in` qoldiqni oshirishi, `out` kamaytirishi, `adjust` yakuniy qoldiqni qo'yishi, `is_low_stock`, movement API orqali qoldiq va `created_by` |
 | `apps/configurator/tests/test_configuration.py` | `CFG-` raqami, omborda bor/yo'q (`stock` / `purchase`), umumiy narx, ACT'siz `finalize` bo'lmasligi, buyurtmaga biriktirish, Excel eksport, ACT sales bosqichida (engineer'ga 403) |
 | `apps/sales/tests/test_contract_flow.py` | `SHT-` raqami, 30% va 15% foizlar, qo'lda foiz, to'liq approve zanjiri, bugalter admin bosqichini o'tolmasligi, sales tasdiqlay olmasligi, to'lov sanoqni boshlashi va kassaga tushishi, qo'shimcha to'lov /contract-payments/ orqali (paid_at'siz, kassa bilan, completed), draft'ga to'lov 400, configuration filtri, timeline ranglari, narx bugalterdan yashirilishi |
-| `apps/purchases/tests/test_purchase_flow.py` | `KIR-` raqami, bojxona+soliq bilan jami, `expected_at` hisoblanishi, `receive` ombor va kassaga ta'siri, takroriy `receive` xatosi, yo'ldagilar ro'yxati, sales kirim qo'sha olmasligi |
+| `apps/purchases/tests/test_purchase_flow.py` | `KIR-` raqami, bojxona+soliq bilan jami, `expected_at` hisoblanishi, `receive` ombor va kassaga ta'siri, takroriy `receive` xatosi, yo'ldagilar ro'yxati, sales kirim qo'sha olmasligi, exe va 10 MB+ fayl rad etilishi |
 | `apps/finance/tests/test_kassa.py` | tizim kategoriyalari, yo'nalish kategoriyadan olinishi, `summary` balansi, yangi yacheyka qo'shish, qarz kirimi va deadline, qarz yopilishi, xarajat so'rovi admin ruxsati bilan, rad etish |
 | `apps/procurement/tests/test_replenishment_flow.py` | TZ 7: yetishmayotganlar ro'yxati, hisob shakllantirish, narxsiz yuborishning bloklanishi, buyurtmachi→bugalter→admin zanjiri, pul yetmasa qarzga o'tishi (1 400 000 / 500 000 / 900 000), qarz muddati kirimdan 60 kun, ombor qoldig'i, bojxona bosqichi, admin qatorni tahrirlashi |
 | `apps/configurator/tests/test_variant_pricing.py` | TZ 6.2: narx ombordan olinishi, narxsiz qatorning bloklanishi, variant yaratilishi, bir xil tarkibning qayta ishlatilishi, tayyor variant narxi |

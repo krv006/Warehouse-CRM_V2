@@ -6,6 +6,24 @@ from rest_framework.test import APITestCase
 from apps.accounts.models import User
 
 
+class LoginThrottleTests(APITestCase):
+    """Brute-force himoyasi: login urinishlari IP bo'yicha cheklangan (30/min)."""
+
+    def tearDown(self):
+        # Throttle hisobi keshda turadi — keyingi testlarga ta'sir qilmasin
+        from django.core.cache import cache
+
+        cache.clear()
+
+    def test_login_is_throttled_after_limit(self):
+        last_status = None
+        for _ in range(31):
+            last_status = self.client.post('/api/auth/login/', {
+                'username': 'yoq_user', 'password': 'notogri',
+            }).status_code
+        self.assertEqual(last_status, 429)
+
+
 class JwtAuthTests(APITestCase):
     """JWT bilan kirish va tokenni yangilash."""
 
