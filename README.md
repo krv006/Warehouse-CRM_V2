@@ -104,6 +104,7 @@ cd /var/www/ombor-crm && git pull origin main && make deploy
 | [docs/10-DEPLOY.md](docs/10-DEPLOY.md) | Serverga o'rnatish: Docker yoki systemd + nginx |
 | [docs/11-FRONTEND-SCREENS.md](docs/11-FRONTEND-SCREENS.md) | Ekranlar bo'yicha topshiriq (frontend) |
 | [docs/12-CHANGELOG-TZ-2.1.md](docs/12-CHANGELOG-TZ-2.1.md) | TZ 2.1 o'zgarishlari |
+| [docs/13-FRONT-TODO.md](docs/13-FRONT-TODO.md) | Front uchun qolgan ishlar (jonli audit natijasi) |
 | [CLAUDE.md](CLAUDE.md) | AI yordamchi uchun qisqa qoidalar to'plami |
 
 ---
