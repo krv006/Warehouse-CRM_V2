@@ -303,13 +303,16 @@ qo'shiladigan qism yetmaydi — `400` + `items[]` ro'yxati.
 
 **Bu bo'lim faqat ko'rish uchun** — "Qo'shish / Tahrirlash" tugmalari bo'lmaydi.
 
+> **Bitta sahifa:** biznesda **bitta ombor** bor, shuning uchun alohida
+> "Omborlar" sahifasi va "Qoldiqlar" ro'yxati **bo'lmaydi** — hammasi bitta
+> **"Ombor"** sahifasiga birlashadi: mahsulotlar ro'yxati qoldig'i bilan.
+> `GET /warehouses/` va `GET /stocks/` ni menyuda ishlatmang.
+
 | Ekran | Endpoint | Izoh |
 |---|---|---|
-| Mahsulotlar | `GET /products/` | filtr: `kind`, `is_active`, `base_model`; `total_stock`, `is_low_stock` |
-| Mahsulot kartasi | `GET /products/{id}/` | `specs[]` — tarkibi; `base_model` bo'lsa "variant" belgisi |
-| Qoldiqlar | `GET /stocks/` | filtr: `product`, `warehouse` |
-| Harakatlar tarixi | `GET /movements/` | filtr: `type`, `reason`, `warehouse` |
-| Omborlar | `GET /warehouses/` | |
+| **Ombor (asosiy sahifa)** | `GET /products/` | ustunlar: `sku`, `name`, `kind_display` (Tayyor model/Butlovchi), `total_stock`, `stock_price`, `is_low_stock` (qizil belgi); tur bo'yicha tablar: `?kind=machine` / `?kind=component` |
+| Mahsulot kartasi | `GET /products/{id}/` | `specs[]` — tarkibi (engineer'ga tahrir, §4); `base_model` bo'lsa "variant" belgisi |
+| Harakatlar tarixi | `GET /movements/` | filtr: `type`, `reason`, `product` |
 
 **Yangi mahsulot qayerdan qo'shiladi:** Buyurtmachining to'ldirish buyurtmasida —
 qator qo'shishda `product` o'rniga `product_name` yozilsa, mahsulot katalogga tushadi

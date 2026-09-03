@@ -165,6 +165,37 @@ uchun "Tarkib" bloki: qator qo'shish/tahrirlash/o'chirish —
 `new_component_name`, `label`, `quantity`). Yozish faqat engineer va adminda,
 boshqalarga tugmalar yashiriladi.
 
+## 5. "Omborlar" sahifasi olib tashlanadi — Ombor = Mahsulotlar 🔴
+
+**Muammo:** `/warehouses` sahifasi bitta "Asosiy ombor" yozuvini ko'rsatib turibdi —
+foydasi yo'q. Biznesda **doimo bitta ombor** bo'ladi (ikkinchisini yaratish backend
+darajasida bloklangan), shuning uchun "Omborlar" ro'yxati ham, "ombor qo'shish" ham
+kerak emas.
+
+**Yechim:** "Ombor" va "Mahsulotlar" **bitta sahifaga birlashadi**:
+
+- Menyudan **"Omborlar"** (`/warehouses`) va alohida **"Qoldiqlar"** (`/stocks`)
+  bandlarini olib tashlang.
+- Bitta **"Ombor"** sahifasi qoladi — manba `GET /api/products/`:
+
+| Ustun | Maydon |
+|---|---|
+| SKU | `sku` |
+| Nomi | `name` |
+| Turi | `kind_display` (Tayyor model / Butlovchi) |
+| Qoldiq | `total_stock` |
+| Narx | `stock_price` |
+| Kam qolgan | `is_low_stock` → qizil belgi |
+
+- Tepada tur tablari: Hammasi · Tayyor modellar (`?kind=machine`) ·
+  Butlovchilar (`?kind=component`).
+- Mahsulot kartasi (`GET /products/{id}/`) — `specs[]` tarkibi bilan
+  (engineer'ga "Tarkib" tahriri, §4).
+- "Harakatlar tarixi" (`/movements`) alohida sahifa bo'lib qolishi mumkin.
+- Hech qayerda `warehouse` select/ustun ko'rsatilmaydi.
+
+Backend'da o'zgarish shart emas — `GET /products/` da hamma kerakli maydon bor.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |
