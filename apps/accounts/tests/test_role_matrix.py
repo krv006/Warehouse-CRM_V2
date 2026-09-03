@@ -34,6 +34,7 @@ WRITE_MATRIX = {
     '/api/leads/': {'admin', 'sales'},
     '/api/contracts/': {'admin', 'sales'},
     '/api/configurations/': {'admin', 'engineer'},
+    '/api/product-specs/': {'admin', 'engineer'},
     '/api/acts/': {'admin', 'sales'},
     '/api/cash-transactions/': {'admin', 'bugalter'},
     '/api/loans/': {'admin', 'bugalter'},
@@ -89,11 +90,12 @@ class RoleMatrixTests(APITestCase):
 
         Yangi mahsulot Buyurtmachi to'ldirish buyurtmasiga qator qo'shganda
         paydo bo'ladi (TZ 7), ombor qoldig'i esa Kirim/Chiqim orqali o'zgaradi.
+        (Istisno: /product-specs/ — tayyor model tarkibini engineer yozadi.)
         """
         for role, user in self.users.items():
             self.client.force_authenticate(user)
             for url in ['/api/products/', '/api/stocks/', '/api/movements/',
-                        '/api/warehouses/', '/api/product-specs/']:
+                        '/api/warehouses/']:
                 with self.subTest(role=role, url=url):
                     self.assertEqual(self.client.get(url).status_code, 200)
                     self.assertEqual(

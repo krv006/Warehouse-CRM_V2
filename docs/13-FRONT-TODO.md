@@ -144,6 +144,27 @@ avval to'ldirishni so'raydigan modal/ogohlantirish ko'rsating
 
 ---
 
+## 4. Ikki xil kirim: Butlovchi / Tayyor model 🆕
+
+Buyurtma qatori modalidagi **"Yangi mahsulot"** tabiga **tur selecti** qo'shing:
+
+| Qiymat | Ko'rinishi |
+|---|---|
+| `component` | Butlovchi (default) |
+| `machine` | Tayyor model |
+
+```json
+POST /api/replenishment-items/
+{"replenishment": 14, "product_name": "HP 990 kompyuter",
+ "product_kind": "machine", "quantity": 2, "unit_price": "18000000"}
+```
+
+Tayyor model kirim qilingach, **mahsulot kartasida** (`kind=machine`) engineer
+uchun "Tarkib" bloki: qator qo'shish/tahrirlash/o'chirish —
+`POST/PATCH/DELETE /api/product-specs/` (`product`, `component` yoki
+`new_component_name`, `label`, `quantity`). Yozish faqat engineer va adminda,
+boshqalarga tugmalar yashiriladi.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

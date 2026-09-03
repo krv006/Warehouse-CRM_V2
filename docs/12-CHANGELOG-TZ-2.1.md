@@ -411,6 +411,39 @@ Loyiha xavfsizlik auditidan o'tkazildi, tuzatmalar:
 bir daqiqadan keyin qayta urining" deb ko'rsating; fayl yuklashda 400 dagi
 `file` xabarini foydalanuvchiga chiqaring.
 
+## 8.9 Ikki xil kirim: Butlovchi va Tayyor model 🆕
+
+Mahsulot ikki turda kirim qilinadi (`Product.kind`): **Butlovchi**
+(`component`) va **Tayyor model** (`machine`).
+
+**1. Buyurtmada tur tanlanadi** — yangi tovar qo'shilayotganda
+`product_kind` yuboriladi (yuborilmasa `component`):
+
+```json
+POST /api/replenishment-items/
+{"replenishment": 14, "product_name": "HP 990 kompyuter",
+ "product_kind": "machine", "quantity": 2, "unit_price": "18000000"}
+```
+
+Javobda `product_kind_display` ("Tayyor model" / "Butlovchi") keladi.
+
+**2. Tayyor model tarkibi (ichidagi configlar)** — `/api/product-specs/`
+endi **engineer (admin) uchun yoziladigan** bo'ldi (avval hamma uchun 405):
+
+```json
+POST /api/product-specs/
+{"product": 21, "component": 8, "label": "SSD", "quantity": 2}
+```
+
+- bazada yo'q butlovchi: `new_component_name` (+ `new_component_sku`) — katalogga tushadi;
+- tarkib faqat `kind=machine` mahsulotga qo'shiladi (butlovchiga — 400);
+- takror butlovchi — 400; PATCH/DELETE ham engineer'da.
+
+**Frontendga ta'siri:** buyurtma qatori modalida "Yangi mahsulot" tabiga
+**tur selecti** (Butlovchi / Tayyor model, default Butlovchi); mahsulot
+kartasida `kind=machine` bo'lsa engineer uchun "Tarkib qo'shish/tahrirlash"
+bloki (`/product-specs/` CRUD).
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -442,5 +475,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **93** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **191** |
+| Testlar | 66 | **200** |
 | Rollar | 3 | **5** |

@@ -44,7 +44,8 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | `/api/activity-logs/` | **admin** | — | audit |
 | `/api/notifications/` | o'ziniki + umumiy | — | `mark-read` |
 | `/api/clients/` | hamma | admin, sales, buyurtmachi | bugalter faqat o'qiydi |
-| `/api/warehouses/`, `/products/`, `/product-specs/`, `/stocks/`, `/movements/` | hamma | **hech kim** | katalog faqat o'qish uchun; yangi mahsulot buyurtma orqali qo'shiladi |
+| `/api/warehouses/`, `/products/`, `/stocks/`, `/movements/` | hamma | **hech kim** | katalog faqat o'qish uchun; yangi mahsulot buyurtma orqali qo'shiladi |
+| `/api/product-specs/` | hamma | **admin, engineer** | tayyor model tarkibi (ichidagi configlar) — engineer kiritadi |
 | `/api/acts/` | hamma | **sales** (admin) | Engineer tayyorlagach ACT ni sales kiritadi |
 | `/api/configurations/`, `/configuration-items/` | hamma | **admin, engineer** | sales configurator ishini qilmaydi — zayavka yuboradi; `finalize` esa **sales** (admin) — engineer'ga 403 |
 | `/api/configuration-requests/` | hamma | admin, sales, engineer | `take`/`complete` — faqat engineer (admin) |

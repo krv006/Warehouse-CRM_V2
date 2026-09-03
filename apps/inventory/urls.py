@@ -7,7 +7,7 @@ Qoldiq esa faqat Kirim va Chiqim jarayonlari orqali o'zgaradi (TZ 1-bo'lim).
 
 from django.urls import path
 
-from apps.core.routing import READ_DETAIL, READ_LIST
+from apps.core.routing import DETAIL, LIST, READ_DETAIL, READ_LIST
 from apps.inventory.views import (
     WarehouseViewSet,
     ProductViewSet,
@@ -23,8 +23,9 @@ urlpatterns = [
     path('products/', ProductViewSet.as_view(READ_LIST), name='product-list'),
     path('products/<int:pk>/', ProductViewSet.as_view(READ_DETAIL), name='product-detail'),
 
-    path('product-specs/', ProductSpecViewSet.as_view(READ_LIST), name='productspec-list'),
-    path('product-specs/<int:pk>/', ProductSpecViewSet.as_view(READ_DETAIL), name='productspec-detail'),
+    # Tarkib (ichidagi configlar): o'qish hammaga, yozish engineer (admin)
+    path('product-specs/', ProductSpecViewSet.as_view(LIST), name='productspec-list'),
+    path('product-specs/<int:pk>/', ProductSpecViewSet.as_view(DETAIL), name='productspec-detail'),
 
     path('stocks/', StockViewSet.as_view(READ_LIST), name='stock-list'),
     path('stocks/<int:pk>/', StockViewSet.as_view(READ_DETAIL), name='stock-detail'),

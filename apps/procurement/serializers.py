@@ -1,5 +1,6 @@
 from rest_framework.serializers import (
     CharField,
+    ChoiceField,
     ModelSerializer,
     PrimaryKeyRelatedField,
     ReadOnlyField,
@@ -29,9 +30,14 @@ class ReplenishmentItemSerializer(ModelSerializer):
     )
     product_name = CharField(write_only=True, required=False, allow_blank=True)
     product_sku = CharField(write_only=True, required=False, allow_blank=True)
+    # Ikki xil kirim: 'component' (Butlovchi, default) yoki 'machine' (Tayyor model)
+    product_kind = ChoiceField(
+        choices=Product.Kind.choices, write_only=True, required=False,
+    )
 
     product_display = ReadOnlyField(source='product.name')
     product_code = ReadOnlyField(source='product.sku')
+    product_kind_display = ReadOnlyField(source='product.get_kind_display')
     subtotal = ReadOnlyField()
     needs_price = ReadOnlyField()
 
@@ -39,6 +45,7 @@ class ReplenishmentItemSerializer(ModelSerializer):
         model = ReplenishmentItem
         fields = [
             'id', 'replenishment', 'product', 'product_name', 'product_sku',
+            'product_kind', 'product_kind_display',
             'product_display', 'product_code', 'quantity', 'unit_price',
             'subtotal', 'needs_price', 'supplier', 'note',
         ]
@@ -54,10 +61,12 @@ class ReplenishmentItemSerializer(ModelSerializer):
     def _resolve_product(self, validated_data):
         name = validated_data.pop('product_name', '')
         sku = validated_data.pop('product_sku', '')
+        kind = validated_data.pop('product_kind', None)
         if validated_data.get('product'):
             return validated_data
         validated_data['product'] = create_product_from_order(
-            name=name, sku=sku, cost_price=validated_data.get('unit_price') or 0,
+            name=name, sku=sku, kind=kind,
+            cost_price=validated_data.get('unit_price') or 0,
         )
         return validated_data
 
@@ -67,6 +76,7 @@ class ReplenishmentItemSerializer(ModelSerializer):
     def update(self, instance, validated_data):
         validated_data.pop('product_name', None)
         validated_data.pop('product_sku', None)
+        validated_data.pop('product_kind', None)
         return super().update(instance, validated_data)
 
 

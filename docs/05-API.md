@@ -98,12 +98,28 @@ jarayonlarda **ixtiyoriy** — yuborilmasa yagona ombor avtomatik olinadi.
 |---|---|---|
 | `/warehouses/` | GET | `is_active` |
 | `/products/` | GET | `kind`, `is_active`, `base_model` |
-| `/product-specs/` | GET | `product`, `component` |
+| `/product-specs/` | GET/POST/PATCH/DELETE | `product`, `component` — **yozish: engineer** (tayyor model tarkibi) |
 | `/stocks/` | GET | `product`, `warehouse` |
 | `/movements/` | GET | `product`, `warehouse`, `type`, `reason` |
 
 Mahsulot javobi: `sku`, `name`, `kind`, `cost_price`, `sale_price`, `stock_price`,
 `reorder_level`, `total_stock`, `is_low_stock`, `base_model`, `is_variant`, `signature`, `specs[]`.
+
+**Tayyor model tarkibini kiritish** (engineer, admin) — model kirim qilingach
+ichidagi configlari shu yerda yoziladi; bazada yo'q butlovchi bo'lsa
+`new_component_name` bilan katalogga qo'shiladi:
+
+```json
+POST /api/product-specs/
+{"product": 21, "component": 8, "label": "SSD", "quantity": 2}
+```
+
+```json
+POST /api/product-specs/
+{"product": 21, "new_component_name": "Quvvat bloki 850W", "label": "PSU", "quantity": 1}
+```
+
+Takror butlovchi — 400; tarkib faqat `kind=machine` mahsulotga qo'shiladi.
 
 **Yangi mahsulot qayerdan keladi:**
 

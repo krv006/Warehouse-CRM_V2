@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **191 ta test, hammasi OK**.
+Hozirgi holat: **200 ta test, hammasi OK**.
 
 ---
 
@@ -40,6 +40,7 @@ Hozirgi holat: **191 ta test, hammasi OK**.
 | `apps/accounts/tests/test_jwt_auth.py` | login throttle (31-urinish 429), login token juftligini qaytarishi, noto'g'ri parol 401, access token bilan himoyalangan endpoint ochilishi, refresh rotatsiyasi, token muddatlari sozlamadan |
 | `apps/clients/tests/test_client_api.py` | jismoniy shaxs uchun passport/JSHSHIR majburiyligi, yuridik uchun INN/manzil, telefon unique, bugalter client qo'sha olmasligi |
 | `apps/inventory/tests/test_seed_stock.py` | seed_stock: bo'sh/kam mahsulot maqsad darajaga to'ladi (reorder_level*2 yoki 10), yetarlisiga tegilmaydi, idempotent |
+| `apps/inventory/tests/test_product_kinds.py` | Ikki xil kirim: product_kind bilan tayyor model/butlovchi yaratilishi, noto'g'ri tur 400; tarkib (product-specs) yozish engineer'da, yangi butlovchi nomi bilan, butlovchiga tarkib 400, takror 400, buyurtmachiga 403, tahrir/o'chirish |
 | `apps/inventory/tests/test_single_warehouse.py` | Bitta ombor qoidasi: ikkinchi ombor bloklanadi, mavjudini tahrirlash mumkin, `main_warehouse()` yagona omborni qaytaradi va bo'sh tizimda o'zi ochadi |
 | `apps/inventory/tests/test_stock_services.py` | `in` qoldiqni oshirishi, `out` kamaytirishi, `adjust` yakuniy qoldiqni qo'yishi, `is_low_stock`, movement API orqali qoldiq va `created_by` |
 | `apps/configurator/tests/test_configuration.py` | `CFG-` raqami, omborda bor/yo'q (`stock` / `purchase`), umumiy narx, ACT'siz `finalize` bo'lmasligi, buyurtmaga biriktirish, Excel eksport, ACT sales bosqichida (engineer'ga 403) |
