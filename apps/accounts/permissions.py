@@ -86,6 +86,15 @@ class ConfiguratorAccess(RoleAccess):
     message = 'Konfiguratsiya bilan Engineer ishlaydi.'
 
 
+class ProductSpecAccess(RoleAccess):
+    """Tayyor model tarkibi: engineer (configurator ishi) va buyurtmachi
+    (tayyor modelni kirim qilganda tarkibini ham kiritadi) yozadi."""
+
+    read_roles = None
+    write_roles = (ENGINEER, SUPPLIER)
+    message = 'Tarkibni engineer yoki buyurtmachi kiritadi.'
+
+
 class ConfigurationRequestAccess(RoleAccess):
     """Zayavka: sales yozadi, engineer bajaradi, hamma ko'radi."""
 

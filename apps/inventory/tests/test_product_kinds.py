@@ -102,8 +102,18 @@ class ProductSpecWriteTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('component', response.data)
 
-    def test_buyurtmachi_cannot_write_specs(self):
+    def test_buyurtmachi_also_writes_specs(self):
+        """Tayyor modelni buyurtma qilgan buyurtmachi tarkibini ham kiritadi."""
         self.client.force_authenticate(self.buyurtmachi)
+        response = self.client.post('/api/product-specs/', {
+            'product': self.machine.id, 'component': self.ssd.id,
+            'label': 'SSD', 'quantity': 1,
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+
+    def test_sales_cannot_write_specs(self):
+        sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
+        self.client.force_authenticate(sales)
         response = self.client.post('/api/product-specs/', {
             'product': self.machine.id, 'component': self.ssd.id,
             'label': 'SSD', 'quantity': 1,

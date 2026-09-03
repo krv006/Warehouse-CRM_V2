@@ -109,7 +109,7 @@ bloklangan, `warehouse` maydonlari hamma joyda ixtiyoriy
 | `engineer` | Configurator ishlari to'liq unda; sales'dan `ZVK-` zayavka oladi (`/configuration-requests/`), konfiguratsiyani tayyorlab qaytaradi |
 
 Permission klasslari: `apps/accounts/permissions.py` (`IsAdmin`, `IsAdminOrBugalter`,
-`IsAdminOrSales`, `CanManageClients`, `FinanceAccess`,
+`IsAdminOrSales`, `CanManageClients`, `ProductSpecAccess`, `FinanceAccess`,
 `PurchaseAccess`, `ProcurementAccess`, `ProcurementSharedAccess`) — hammasi `RoleAccess`
 asosida: `read_roles` / `write_roles`, admin doim o'tadi.
 

@@ -28,6 +28,7 @@
 | `ProcurementAccess` | **admin, bugalter, buyurtmachi** | admin, buyurtmachi |
 | `ProcurementSharedAccess` | admin, bugalter, buyurtmachi | admin, buyurtmachi, bugalter |
 | `ConfiguratorAccess` | barcha login qilganlar | **admin, engineer** |
+| `ProductSpecAccess` | barcha login qilganlar | admin, engineer, buyurtmachi |
 | `ConfigurationRequestAccess` | barcha login qilganlar | admin, sales, engineer |
 
 Hammasi `RoleAccess` asosida: `read_roles` / `write_roles` ro'yxatlari, admin esa doim o'tadi.
@@ -45,7 +46,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | `/api/notifications/` | o'ziniki + umumiy | — | `mark-read` |
 | `/api/clients/` | hamma | admin, sales, buyurtmachi | bugalter faqat o'qiydi |
 | `/api/warehouses/`, `/products/`, `/stocks/`, `/movements/` | hamma | **hech kim** | katalog faqat o'qish uchun; yangi mahsulot buyurtma orqali qo'shiladi |
-| `/api/product-specs/` | hamma | **admin, engineer** | tayyor model tarkibi (ichidagi configlar) — engineer kiritadi |
+| `/api/product-specs/` | hamma | **admin, engineer, buyurtmachi** | tayyor model tarkibi (ichidagi configlar) — buyurtmachi kirim qilganda, engineer configurator ishida kiritadi |
 | `/api/acts/` | hamma | **sales** (admin) | Engineer tayyorlagach ACT ni sales kiritadi |
 | `/api/configurations/`, `/configuration-items/` | hamma | **admin, engineer** | sales configurator ishini qilmaydi — zayavka yuboradi; `finalize` esa **sales** (admin) — engineer'ga 403 |
 | `/api/configuration-requests/` | hamma | admin, sales, engineer | `take`/`complete` — faqat engineer (admin) |

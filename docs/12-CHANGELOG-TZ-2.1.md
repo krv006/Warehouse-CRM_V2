@@ -428,7 +428,8 @@ POST /api/replenishment-items/
 Javobda `product_kind_display` ("Tayyor model" / "Butlovchi") keladi.
 
 **2. Tayyor model tarkibi (ichidagi configlar)** — `/api/product-specs/`
-endi **engineer (admin) uchun yoziladigan** bo'ldi (avval hamma uchun 405):
+endi **engineer va buyurtmachi (admin) uchun yoziladigan** bo'ldi (avval hamma
+uchun 405). Buyurtmachi tayyor modelni kirim qilganda tarkibini ham kiritadi:
 
 ```json
 POST /api/product-specs/
@@ -437,7 +438,7 @@ POST /api/product-specs/
 
 - bazada yo'q butlovchi: `new_component_name` (+ `new_component_sku`) — katalogga tushadi;
 - tarkib faqat `kind=machine` mahsulotga qo'shiladi (butlovchiga — 400);
-- takror butlovchi — 400; PATCH/DELETE ham engineer'da.
+- takror butlovchi — 400; PATCH/DELETE ham shu rollarda.
 
 **Frontendga ta'siri:** buyurtma qatori modalida "Yangi mahsulot" tabiga
 **tur selecti** (Butlovchi / Tayyor model, default Butlovchi); mahsulot
@@ -475,5 +476,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **93** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **200** |
+| Testlar | 66 | **201** |
 | Rollar | 3 | **5** |

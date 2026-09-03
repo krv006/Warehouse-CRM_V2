@@ -1,6 +1,6 @@
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
-from apps.accounts.permissions import ConfiguratorAccess
+from apps.accounts.permissions import ProductSpecAccess
 from apps.core.mixins import BaseModelViewSet
 from apps.inventory.models import (
     Warehouse,
@@ -48,11 +48,12 @@ class ProductViewSet(ReadOnlyModelViewSet):
 class ProductSpecViewSet(BaseModelViewSet):
     """Tayyor model tarkibi (ichidagi configlar).
 
-    O'qish hammaga; yozish — **engineer** (admin): tayyor model kirim
-    qilinganda uning zavod tarkibi shu yerda kiritiladi (TZ 6.1).
+    O'qish hammaga; yozish — **engineer va buyurtmachi** (admin):
+    buyurtmachi tayyor modelni kirim qilganda tarkibini ham kiritadi,
+    engineer configurator ishida yuritadi (TZ 6.1, 7).
     """
 
-    permission_classes = [ConfiguratorAccess]
+    permission_classes = [ProductSpecAccess]
 
     queryset = ProductSpec.objects.select_related('product', 'component').all()
     serializer_class = ProductSpecSerializer

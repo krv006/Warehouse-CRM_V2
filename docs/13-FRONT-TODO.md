@@ -162,7 +162,8 @@ POST /api/replenishment-items/
 Tayyor model kirim qilingach, **mahsulot kartasida** (`kind=machine`) engineer
 uchun "Tarkib" bloki: qator qo'shish/tahrirlash/o'chirish —
 `POST/PATCH/DELETE /api/product-specs/` (`product`, `component` yoki
-`new_component_name`, `label`, `quantity`). Yozish faqat engineer va adminda,
+`new_component_name`, `label`, `quantity`). Yozish engineer, **buyurtmachi**
+va adminda (buyurtmachi tayyor modelni buyurtma qilganda tarkibini ham kiritadi);
 boshqalarga tugmalar yashiriladi.
 
 ## 5. "Omborlar" sahifasi olib tashlanadi — Ombor = Mahsulotlar 🔴
