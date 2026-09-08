@@ -35,6 +35,12 @@ class ClientSerializer(ModelSerializer):
         read_only_fields = ['created_by']
 
     def validate(self, attrs):
+        # unique+null maydonlarda bo'sh satr NULL ga aylanadi — aks holda ikkita
+        # "" qiymat unique to'qnashuvi bilan 500 beradi (front bo'sh inputni "" yuboradi)
+        for field in Client.NULLABLE_UNIQUE_FIELDS:
+            if attrs.get(field) == '':
+                attrs[field] = None
+
         instance = self.instance
         client_type = attrs.get('type') or (instance.type if instance else Client.Type.INDIVIDUAL)
         errors = {}

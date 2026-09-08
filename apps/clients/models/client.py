@@ -43,11 +43,20 @@ class Client(TimeStampedModel):
         null=True, blank=True,
     )
 
+    # unique + null maydonlar: bo'sh satr o'rniga NULL saqlanadi (unique '' to'qnashmasin)
+    NULLABLE_UNIQUE_FIELDS = ('passport', 'company_name', 'inn', 'account_number', 'jshshir')
+
     class Meta:
         ordering = ['-created_at']
 
     def __str__(self):
         return self.display_name
+
+    def save(self, *args, **kwargs):
+        for field in self.NULLABLE_UNIQUE_FIELDS:
+            if getattr(self, field) == '':
+                setattr(self, field, None)
+        super().save(*args, **kwargs)
 
     @property
     def display_name(self):

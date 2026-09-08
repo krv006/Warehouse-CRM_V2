@@ -445,6 +445,16 @@ POST /api/product-specs/
 kartasida `kind=machine` bo'lsa engineer uchun "Tarkib qo'shish/tahrirlash"
 bloki (`/product-specs/` CRUD).
 
+## 8.10 Mijoz yaratishda 500 tuzatildi 🐛→✅
+
+Front bo'sh inputlarni `""` (bo'sh satr) qilib yuborganda unique+null
+maydonlar (`passport`, `company_name`, `inn`, `account_number`, `jshshir`)
+bazada `""` bo'lib saqlanardi — ikkinchi mijozda unique to'qnashuv, 500.
+
+Endi bo'sh satr avtomatik **NULL** ga aylanadi (serializer + model.save).
+Frontga: bo'sh maydonlarni yuboraverish mumkin, hech narsa o'zgartirish
+shart emas.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -476,5 +486,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **93** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **201** |
+| Testlar | 66 | **202** |
 | Rollar | 3 | **5** |

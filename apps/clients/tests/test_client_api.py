@@ -32,6 +32,28 @@ class ClientApiTests(APITestCase):
         self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
         self.bugalter = User.objects.create_user('bug', password='p', role=User.Role.BUGALTER)
 
+    def test_empty_unique_fields_do_not_clash(self):
+        """500 regressiyasi: front bo'sh inputni "" yuboradi — ikkita mijozda ham.
+
+        unique+null maydonlarda "" NULL ga aylanadi, aks holda ikkinchi mijoz
+        IntegrityError (500) berardi.
+        """
+        self.client.force_authenticate(self.sales)
+        first = {**INDIVIDUAL, 'account_number': '', 'company_name': '', 'inn': ''}
+        response = self.client.post('/api/clients/', first, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertIsNone(response.data['account_number'])
+
+        second = {
+            **INDIVIDUAL,
+            'full_name': 'Ikkinchi Mijoz', 'passport': 'BB7654321',
+            'jshshir': '43210987654321', 'phone': '+998901112255',
+            'account_number': '', 'company_name': '', 'inn': '',
+        }
+        response = self.client.post('/api/clients/', second, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(Client.objects.count(), 2)
+
     def test_sales_creates_individual_client(self):
         self.client.force_authenticate(self.sales)
         response = self.client.post('/api/clients/', INDIVIDUAL)
