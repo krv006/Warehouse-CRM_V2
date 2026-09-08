@@ -197,6 +197,49 @@ kerak emas.
 
 Backend'da o'zgarish shart emas — `GET /products/` da hamma kerakli maydon bor.
 
+## 6. Mahsulot selecti — qidiruvli autocomplete 🟡
+
+**Muammo:** configurator qatorini tahrirlashda (`/configurations/{id}`) butlovchi
+selecti **barcha mahsulotlarni** ro'yxat qilib chiqaryapti. Katalog o'sgan sari bu
+ishlatib bo'lmaydigan bo'lib qoladi — "SSD" deb yozganda faqat mos nomlilar
+chiqishi kerak.
+
+**Yechim:** oddiy `<select>` o'rniga **qidiruvli autocomplete** (combobox).
+Backend tayyor — nom va SKU bo'yicha qidiradi:
+
+```
+GET /api/products/?search=ssd
+```
+
+Jonli serverda tekshirilgan javob (faqat moslari keladi):
+
+```
+MAH-00025 — 5TB SSD
+1234      — SSD 1 TB
+SSD-1TB   — SSD disk 1 TB
+```
+
+Tavsiya qilingan ishlash tartibi:
+
+- foydalanuvchi yozishni boshlaganda (2+ belgi) `?search=<matn>` so'raladi,
+  300 ms debounce bilan;
+- variant ko'rinishi: `sku — name` (hozirgidek), yonida `total_stock` ko'rsatilsa
+  yanada yaxshi ("omborda: 5");
+- konfigurator qatori uchun `&kind=component` qo'shib faqat **butlovchilarni**
+  chiqaring (tayyor modellar butlovchi bo'lolmaydi);
+- bo'sh qidiruvda birinchi sahifa (20 ta) ko'rsatiladi — `?page=` bilan davomi.
+
+Xuddi shu autocomplete boshqa joylarda ham ishlatilsin:
+
+| Joy | So'rov |
+|---|---|
+| Configurator qatori (butlovchi) | `/products/?search=...&kind=component` |
+| To'ldirish qatori ("Bazadan tanlash") | `/products/?search=...` |
+| Tarkib (product-specs) qatori | `/products/?search=...&kind=component` |
+| Zayavkada bazaviy model | `/products/?search=...&kind=machine` |
+
+Backend'da o'zgarish shart emas — `search`, `kind` filtri va sahifalash bor.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |
