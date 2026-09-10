@@ -171,8 +171,8 @@ O'qish hammaga; **yozish faqat engineer** (admin). Sales matnli zayavka yuboradi
 ### 2.7 Audit va eslatmalar — `apps/core`
 
 - `ActivityLog` — kim, qachon, nima qilgani (faqat admin ko'radi: `/api/activity-logs/`).
-- `Notification` + `python manage.py check_deadlines` — shartnoma, qarz va import
-  muddatlari bo'yicha eslatma yaratadi (idempotent).
+- `Notification` + `python manage.py check_deadlines` — shartnoma, qarz, import
+  va kelishuv ("Keyingi aloqa") muddatlari bo'yicha eslatma yaratadi (idempotent).
 - `GET /api/dashboard/` — kassa, kirim, sales, clients, ombor, deadlines, notifications.
 
 ## 3. Ishga tushirish

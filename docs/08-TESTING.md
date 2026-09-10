@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **202 ta test, hammasi OK**.
+Hozirgi holat: **204 ta test, hammasi OK**.
 
 ---
 
@@ -53,7 +53,7 @@ Hozirgi holat: **202 ta test, hammasi OK**.
 | `apps/configurator/tests/test_missing_to_procurement.py` | Engineer bazada yo'q tovarni configuratordan qo'shishi (`new_component_name`, takror nom yaratilmasligi), request-procurement: yetishmaganlardan TLD ochilishi, buyurtmachi/sales/bugalterga xabar, hammasi omborda bo'lsa 400, sales'ga 403, zanjir buyurtmachi submit'iga ulanishi |
 | `apps/configurator/tests/test_front_fixes.py` | Front topgan xatolar regressiyasi: configuration-items'da `configuration` maydoni (400, 500 emas), engineer notificationlari, `configuration` filtri, ready/attached qulfi, take'da zavod tarkibi va tana ustuvorligi, komponent bazaviy bo'la olmasligi, sales finalize tanadagi ACT bilan (engineer'ga 403), sales ACT yarata olishi |
 | `apps/finance/tests/test_kassa.py` (`LoanRepaidBugTests`) | Qarz bug'i regressiyasi: yangi qarzda repaid=0, qisman/to'liq qaytarish, ortiqcha to'lov va yopiq qarzga 400 |
-| `apps/core/tests/test_dashboard_and_audit.py` | dashboard bo'limlari va balans, `ActivityLog` yozilishi, audit faqat adminga, `check_deadlines` eslatmalari va idempotentligi, notification `mark-read` |
+| `apps/core/tests/test_dashboard_and_audit.py` | dashboard bo'limlari va balans, `ActivityLog` yozilishi, audit faqat adminga, `check_deadlines` eslatmalari va idempotentligi, kelishuv aloqa eslatmasi (bugun/ertaga sariq, o'tgan sana qizil, salesga shaxsan; sanasiz/yopiqlarga yozilmasligi), notification `mark-read` |
 
 ---
 

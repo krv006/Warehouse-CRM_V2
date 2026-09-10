@@ -147,8 +147,11 @@ Chegaralar har bir shartnoma muddatiga proporsional hisoblanadi (TZ 5.3).
 
 ### Eslatmalar
 
-`manage.py check_deadlines` — sariq va qizil zonadagi shartnoma, qarz va importlar uchun
-`Notification` yaratadi. Takroran ishga tushirilsa dublikat yaratmaydi (idempotent).
+`manage.py check_deadlines` — sariq va qizil zonadagi shartnoma, qarz va importlar,
+hamda "Keyingi aloqa" sanasi kelgan yoki o'tib ketgan kelishuvlar (`Lead`) uchun
+`Notification` yaratadi. Kelishuv eslatmasi uni yaratgan sales'ning o'ziga boradi:
+bugun/ertaga — sariq, o'tib ketgan — qizil; sana kiritilmagan bo'lsa eslatma yo'q.
+Takroran ishga tushirilsa dublikat yaratmaydi (idempotent).
 
 ### Narx ko'rinishi
 

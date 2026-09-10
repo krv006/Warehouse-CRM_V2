@@ -455,6 +455,21 @@ Endi bo'sh satr avtomatik **NULL** ga aylanadi (serializer + model.save).
 Frontga: bo'sh maydonlarni yuboraverish mumkin, hech narsa o'zgartirish
 shart emas.
 
+## 8.11 Kelishuv (Lead): "Keyingi aloqa" eslatmasi 🔔
+
+`next_contact_at` kiritilgan kelishuvda sana kelganda sales'ga avtomatik eslatma:
+
+- kunlik `check_deadlines` endi kelishuvlarni ham tekshiradi;
+- **bugun yoki ertaga** aloqa — sariq (warning), **sana o'tib ketgan** — qizil
+  (danger, "Aloqa N kun oldin bo'lishi kerak edi");
+- eslatma kelishuvni **yaratgan sales'ning shaxsiy** notificationiga tushadi
+  (`GET /notifications/?entity=Lead`), boshqalar ko'rmaydi;
+- sana kiritilmagan yoki yopilgan (shartnoma tuzildi / yo'qotildi) kelishuvga
+  eslatma yozilmaydi; qayta yurganda dublikat yo'q (idempotent).
+
+Front: notificationda `entity='Lead'` kelsa kelishuv sahifasiga havola qilinsin
+(13-FRONT-TODO 7-bo'lim).
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -486,5 +501,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **93** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **30** |
-| Testlar | 66 | **202** |
+| Testlar | 66 | **204** |
 | Rollar | 3 | **5** |

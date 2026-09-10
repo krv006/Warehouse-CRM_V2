@@ -240,6 +240,30 @@ Xuddi shu autocomplete boshqa joylarda ham ishlatilsin:
 
 Backend'da o'zgarish shart emas — `search`, `kind` filtri va sahifalash bor.
 
+## 7. Kelishuvlar — tahrirlash va aloqa eslatmasi 🟡
+
+**Muammo:** `/leads` sahifasida faqat "Yangi kelishuv" bor — yaratilgan
+kelishuvni **tahrirlab bo'lmaydi** (bosqichni o'zgartirish, keyingi aloqa
+sanasini surish, shartnomaga bog'lash).
+
+**Yechim (backend tayyor, endpoint bor):**
+
+- Qatorda "Tahrirlash" — o'sha modal oldindan to'ldirilgan holda ochiladi,
+  saqlash: `PATCH /api/leads/{id}/` (istalgan maydon: `stage`, `title`,
+  `expected_amount`, `next_contact_at`, `note`, `client`, `contract`).
+- Bosqich "Shartnoma tuzildi" tanlanganda `contract` ni ham so'rang —
+  shunda jadvaldagi SHARTNOMA ustunida havola chiqadi.
+- O'chirish kerak bo'lsa: `DELETE /api/leads/{id}/`.
+
+**Aloqa eslatmasi (yangi, backend qildi):** "Keyingi aloqa" sanasi kiritilgan
+bo'lsa, sana kelganda kelishuvni yaratgan sales'ga notification tushadi —
+bugun/ertaga sariq, o'tib ketgan qizil ("Aloqa N kun oldin bo'lishi kerak edi").
+Sana kiritilmagan bo'lsa eslatma bo'lmaydi.
+
+- Notification ro'yxatida `entity='Lead'` kelganda `/leads` dagi o'sha qatorga
+  havola qiling (`object_id` — lead id).
+- Jadvalda KEYINGI ALOQA sanasi o'tib ketgan bo'lsa qizil rangda ko'rsatilsin.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

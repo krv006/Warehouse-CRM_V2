@@ -48,7 +48,7 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 | Django ilovalari | 9 ta (`core`, `accounts`, `clients`, `inventory`, `configurator`, `purchases`, `procurement`, `sales`, `finance`) |
 | Modellar | 30 ta |
 | Rollar | 5 ta: admin, bugalter, sales, buyurtmachi, engineer |
-| Testlar | **202 ta**, hammasi o'tadi |
+| Testlar | **204 ta**, hammasi o'tadi |
 
 ---
 
@@ -187,12 +187,12 @@ yagona omborda kamida 10 dona bo'ladi. Idempotent — qayta yursa ortiqcha qo'sh
 ```bash
 .venv/Scripts/python.exe manage.py check_deadlines
 ```
-Shartnoma, qarz va import muddatlarini tekshirib eslatma (Notification) yaratadi. Cron/Task Scheduler'ga kunlik qo'yiladi.
+Shartnoma, qarz, import va kelishuv ("Keyingi aloqa") muddatlarini tekshirib eslatma (Notification) yaratadi. Cron/Task Scheduler'ga kunlik qo'yiladi.
 
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (202 ta).
+Barcha testlar (204 ta).
 
 ---
 

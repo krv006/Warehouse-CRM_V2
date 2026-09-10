@@ -1,10 +1,13 @@
 from django.core.management.base import BaseCommand
+from django.utils.timezone import localdate
 
 from apps.core.models import Notification
 from apps.core.utils import RED, RED_ZONE_DAYS, YELLOW
 from apps.finance.models import Loan
 from apps.purchases.models import Purchase
-from apps.sales.models import Contract
+from apps.sales.models import Contract, Lead
+
+LEAD_REMIND_DAYS = 1
 
 LEVEL_BY_COLOR = {
     RED: Notification.Level.DANGER,
@@ -13,18 +16,22 @@ LEVEL_BY_COLOR = {
 
 
 class Command(BaseCommand):
-    """Shartnoma, qarz va import muddatlarini tekshirib eslatma yaratadi."""
+    """Shartnoma, qarz, import va kelishuv muddatlarini tekshirib eslatma yaratadi."""
 
-    help = "Muddati yaqinlashgan shartnoma, qarz va importlar uchun eslatma yaratadi"
+    help = (
+        "Muddati yaqinlashgan shartnoma, qarz, import va kelishuv aloqalari "
+        "uchun eslatma yaratadi"
+    )
 
     def handle(self, *args, **options):
         created = 0
         created += self._check_contracts()
         created += self._check_loans()
         created += self._check_imports()
+        created += self._check_leads()
         self.stdout.write(self.style.SUCCESS(f'{created} ta eslatma yaratildi'))
 
-    def _notify(self, *, title, message, color, entity, object_id, due_date):
+    def _notify(self, *, title, message, color, entity, object_id, due_date, user=None):
         level = LEVEL_BY_COLOR.get(color)
         if not level:
             return 0
@@ -34,6 +41,7 @@ class Command(BaseCommand):
         if exists:
             return 0
         Notification.objects.create(
+            user=user,
             title=title,
             message=message,
             level=level,
@@ -70,6 +78,43 @@ class Command(BaseCommand):
                 entity='Loan',
                 object_id=loan.pk,
                 due_date=loan.deadline,
+            )
+        return created
+
+    def _check_leads(self):
+        """Kelishuvda "Keyingi aloqa" sanasi yaqin yoki o'tgan bo'lsa salesga eslatadi.
+
+        Sana kiritilmagan kelishuvga eslatma yozilmaydi; yopilganlariga
+        (shartnoma tuzildi / yo'qotildi) ham tegilmaydi.
+        """
+        created = 0
+        today = localdate()
+        leads = Lead.objects.select_related('client', 'created_by').filter(
+            next_contact_at__isnull=False,
+        ).exclude(stage__in=[Lead.Stage.CONTRACT, Lead.Stage.LOST])
+        for lead in leads:
+            contact_date = localdate(lead.next_contact_at)
+            days_left = (contact_date - today).days
+            if days_left > LEAD_REMIND_DAYS:
+                continue
+            if days_left < 0:
+                color = RED
+                message = (
+                    f"Aloqa {abs(days_left)} kun oldin bo'lishi kerak edi — "
+                    f'mijoz: {lead.client}'
+                )
+            else:
+                color = YELLOW
+                when = 'Bugun' if days_left == 0 else 'Ertaga'
+                message = f'{when} mijoz bilan aloqa qilish kerak: {lead.client}'
+            created += self._notify(
+                title=f'Kelishuv: {lead.title}',
+                message=message,
+                color=color,
+                entity='Lead',
+                object_id=lead.pk,
+                due_date=contact_date,
+                user=lead.created_by,
             )
         return created
 
