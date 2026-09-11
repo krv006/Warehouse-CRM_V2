@@ -388,11 +388,31 @@ POST /api/contracts/
   "term_days": 90,
   "signed_at": "2026-08-27",
   "items": [
-    {"product": 1, "quantity": 1, "unit_price": "500000000"}
+    {"product": 1, "quantity": 1, "unit_price": "500000000", "vat_percent": "12"}
   ]
 }
 ```
-`total_amount` yuborilmasa qatorlardan hisoblanadi. `prepayment_percent` bo'sh bo'lsa avtomatik 30% yoki 15%.
+`total_amount` yuborilmasa qatorlardan **QQS bilan** hisoblanadi (mijoz to'laydigan real summa). `prepayment_percent` bo'sh bo'lsa avtomatik 30% yoki 15% — QQS bilan jamidan.
+
+**QQS:** har bir qatorda `vat_percent` bor — default **12%**, imtiyozli mahsulotga `0`
+yuborsa bo'ladi. `unit_price` — **QQS'siz sof narx**. Javobda hisoblab beriladi:
+
+```json
+{
+  "items": [
+    {"product": 1, "quantity": 1, "unit_price": "5000000.00",
+     "subtotal": "5000000.00", "vat_percent": "12.00",
+     "vat_amount": "600000.00", "total_with_vat": "5600000.00"}
+  ],
+  "items_total": "5000000.00",
+  "vat_total": "600000.00",
+  "items_total_with_vat": "5600000.00",
+  "total_amount": "5600000.00"
+}
+```
+
+`items_total` — Yetkazish jami (QQS'siz), `vat_total` — QQS jami,
+`items_total_with_vat` — Jami (chop etishdagi pastki qator).
 
 **Tasdiqlash:**
 ```json
@@ -438,7 +458,9 @@ Omborda yetarli bo'lmasa — `400`:
 [{"id": 7, "number": "SHT-00007", "client": "Ali Valiyev", "days_left": 5, "color": "red", "balance": "350000000.00"}]
 ```
 
-> Eslatma: `items[].unit_price` va `items[].subtotal` faqat sales va admin javobida bo'ladi.
+> Eslatma: `items[].unit_price`, `subtotal`, `vat_percent`, `vat_amount`,
+> `total_with_vat` faqat sales va admin javobida bo'ladi (bugalterga umumiy
+> `total_amount`, `items_total`, `vat_total` ko'rinadi).
 
 ---
 
@@ -468,7 +490,8 @@ POST /api/replenishment-items/
   "product_name": "RAM 16 GB",
   "product_sku": "RAM-16",
   "quantity": "5",
-  "unit_price": "350000"
+  "unit_price": "350000",
+  "vat_percent": "12"
 }
 ```
 
@@ -477,6 +500,8 @@ POST /api/replenishment-items/
 - Bazada bor mahsulot uchun oddiy `"product": 5` yuboriladi
 - Nomi mos keladigan mahsulot bo'lsa, dublikat yaratilmaydi
 - `product` ham, `product_name` ham bo'lmasa — `400`
+- `vat_percent` — QQS foizi, **default 0**: ta'minotchi hisobida QQS bo'lsa
+  kiritiladi; javobda `vat_amount` va `total_with_vat` hisoblab beriladi
 | GET | `/replenishment-approvals/`, `/replenishment-events/` | faqat o'qish |
 
 **Yetishmayotganlar ro'yxati:**
@@ -500,6 +525,8 @@ POST /api/replenishments/from-low-stock/
   "number": "TLD-00001",
   "status": "pending_admin",
   "items_total": "1200000.00",
+  "vat_total": "0.00",
+  "items_total_with_vat": "1200000.00",
   "logistics_cost": "150000.00",
   "other_cost": "50000.00",
   "total_amount": "1400000.00",

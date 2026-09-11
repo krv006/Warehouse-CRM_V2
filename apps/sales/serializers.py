@@ -12,16 +12,23 @@ from apps.sales.models import (
     Lead,
 )
 
-PRICE_FIELDS = ['unit_price', 'subtotal']
+PRICE_FIELDS = ['unit_price', 'subtotal', 'vat_percent', 'vat_amount', 'total_with_vat']
 
 
 class ContractItemSerializer(ModelSerializer):
+    """Qator: `unit_price` — QQS'siz narx, `vat_percent` default 12%."""
+
     product_name = ReadOnlyField(source='product.name')
     subtotal = ReadOnlyField()
+    vat_amount = ReadOnlyField()
+    total_with_vat = ReadOnlyField()
 
     class Meta:
         model = ContractItem
-        fields = ['id', 'product', 'product_name', 'quantity', 'unit_price', 'subtotal']
+        fields = [
+            'id', 'product', 'product_name', 'quantity', 'unit_price',
+            'subtotal', 'vat_percent', 'vat_amount', 'total_with_vat',
+        ]
 
     def to_representation(self, instance):
         """TZ: qator bo'yicha sotuv narxi faqat sales va adminga ko'rinadi."""
@@ -70,6 +77,9 @@ class ContractSerializer(ModelSerializer):
     payments = ContractPaymentSerializer(many=True, read_only=True)
     client_name = ReadOnlyField(source='client.display_name')
     status_display = ReadOnlyField(source='get_status_display')
+    items_total = ReadOnlyField()
+    vat_total = ReadOnlyField()
+    items_total_with_vat = ReadOnlyField()
     prepayment_amount = ReadOnlyField()
     paid = ReadOnlyField()
     balance = ReadOnlyField()
@@ -80,7 +90,8 @@ class ContractSerializer(ModelSerializer):
         model = Contract
         fields = [
             'id', 'number', 'client', 'client_name', 'configuration', 'status',
-            'status_display', 'currency', 'total_amount', 'prepayment_percent',
+            'status_display', 'currency', 'items_total', 'vat_total',
+            'items_total_with_vat', 'total_amount', 'prepayment_percent',
             'prepayment_amount', 'term_days', 'signed_at', 'start_date', 'note',
             'items', 'approvals', 'payments', 'paid', 'balance', 'days_left', 'color',
             'created_by', 'created_at',
@@ -88,8 +99,9 @@ class ContractSerializer(ModelSerializer):
         read_only_fields = ['number', 'created_by', 'status', 'start_date']
 
     def _sync_total(self, contract):
+        """Summa berilmagan bo'lsa qatorlardan olinadi — QQS bilan (mijoz to'laydigan real summa)."""
         if not contract.total_amount:
-            contract.total_amount = contract.items_total
+            contract.total_amount = contract.items_total_with_vat
             contract.prepayment_percent = None
             contract.save()
         return contract

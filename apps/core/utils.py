@@ -1,5 +1,7 @@
 from datetime import timedelta
+from decimal import Decimal
 
+from django.conf import settings
 from django.utils.timezone import localdate
 
 GREEN = 'green'
@@ -11,6 +13,18 @@ GREY = 'grey'
 # (90 kunlik shartnomada: yashil 90-31, sariq 30-11, qizil 10-0)
 RED_ZONE_DAYS = 10
 YELLOW_ZONE_RATIO = 1 / 3
+
+
+def default_vat_percent():
+    """Sotuv qatori uchun standart QQS foizi (sozlamadan, default 12%)."""
+    return Decimal(str(getattr(settings, 'DEFAULT_VAT_PERCENT', 12)))
+
+
+def vat_amount_of(subtotal, percent):
+    """Qator QQS summasi: sof narxdan foiz bilan hisoblanadi."""
+    return (
+        Decimal(subtotal or 0) * Decimal(percent or 0) / Decimal('100')
+    ).quantize(Decimal('0.01'))
 
 
 def deadline_color(days_left, term_days):

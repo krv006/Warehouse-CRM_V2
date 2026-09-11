@@ -39,6 +39,8 @@ class ReplenishmentItemSerializer(ModelSerializer):
     product_code = ReadOnlyField(source='product.sku')
     product_kind_display = ReadOnlyField(source='product.get_kind_display')
     subtotal = ReadOnlyField()
+    vat_amount = ReadOnlyField()
+    total_with_vat = ReadOnlyField()
     needs_price = ReadOnlyField()
 
     class Meta:
@@ -47,7 +49,8 @@ class ReplenishmentItemSerializer(ModelSerializer):
             'id', 'replenishment', 'product', 'product_name', 'product_sku',
             'product_kind', 'product_kind_display',
             'product_display', 'product_code', 'quantity', 'unit_price',
-            'subtotal', 'needs_price', 'supplier', 'note',
+            'subtotal', 'vat_percent', 'vat_amount', 'total_with_vat',
+            'needs_price', 'supplier', 'note',
         ]
 
     def validate(self, attrs):
@@ -120,6 +123,8 @@ class ReplenishmentSerializer(ModelSerializer):
     warehouse_name = ReadOnlyField(source='warehouse.name')
     configuration_number = ReadOnlyField(source='configuration.number')
     items_total = ReadOnlyField()
+    vat_total = ReadOnlyField()
+    items_total_with_vat = ReadOnlyField()
     total_amount = ReadOnlyField()
     cash_available = ReadOnlyField()
     shortfall = ReadOnlyField()
@@ -132,7 +137,8 @@ class ReplenishmentSerializer(ModelSerializer):
             'id', 'number', 'warehouse', 'warehouse_name', 'supplier',
             'configuration', 'configuration_number', 'status',
             'status_display', 'currency', 'logistics_cost', 'other_cost',
-            'items_total', 'total_amount', 'cash_available', 'shortfall',
+            'items_total', 'vat_total', 'items_total_with_vat',
+            'total_amount', 'cash_available', 'shortfall',
             'paid_amount', 'debt', 'debt_days_left', 'debt_color',
             'expected_at', 'delivered_at', 'note', 'items', 'approvals', 'events',
             'created_by', 'created_at',

@@ -488,6 +488,26 @@ darajasida bloklangan):
 Front: 13-FRONT-TODO 8-bo'lim — sozlamalar sahifasi (admin) va shartnoma
 chop etish modalida BAJARUVCHI blokini shu endpointdan olish.
 
+## 8.13 QQS (NDS) — shartnoma va to'ldirish qatorlarida 🧾
+
+Hisob-faktura ko'rinishi (Narx · QQS% · QQS · Jami) uchun backend hisob-kitobi:
+
+- `ContractItem.vat_percent` — default **12%** (sozlamada `DEFAULT_VAT_PERCENT`),
+  qatorda o'zgartirsa bo'ladi (imtiyozliga 0); `unit_price` — QQS'siz sof narx;
+  hisoblanadi: `vat_amount`, `total_with_vat`;
+- `ReplenishmentItem.vat_percent` — default **0**: ta'minotchi hisobida QQS
+  bo'lsa buyurtmachi foizni o'zi kiritadi;
+- hujjat yig'indilari ikkala javobda: `items_total` (Yetkazish, QQS'siz),
+  `vat_total` (QQS jami), `items_total_with_vat` (Jami);
+- shartnoma `total_amount` endi qatorlardan **QQS bilan** sinxronlanadi —
+  oldindan to'lov (30%/15%) va balans mijoz to'laydigan real summadan;
+- TLD `total_amount` = QQS bilan qatorlar + logistika + boshqa xarajatlar —
+  bugalter `pay` va qarz (shortfall) hisobi shu summadan;
+- bugalterdan yashirinadigan qator maydonlari kengaydi: `vat_percent`,
+  `vat_amount`, `total_with_vat` ham (TZ: qator narxi faqat sales/admin).
+
+Migratsiyalar: `sales.0002`, `procurement.0003`. Front: 13-FRONT-TODO 9-bo'lim.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -519,5 +539,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **94** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **31** |
-| Testlar | 66 | **209** |
+| Testlar | 66 | **216** |
 | Rollar | 3 | **5** |

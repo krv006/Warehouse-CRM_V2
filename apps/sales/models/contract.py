@@ -77,7 +77,18 @@ class Contract(TimeStampedModel):
 
     @property
     def items_total(self):
+        """Yetkazish jami — qatorlarning QQS'siz summasi."""
         return sum((item.subtotal for item in self.items.all()), Decimal('0'))
+
+    @property
+    def vat_total(self):
+        """QQS jami — barcha qatorlar QQS'ining yig'indisi."""
+        return sum((item.vat_amount for item in self.items.all()), Decimal('0'))
+
+    @property
+    def items_total_with_vat(self):
+        """Jami — QQS bilan; mijoz to'laydigan real summa."""
+        return self.items_total + self.vat_total
 
     @property
     def prepayment_amount(self):

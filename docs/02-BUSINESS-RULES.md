@@ -153,6 +153,17 @@ hamda "Keyingi aloqa" sanasi kelgan yoki o'tib ketgan kelishuvlar (`Lead`) uchun
 bugun/ertaga — sariq, o'tib ketgan — qizil; sana kiritilmagan bo'lsa eslatma yo'q.
 Takroran ishga tushirilsa dublikat yaratmaydi (idempotent).
 
+### QQS (NDS)
+
+Sotuv qatorida narx **QQS'siz** kiritiladi, QQS foizi qatorda alohida turadi:
+default **12%** (`root/settings/business.py` → `DEFAULT_VAT_PERCENT`), imtiyozli
+mahsulotga 0% qo'yish mumkin. Hujjat bo'yicha: Yetkazish jami (QQS'siz) + QQS
+jami = Jami — shartnoma `total_amount` i va undan olinadigan oldindan to'lov
+(30%/15%) ham **QQS bilan** hisoblanadi.
+
+To'ldirish (TLD) qatorlarida QQS default **0** — ta'minotchi hisobida QQS bo'lsa
+buyurtmachi foizni o'zi kiritadi; to'lov va qarz (shortfall) QQS bilan jamidan.
+
 ### Narx ko'rinishi
 
 TZ: *"Shartnomada mahsulot ni sotuv narhi korinadi sales ga faqat"*.

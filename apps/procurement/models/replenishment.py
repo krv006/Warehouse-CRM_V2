@@ -73,12 +73,23 @@ class Replenishment(TimeStampedModel):
 
     @property
     def items_total(self):
+        """Yetkazish jami — qatorlarning QQS'siz summasi."""
         return sum((item.subtotal for item in self.items.all()), 0)
 
     @property
+    def vat_total(self):
+        """QQS jami — barcha qatorlar QQS'ining yig'indisi."""
+        return sum((item.vat_amount for item in self.items.all()), 0)
+
+    @property
+    def items_total_with_vat(self):
+        """Qatorlar jami — QQS bilan."""
+        return self.items_total + self.vat_total
+
+    @property
     def total_amount(self):
-        """Mahsulotlar + logistika + boshqa xarajatlar."""
-        return self.items_total + self.logistics_cost + self.other_cost
+        """Mahsulotlar (QQS bilan) + logistika + boshqa xarajatlar."""
+        return self.items_total_with_vat + self.logistics_cost + self.other_cost
 
     @property
     def cash_available(self):

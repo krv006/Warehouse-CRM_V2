@@ -290,6 +290,55 @@ Front vazifasi:
 - Admin bo'lmagan foydalanuvchi formani ko'rsa ham saqlay olmaydi (403) —
   tugmani yashiring.
 
+## 9. QQS (NDS) — hisob-faktura ko'rinishi (buyurtmachi + sales) 🔴 MUHIM
+
+Backend har ikkala oqimda QQS'ni to'liq hisoblab beradi. Front vazifasi —
+rasmdagi jadval ko'rinishini ikki joyda ko'rsatish:
+
+**A. Buyurtmachi — to'ldirish hisobi (TLD).** Buyurtmachi mahsulotlarni kiritib
+bo'lgach, **submit'dan oldin** hisob-faktura modali ochiladi: barcha qatorlar,
+har qatorda tahrirlanadigan **QQS %** input (`PATCH /api/replenishment-items/{id}/`
+`{"vat_percent": "12"}`), pastda yig'indilar. Tasdiqlagach `submit` — hujjat
+bugalterga boradi va **bugalter xuddi shu modalni ko'rib** approve/reject qiladi.
+
+**B. Sales — shartnoma.** Shartnoma qatorlarini kiritganda xuddi shu jadval:
+har qatorda QQS % (default 12 — backend o'zi qo'yadi, sales o'zgartira oladi,
+masalan imtiyozli mahsulotga 0), pastda uch yig'indi. Chop etish modali (8-bo'lim)
+ham shu qiymatlardan chiziladi.
+
+**Jadval ustunlari → API maydonlari:**
+
+| Ustun | Shartnoma (`/contracts/` items) | To'ldirish (`/replenishment-items/`) |
+|---|---|---|
+| Tovar nomi | `product_name` | `product_display` |
+| Birlik | "dona" (statik) | "dona" (statik) |
+| Soni | `quantity` | `quantity` |
+| Narx (QQS'siz) | `unit_price` | `unit_price` |
+| QQS % | `vat_percent` — **default 12** | `vat_percent` — **default 0**, buyurtmachi kiritadi |
+| QQS (summa) | `vat_amount` (o'qish) | `vat_amount` (o'qish) |
+| Jami | `total_with_vat` (o'qish) | `total_with_vat` (o'qish) |
+
+Seriya / Shtrix ustunlari hozircha backendda yo'q — "—" ko'rsating.
+
+**Pastki yig'indi qatori** (ikkala hujjat javobida tayyor keladi):
+
+```
+Yetkazish: items_total · QQS: vat_total          Jami: items_total_with_vat
+```
+
+TLD'da bundan tashqari: `total_amount` = `items_total_with_vat` + `logistics_cost`
++ `other_cost` — bugalter `pay` bosqichida kassadan shu summa ketadi.
+
+**Muhim o'zgarishlar (breaking emas, lekin bilish shart):**
+
+- Shartnomada `total_amount` endi **QQS bilan** sinxronlanadi (summa qo'lda
+  yuborilmaganda). Oldindan to'lov (30%/15%) va balans ham shu summadan.
+- Bugalter shartnoma javobida qator narxlarini ko'rmaydi — endi `vat_percent`,
+  `vat_amount`, `total_with_vat` ham yashirin (faqat sales/admin ko'radi);
+  umumiy `total_amount`, `items_total`, `vat_total` esa ko'rinadi.
+- To'ldirishda QQS default 0 — ta'minotchi hisobida QQS bo'lsa buyurtmachi
+  foizni o'zi kiritadi; eskicha ishlayotgan frontga hech narsa buzilmaydi.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

@@ -7,3 +7,8 @@ PREPAYMENT_PERCENT_LARGE = 15
 
 # Muddatning oxirgi shuncha kuni qizil rangda ko'rsatiladi
 DEADLINE_RED_ZONE_DAYS = 10
+
+# Sotuv (shartnoma) qatorlari uchun standart QQS foizi.
+# Kirim (to'ldirish) tomonida default 0 — buyurtmachi ta'minotchi
+# hisobiga qarab o'zi kiritadi.
+DEFAULT_VAT_PERCENT = 12

@@ -254,7 +254,8 @@ Property: `items_total`, `total_amount`, `progress`, `days_left`, `color`.
 Property: `items_total`, `prepayment_amount`, `paid`, `balance`, `progress`, `days_left`, `color`.
 
 ### `ContractItem`
-`contract` (CASCADE, `items`), `product` (PROTECT), `quantity`, `unit_price`. Property: `subtotal`.
+`contract` (CASCADE, `items`), `product` (PROTECT), `quantity`, `unit_price`
+(QQS'siz), `vat_percent` (default 12). Property: `subtotal`, `vat_amount`, `total_with_vat`.
 
 ### `ContractApproval`
 `contract` (CASCADE, `approvals`), `step` (`bugalter` / `admin` / `payment`),
@@ -292,8 +293,9 @@ Property: `items_total`, `total_amount`, `cash_available`, `shortfall`,
 Konstanta: `DEBT_TERM_DAYS = 60` (TZ 7.2 — mahsulot kelgandan keyin 2 oy).
 
 ### `ReplenishmentItem`
-`replenishment` (CASCADE, `items`), `product` (PROTECT), `quantity`, `unit_price`,
-`supplier`, `note`. Property: `subtotal`, `needs_price`.
+`replenishment` (CASCADE, `items`), `product` (PROTECT), `quantity`, `unit_price`
+(QQS'siz), `vat_percent` (default 0), `supplier`, `note`.
+Property: `subtotal`, `vat_amount`, `total_with_vat`, `needs_price`.
 
 ### `ReplenishmentApproval`
 `replenishment` (CASCADE, `approvals`), `step` (`bugalter` / `admin`),
