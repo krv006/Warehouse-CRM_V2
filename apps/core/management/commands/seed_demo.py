@@ -46,6 +46,7 @@ class Command(BaseCommand):
             return
 
         users = self._users()
+        self._company_profile()
         warehouses = self._warehouses()
         products = self._products(warehouses, users)
         self._base_income()
@@ -129,6 +130,28 @@ class Command(BaseCommand):
             'engineer': User.objects.get(username='engineer'),
             'buyurtmachi': User.objects.get(username='buyurtmachi'),
         }
+
+    def _company_profile(self):
+        """Bajaruvchi (o'z firmamiz) rekvizitlari — shartnoma chop etish uchun."""
+        from apps.core.models import CompanyProfile
+
+        profile = CompanyProfile.load()
+        if not profile.name:
+            profile.name = 'Ombor Servis MCHJ'
+            profile.inn = '305111222'
+            profile.phone = '+998712000700'
+            profile.email = 'info@ombor.uz'
+            profile.address = 'Toshkent shahri, Sergeli tumani, 7-mavze'
+            profile.bank_name = 'Kapitalbank, Sergeli filiali'
+            profile.mfo = '01088'
+            profile.account_number = '20208000900000000001'
+            profile.director_name = 'Rustamov K.'
+            profile.contract_terms = (
+                "To'lov: shartnoma summasining 30% oldindan, qolgani mahsulot "
+                "topshirilgach 10 bank kuni ichida. Yetkazib berish muddati "
+                "shartnomada ko'rsatilgan kundan boshlab hisoblanadi."
+            )
+            profile.save()
 
     def _warehouses(self):
         from apps.inventory.models import Warehouse

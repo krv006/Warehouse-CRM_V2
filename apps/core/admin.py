@@ -1,6 +1,14 @@
 from django.contrib.admin import ModelAdmin, register
 
-from apps.core.models import ActivityLog, Notification
+from apps.core.models import ActivityLog, CompanyProfile, Notification
+
+
+@register(CompanyProfile)
+class CompanyProfileAdmin(ModelAdmin):
+    list_display = ['name', 'inn', 'phone', 'email', 'updated_at']
+
+    def has_add_permission(self, request):
+        return not CompanyProfile.objects.exists()
 
 
 @register(ActivityLog)

@@ -41,6 +41,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | Endpoint | O'qish | Yozish | Maxsus |
 |---|---|---|---|
 | `/api/dashboard/` | hamma | — | |
+| `/api/company/` | hamma | **faqat admin** | bajaruvchi (o'z firmamiz) rekvizitlari — shartnoma chop etishda ishlatiladi |
 | `/api/users/` | admin | admin | `/users/me/` — hamma |
 | `/api/activity-logs/` | **admin** | — | audit |
 | `/api/notifications/` | o'ziniki + umumiy | — | `mark-read` |

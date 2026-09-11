@@ -264,6 +264,32 @@ Sana kiritilmagan bo'lsa eslatma bo'lmaydi.
   havola qiling (`object_id` — lead id).
 - Jadvalda KEYINGI ALOQA sanasi o'tib ketgan bo'lsa qizil rangda ko'rsatilsin.
 
+## 8. Bajaruvchi rekvizitlari — sozlamalar sahifasi 🟡
+
+Shartnoma chop etish shaklidagi **BAJARUVCHI** bloki (firma nomi, STIR, tel,
+email, manzil, bank, MFO, hisob raqam, rahbar) endi backendda saqlanadi —
+yagona yozuv:
+
+```
+GET  /api/company/          — hamma o'qiydi (chop etishda ishlatiladi)
+PUT  /api/company/          — faqat admin to'ldiradi/tahrirlaydi (PATCH ham bor)
+```
+
+Front vazifasi:
+
+- **Sozlamalar** bo'limida "Kompaniya rekvizitlari" sahifasi — faqat admin
+  menyusida; forma maydonlari: `name`, `inn` (STIR), `phone`, `email`,
+  `address`, `bank_name`, `mfo`, `account_number`, `director_name`,
+  `contract_terms` (textarea — shartnoma pastidagi standart shartlar).
+- Birinchi GET bo'sh qiymatlar qaytaradi (`""`) — "hali to'ldirilmagan"
+  holatini ko'rsating.
+- **Shartnoma chop etish modalida** BAJARUVCHI blokini shu endpointdan
+  to'ldiring (hozir front o'zida qattiq yozilgan/noto'g'ri maydon ishlatyapti —
+  rasmda BUYURTMACHI nomi o'rniga shifrlangan satr chiqqan, mijoz nomini
+  `client.display_name` dan oling).
+- Admin bo'lmagan foydalanuvchi formani ko'rsa ham saqlay olmaydi (403) —
+  tugmani yashiring.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

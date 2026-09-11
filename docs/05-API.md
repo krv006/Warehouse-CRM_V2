@@ -592,6 +592,37 @@ Admin `approve` qilganda kassaga chiqim avtomatik yoziladi.
 
 ---
 
+## Bajaruvchi rekvizitlari (Company)
+
+Shartnoma chop etishda chiqadigan **o'z firmamiz** (bajaruvchi) rekvizitlari.
+Tizimda yagona yozuv: birinchi `GET` da bo'sh holda o'zi ochiladi.
+
+| Metod | Manzil | Kim |
+|---|---|---|
+| GET | `/company/` | hamma (autentifikatsiyalangan) |
+| PUT/PATCH | `/company/` | **faqat admin** |
+
+```json
+PUT /api/company/
+{
+  "name": "Swiftcore MCHJ",
+  "inn": "305123456",
+  "phone": "+998911198877",
+  "email": "swiftcore@gmail.com",
+  "address": "Toshkent shahri, Yunusobod tumani",
+  "bank_name": "Kapitalbank",
+  "mfo": "01088",
+  "account_number": "20208000900000000001",
+  "director_name": "Karimov A.",
+  "contract_terms": "To'lov 30% oldindan..."
+}
+```
+
+Javobda shu maydonlar + `updated_at`. Sales/bugalter yozsa — `403`.
+`contract_terms` — shartnoma pastida chiqadigan standart shartlar matni.
+
+---
+
 ## Dashboard, audit, eslatmalar
 
 `GET /api/dashboard/`:

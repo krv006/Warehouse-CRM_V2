@@ -332,3 +332,18 @@ Property: `term_days`, `days_left`, `color`, `repaid`, `balance`.
 ### `ExpenseRequest`
 `category` (PROTECT), `amount`, `currency`, `purpose`, `status` (`pending`/`approved`/`rejected`),
 `comment`, `requested_by`, `decided_by`, `decided_at`.
+
+### CompanyProfile — bajaruvchi rekvizitlari (yagona yozuv)
+
+| Maydon | Turi | Izoh |
+|---|---|---|
+| name | Char(200) | firma nomi (MCHJ) |
+| inn | Char(20) | STIR / INN |
+| phone, email | Char / Email | aloqa |
+| address | Char(300) | yuridik manzil |
+| bank_name, mfo, account_number | Char | bank rekvizitlari |
+| director_name | Char(200) | rahbar F.I.SH |
+| contract_terms | Text | shartnoma chop etishda chiqadigan standart shartlar |
+
+Singleton: ikkinchi yozuv `save()` da bloklanadi; `CompanyProfile.load()`
+yagona yozuvni qaytaradi (bo'lmasa bo'sh ochadi). Yozish faqat adminda.

@@ -3,10 +3,21 @@
 from django.urls import path
 
 from apps.core.routing import READ_DETAIL, READ_LIST
-from apps.core.views import ActivityLogViewSet, DashboardView, NotificationViewSet
+from apps.core.views import (
+    ActivityLogViewSet,
+    CompanyProfileViewSet,
+    DashboardView,
+    NotificationViewSet,
+)
 
 urlpatterns = [
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
+
+    path('company/', CompanyProfileViewSet.as_view({
+        'get': 'retrieve',
+        'put': 'update',
+        'patch': 'partial_update',
+    }), name='companyprofile-detail'),
 
     path('activity-logs/', ActivityLogViewSet.as_view(READ_LIST), name='activitylog-list'),
     path('activity-logs/<int:pk>/', ActivityLogViewSet.as_view(READ_DETAIL), name='activitylog-detail'),

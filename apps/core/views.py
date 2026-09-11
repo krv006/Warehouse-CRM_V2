@@ -9,8 +9,13 @@ from rest_framework.viewsets import ReadOnlyModelViewSet
 from apps.accounts.permissions import IsAdmin
 from apps.clients.models import Client
 from apps.core.choices import Direction
-from apps.core.models import ActivityLog, Notification
-from apps.core.serializers import ActivityLogSerializer, NotificationSerializer
+from apps.core.mixins import BaseModelViewSet
+from apps.core.models import ActivityLog, CompanyProfile, Notification
+from apps.core.serializers import (
+    ActivityLogSerializer,
+    CompanyProfileSerializer,
+    NotificationSerializer,
+)
 from apps.finance.models import CashTransaction
 from apps.inventory.models import Product
 from apps.purchases.models import Purchase
@@ -113,6 +118,25 @@ class DashboardView(APIView):
                 many=True,
             ).data,
         })
+
+
+class CompanyProfileViewSet(BaseModelViewSet):
+    """Bajaruvchi (o'z firmamiz) rekvizitlari — yagona yozuv.
+
+    GET — hamma autentifikatsiyalangan foydalanuvchi o'qiydi (shartnoma chop
+    etishda kerak), PUT/PATCH — faqat admin to'ldiradi va tahrirlaydi.
+    """
+
+    queryset = CompanyProfile.objects.all()
+    serializer_class = CompanyProfileSerializer
+
+    def get_permissions(self):
+        if self.action in ('update', 'partial_update'):
+            return [IsAdmin()]
+        return super().get_permissions()
+
+    def get_object(self):
+        return CompanyProfile.load()
 
 
 class ActivityLogViewSet(ReadOnlyModelViewSet):

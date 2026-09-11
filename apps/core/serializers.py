@@ -1,6 +1,19 @@
 from rest_framework.serializers import ModelSerializer, ReadOnlyField
 
-from apps.core.models import ActivityLog, Notification
+from apps.core.models import ActivityLog, CompanyProfile, Notification
+
+
+class CompanyProfileSerializer(ModelSerializer):
+    """Bajaruvchi rekvizitlari — hamma o'qiydi, admin tahrirlaydi."""
+
+    class Meta:
+        model = CompanyProfile
+        fields = [
+            'id', 'name', 'inn', 'phone', 'email', 'address',
+            'bank_name', 'mfo', 'account_number', 'director_name',
+            'contract_terms', 'updated_at',
+        ]
+        read_only_fields = ['id', 'updated_at']
 
 
 class ActivityLogSerializer(ModelSerializer):

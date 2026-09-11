@@ -470,6 +470,24 @@ shart emas.
 Front: notificationda `entity='Lead'` kelsa kelishuv sahifasiga havola qilinsin
 (13-FRONT-TODO 7-bo'lim).
 
+## 8.12 Bajaruvchi rekvizitlari (CompanyProfile) 🏢
+
+Shartnomani rasmiy shaklda chop etish uchun o'z firmamiz rekvizitlari
+backendga qo'shildi — yagona yozuv (singleton, ikkinchi yozuv model
+darajasida bloklangan):
+
+- `GET /api/company/` — hamma autentifikatsiyalangan foydalanuvchi o'qiydi;
+  yozuv bo'lmasa bo'sh holda o'zi ochiladi;
+- `PUT/PATCH /api/company/` — **faqat admin** to'ldiradi va tahrirlaydi
+  (sales/bugalter — 403); har bir o'zgarish ActivityLog'ga tushadi;
+- maydonlar: `name`, `inn` (STIR), `phone`, `email`, `address`, `bank_name`,
+  `mfo`, `account_number`, `director_name`, `contract_terms` (chop etishda
+  chiqadigan standart shartlar matni);
+- Django admin'da ham bor (ikkinchi yozuv qo'shish tugmasi yashiringan).
+
+Front: 13-FRONT-TODO 8-bo'lim — sozlamalar sahifasi (admin) va shartnoma
+chop etish modalida BAJARUVCHI blokini shu endpointdan olish.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -498,8 +516,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **93** |
+| REST endpoint | 70 | **94** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
-| Modellar | 23 | **30** |
-| Testlar | 66 | **204** |
+| Modellar | 23 | **31** |
+| Testlar | 66 | **209** |
 | Rollar | 3 | **5** |
