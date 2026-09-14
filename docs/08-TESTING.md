@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **244 ta test, hammasi OK**.
+Hozirgi holat: **249 ta test, hammasi OK**.
 
 ---
 
@@ -55,6 +55,8 @@ Hozirgi holat: **244 ta test, hammasi OK**.
 | `apps/procurement/tests/test_replenishment_flow.py` | TZ 7: yetishmayotganlar ro'yxati, hisob shakllantirish, narxsiz yuborishning bloklanishi, buyurtmachi→bugalter→admin zanjiri, pul yetmasa qarzga o'tishi (1 400 000 / 500 000 / 900 000), qarz muddati kirimdan 60 kun, ombor qoldig'i, bojxona bosqichi, admin qatorni tahrirlashi |
 | `apps/configurator/tests/test_variant_pricing.py` | TZ 6.2: narx ombordan olinishi, narxsiz qatorning bloklanishi, variant yaratilishi, bir xil tarkibning qayta ishlatilishi, tayyor variant narxi |
 | `apps/configurator/tests/test_configuration_request.py` | Sales→Engineer zayavka oqimi: ZVK raqami, take/complete faqat engineerga, take'da konfiguratsiya avtomatik ochilishi, sales'ga notification, configuratsiz complete 400 |
+| `apps/procurement/tests/test_pay_parsing.py` | pay: `debt_amount` satr bo'lsa ham 200 (prod'da 500 berardi), bo'sh satr — avtomatik shortfall, noto'g'ri format — 400 |
+| `apps/sales/tests/test_payment_parsing.py` | confirm-payment: `amount` satr — 200, noto'g'ri format — 400 (500 emas) |
 | `apps/procurement/tests/test_chain_notifications.py` | TLD tasdiq zanjirida bildirishnomalar: oddiy submit'da bugalterga, sales tasdig'ida bugalterga, bugalter tasdig'ida **adminga** (tuzatilgan xato), admin tasdig'ida bugalterga (to'lov) va buyurtmachiga |
 | `apps/sales/tests/test_contract_notifications.py` | Shartnoma zanjirida bildirishnomalar: submit'da bugalterga, bugalter tasdig'ida adminga, admin tasdig'ida bugalter+sales'ga, reject'da sales'ga (izoh bilan) |
 | `apps/configurator/tests/test_procurement_flag.py` | Konfiguratsiyada buyurtmachi flagi: yuborilmaganda `procurement=null`, yuborilgach TLD raqami/holati va `sent_to_procurement=true`, takror yuborish 400, bekor qilingan hisob flagni bo'shatadi, rad etilgani ochiq qoladi, kirim qilingani yopadi, ro'yxatda ham chiqadi |

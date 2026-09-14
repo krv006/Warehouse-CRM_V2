@@ -542,7 +542,7 @@ Omborda yetarli bo'lmasa — `400`:
 | POST | `/replenishments/{id}/submit/` | buyurtmachi; keyingi bosqich egasiga (sales yoki bugalter) bildirishnoma tushadi |
 | POST | `/replenishments/{id}/approve/` | mijoz buyurtmasidan ochilganda: avval **sales** (mijoz roziligi), keyin bugalter, keyin admin; oddiy to'ldirishda bugalter → admin; har tasdiqda keyingi bosqich egasiga bildirishnoma tushadi |
 | POST | `/replenishments/{id}/reject/` | bugalter / admin |
-| POST | `/replenishments/{id}/pay/` | bugalter |
+| POST | `/replenishments/{id}/pay/` | bugalter; `debt_amount` satr/son bo'lishi mumkin, noto'g'ri format 400 |
 | POST | `/replenishments/{id}/events/` | buyurtmachi / bugalter |
 | POST | `/replenishments/{id}/receive/` | buyurtmachi / bugalter |
 | GET | `/replenishments/{id}/timeline/` | hamma |

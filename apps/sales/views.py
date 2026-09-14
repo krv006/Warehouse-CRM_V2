@@ -72,11 +72,15 @@ class ContractViewSet(BaseModelViewSet):
 
     def confirm_payment(self, request, pk=None):
         """POST /contracts/{id}/confirm-payment/ — pul keldi, muddat sanog'i boshlanadi."""
+        from apps.core.utils import parse_amount
+
         contract = self.get_object()
+        # Satr/float kelsa ham 500 bo'lmaydi — noto'g'ri format 400 qaytaradi
+        amount = parse_amount(request.data.get('amount'), 'amount')
         payment = confirm_payment(
             contract,
             request.user,
-            amount=request.data.get('amount') or contract.prepayment_amount,
+            amount=amount or contract.prepayment_amount,
             method=request.data.get('method', ContractPayment.Method.TRANSFER),
         )
         contract.refresh_from_db()

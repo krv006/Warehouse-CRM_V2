@@ -1,5 +1,5 @@
 from datetime import timedelta
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 
 from django.conf import settings
 from django.utils.timezone import localdate
@@ -13,6 +13,22 @@ GREY = 'grey'
 # (90 kunlik shartnomada: yashil 90-31, sariq 30-11, qizil 10-0)
 RED_ZONE_DAYS = 10
 YELLOW_ZONE_RATIO = 1 / 3
+
+
+def parse_amount(value, field='amount'):
+    """Front yuborgan summani (satr, int, float) Decimal ga o'giradi.
+
+    Bo'sh qiymat (None, '') — None qaytadi (chaqiruvchi default ishlatadi).
+    Noto'g'ri format 500 emas, 400 bo'lishi kerak — ValidationError ko'tariladi.
+    """
+    from rest_framework.exceptions import ValidationError
+
+    if value is None or value == '':
+        return None
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        raise ValidationError({field: "Summa noto'g'ri formatda — son yuboring."})
 
 
 def default_vat_percent():

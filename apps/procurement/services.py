@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db.transaction import atomic
 from django.utils.timezone import localdate, now
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -270,14 +272,18 @@ def pay(replenishment, user, *, debt_amount=None):
 
     debt_amount berilmasa, kassadagi mavjud pulga qarab avtomatik hisoblanadi.
     """
+    from apps.core.utils import parse_amount
+
     _require(user, bugalter=True)
     if replenishment.status != Replenishment.Status.APPROVED:
         raise ValidationError('Avval hisob admin tomonidan tasdiqlanishi kerak.')
 
     total = replenishment.total_amount
     available = cash_balance()
+    # Front satr yoki float yuborsa ham yiqilmaydi — Decimal ga o'giriladi (400 xato bilan)
+    debt_amount = parse_amount(debt_amount, 'debt_amount')
     debt_amount = replenishment.shortfall if debt_amount is None else debt_amount
-    debt_amount = min(max(debt_amount, 0), total)
+    debt_amount = min(max(debt_amount, Decimal('0')), total)
     cash_part = total - debt_amount
 
     if cash_part > available:

@@ -607,6 +607,29 @@ o'rniga endi aynan ish egalariga yo'naltirilgan xabarlar boradi.
 
 ---
 
+## 8.18 pay/confirm-payment: summa satr kelganda 500 tuzatildi 🐛→✅
+
+**Muammo (front topdi):** `POST /replenishments/{id}/pay/` tanasida
+`debt_amount` **satr** ko'rinishida (`"500000"`, input'dan odatiy holat)
+yoki float kelsa server 500 qaytarardi (satr bilan sonni taqqoslab
+bo'lmaydi). `POST /contracts/{id}/confirm-payment/` dagi `amount` da ham
+xuddi shu xavf bor edi.
+
+**Yechim:** `core.utils.parse_amount` — summa satr/int/float bo'lsa ham
+Decimal'ga o'giriladi:
+
+| Kiruvchi qiymat | Natija |
+|---|---|
+| `"500000"` (satr) | 200 — qabul qilinadi |
+| `500000.5` (float) | 200 — qabul qilinadi |
+| `""` yoki yuborilmagan | 200 — summa avtomatik (pay'da shortfall, confirm-payment'da oldindan to'lov) |
+| `"abc"` | **400** `{"debt_amount": "Summa noto'g'ri formatda — son yuboring."}` (500 emas) |
+
+Front istalgan formatda yuboraverishi mumkin, lekin tozasi — JSON'da
+satr ko'rinishidagi son: `{"debt_amount": "500000"}`.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -638,5 +661,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **95** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **31** |
-| Testlar | 66 | **244** |
+| Testlar | 66 | **249** |
 | Rollar | 3 | **5** |
