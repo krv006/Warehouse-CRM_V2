@@ -461,5 +461,6 @@ badge chiqarsangiz engineer nimalar buyurtmachida turganini bir qarashda ko'radi
 | Login throttle | 429 kelsa: "Urinishlar ko'payib ketdi, bir daqiqadan keyin urining" |
 | Fayl yuklash cheklovi | 400 dagi `file` xabarini ko'rsating; inputga `accept=".pdf,.jpg,.jpeg,.png,.webp,.doc,.docx,.xls,.xlsx"` |
 | Bitta ombor | hech qayerda `warehouse` yuborish shart emas, ombor selectlari olib tashlanadi |
+| Zanjir bildirishnomalari | TLD va shartnoma tasdiq zanjirining har bosqichida keyingi bosqich egasiga xabar tushadi (bugalter tasdig'ida adminga ham) — qo'ng'iroqcha `/notifications/` ni polling qilsa yetadi, frontda qo'shimcha ish yo'q |
 
 To'liq o'zgarishlar tarixi: [12-CHANGELOG-TZ-2.1.md](12-CHANGELOG-TZ-2.1.md).

@@ -275,6 +275,12 @@ bo'lmasa sales qaytaradi va hisob bugalter/admin stolini band qilmaydi.
 Hammasi omborda bo'lsa TLD umuman ochilmaydi (`request-procurement` 400) —
 engineer `complete` qiladi, sales shartnoma bilan davom etadi.
 
+**Bildirishnomalar:** har bir tasdiq navbatni keyingi bosqich egasiga
+o'tkazganda unga `/notifications/` orqali xabar tushadi: submit'da sales
+(mijoz buyurtmasi) yoki bugalterga, sales tasdig'ida bugalterga, bugalter
+tasdig'ida adminga, admin tasdig'ida bugalter (to'lov) va buyurtmachiga.
+Shartnoma zanjirida ham xuddi shunday.
+
 **Bitta konfiguratsiya — bitta ochiq TLD:** ochiq (bekor/kirim qilinmagan)
 hisob turganda `request-procurement` qayta chaqirilsa 400 qaytadi — ikkita
 parallel hisob ochilib ketmaydi. Konfiguratsiya javobidagi

@@ -103,9 +103,34 @@ def submit(replenishment, user):
         replenishment.status = Replenishment.Status.PENDING_SALES
         _notify_sales_for_client_approval(replenishment)
     else:
+        from apps.accounts.models import User
+
         replenishment.status = Replenishment.Status.PENDING_BUGALTER
+        _notify_role(
+            User.Role.BUGALTER, replenishment,
+            title=f'{replenishment.number}: yangi hisob tekshiruvda',
+            message=(
+                'Buyurtmachi omborni to\'ldirish hisobini yubordi — '
+                'tekshirib tasdiqlang, keyin adminga o\'tadi.'
+            ),
+        )
     replenishment.save()
     return replenishment
+
+
+def _notify_role(role, replenishment, title, message):
+    """Bosqich egasiga (roldagi barcha faol foydalanuvchilarga) eslatma."""
+    from apps.accounts.models import User
+
+    for recipient in User.objects.filter(role=role, is_active=True):
+        Notification.objects.create(
+            user=recipient,
+            title=title,
+            message=message,
+            level=Notification.Level.WARNING,
+            entity='Replenishment',
+            object_id=str(replenishment.pk),
+        )
 
 
 def _notify_sales_for_client_approval(replenishment):
@@ -113,19 +138,15 @@ def _notify_sales_for_client_approval(replenishment):
     from apps.accounts.models import User
 
     config_number = replenishment.configuration.number
-    for sales_user in User.objects.filter(role=User.Role.SALES, is_active=True):
-        Notification.objects.create(
-            user=sales_user,
-            title=f'{replenishment.number}: mijoz roziligi kerak',
-            message=(
-                f'{config_number} bo\'yicha yetishmayotgan mahsulotlarga narxlar '
-                'kiritildi. Mijoz bilan kelishib tasdiqlang — shundan keyin '
-                'hisob bugalterga o\'tadi.'
-            ),
-            level=Notification.Level.WARNING,
-            entity='Replenishment',
-            object_id=str(replenishment.pk),
-        )
+    _notify_role(
+        User.Role.SALES, replenishment,
+        title=f'{replenishment.number}: mijoz roziligi kerak',
+        message=(
+            f'{config_number} bo\'yicha yetishmayotgan mahsulotlarga narxlar '
+            'kiritildi. Mijoz bilan kelishib tasdiqlang — shundan keyin '
+            'hisob bugalterga o\'tadi.'
+        ),
+    )
 
 
 @atomic
@@ -158,7 +179,54 @@ def approve(replenishment, user, comment=''):
         comment=comment,
         decided_by=user,
     )
+    _notify_next_step(replenishment)
     return replenishment
+
+
+def _notify_next_step(replenishment):
+    """Tasdiq zanjirida navbat kimga o'tgan bo'lsa, o'shanga xabar tushadi.
+
+    Aks holda keyingi bosqich egasi (masalan admin) hisob unga kelganini
+    bilmay qolardi — front topgan xato.
+    """
+    from apps.accounts.models import User
+
+    if replenishment.status == Replenishment.Status.PENDING_BUGALTER:
+        _notify_role(
+            User.Role.BUGALTER, replenishment,
+            title=f'{replenishment.number}: bugalter tekshiruvi kutilmoqda',
+            message=(
+                'Sales mijoz roziligini oldi — hisobni tekshirib tasdiqlang, '
+                'keyin adminga o\'tadi.'
+            ),
+        )
+    elif replenishment.status == Replenishment.Status.PENDING_ADMIN:
+        _notify_role(
+            User.Role.ADMIN, replenishment,
+            title=f'{replenishment.number}: admin tasdig\'i kutilmoqda',
+            message=(
+                f'Bugalter tekshirib tasdiqladi. Summa: {replenishment.total_amount} '
+                f'{replenishment.currency} — oxirgi tasdiq sizdan, keyin to\'lov bosqichi.'
+            ),
+        )
+    elif replenishment.status == Replenishment.Status.APPROVED:
+        _notify_role(
+            User.Role.BUGALTER, replenishment,
+            title=f'{replenishment.number}: tasdiqlandi — to\'lov bosqichi',
+            message=(
+                f'Admin tasdiqladi. Summa: {replenishment.total_amount} '
+                f'{replenishment.currency} — to\'lovni amalga oshiring.'
+            ),
+        )
+        if replenishment.created_by:
+            Notification.objects.create(
+                user=replenishment.created_by,
+                title=f'{replenishment.number}: hisob to\'liq tasdiqlandi',
+                message='Barcha bosqichlardan o\'tdi — to\'lov bugalterda.',
+                level=Notification.Level.INFO,
+                entity='Replenishment',
+                object_id=str(replenishment.pk),
+            )
 
 
 @atomic

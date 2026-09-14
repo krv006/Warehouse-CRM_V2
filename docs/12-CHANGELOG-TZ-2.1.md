@@ -573,6 +573,40 @@ Front vazifasi: [13-FRONT-TODO.md](13-FRONT-TODO.md) §12.
 
 ---
 
+## 8.17 Tasdiq zanjirida bosqich bildirishnomalari 🔔
+
+**Muammo (front topdi):** bugalter TLD hisobini tasdiqlab adminga yuborganda
+adminga bildirishnoma tushmas edi — u hisob kelganini bilmay qolardi.
+Xabarlar faqat submit (sales'ga) va reject (buyurtmachiga) da bor edi;
+shartnoma zanjirida ham xuddi shu kamchilik bor edi.
+
+**Yechim — endi navbat kimga o'tsa, o'sha xabar oladi (`/notifications/`):**
+
+To'ldirish (TLD) zanjiri:
+
+| Amal | Kimga xabar |
+|---|---|
+| submit (oddiy to'ldirish) | bugalter — "yangi hisob tekshiruvda" |
+| submit (mijoz buyurtmasi) | sales — "mijoz roziligi kerak" (avvalgidek) |
+| sales approve | bugalter — "bugalter tekshiruvi kutilmoqda" |
+| bugalter approve | **admin — "admin tasdig'i kutilmoqda"** (tuzatilgan xato) |
+| admin approve | bugalter — "to'lov bosqichi" + buyurtmachi — "to'liq tasdiqlandi" |
+| reject (har bosqichda) | buyurtmachi — "hisob qaytarildi" (avvalgidek) |
+
+Shartnoma zanjiri:
+
+| Amal | Kimga xabar |
+|---|---|
+| sales submit | bugalter — "shartnoma tekshiruvga keldi" |
+| bugalter approve | admin — "admin tasdig'i kutilmoqda" |
+| admin approve | bugalter — "pul kutilmoqda" + sales (yaratgan) — "tasdiqlandi" |
+| reject | sales (yaratgan) — "shartnoma qaytarildi" (izoh bilan) |
+
+Avvalgi umumiy (user'siz, hammaga ko'rinadigan) "admin tasdiqladi" xabari
+o'rniga endi aynan ish egalariga yo'naltirilgan xabarlar boradi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -604,5 +638,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **95** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **31** |
-| Testlar | 66 | **236** |
+| Testlar | 66 | **244** |
 | Rollar | 3 | **5** |

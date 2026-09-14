@@ -402,8 +402,8 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 |---|---|---|
 | GET/POST | `/leads/` | admin, sales |
 | GET/POST | `/contracts/` | admin, sales; filtr: `status`, `client`, `currency`, `configuration` |
-| POST | `/contracts/{id}/submit/` | sales |
-| POST | `/contracts/{id}/approve/` | bugalter → keyin admin |
+| POST | `/contracts/{id}/submit/` | sales; bugalterga bildirishnoma tushadi |
+| POST | `/contracts/{id}/approve/` | bugalter → keyin admin; har bosqichda keyingi bosqich egasiga bildirishnoma (bugalter tasdig'ida adminga, admin tasdig'ida bugalter va sales'ga) |
 | POST | `/contracts/{id}/reject/` | bugalter / admin |
 | POST | `/contracts/{id}/confirm-payment/` | bugalter |
 | GET | `/contracts/{id}/timeline/` | hamma |
@@ -539,8 +539,8 @@ Omborda yetarli bo'lmasa — `400`:
 | POST | `/replenishments/from-low-stock/` | buyurtmachi |
 | GET/POST | `/replenishments/` | yozish: admin, buyurtmachi |
 | GET/PUT/PATCH/DELETE | `/replenishments/{id}/` | admin, buyurtmachi |
-| POST | `/replenishments/{id}/submit/` | buyurtmachi |
-| POST | `/replenishments/{id}/approve/` | mijoz buyurtmasidan ochilganda: avval **sales** (mijoz roziligi), keyin bugalter, keyin admin; oddiy to'ldirishda bugalter → admin |
+| POST | `/replenishments/{id}/submit/` | buyurtmachi; keyingi bosqich egasiga (sales yoki bugalter) bildirishnoma tushadi |
+| POST | `/replenishments/{id}/approve/` | mijoz buyurtmasidan ochilganda: avval **sales** (mijoz roziligi), keyin bugalter, keyin admin; oddiy to'ldirishda bugalter → admin; har tasdiqda keyingi bosqich egasiga bildirishnoma tushadi |
 | POST | `/replenishments/{id}/reject/` | bugalter / admin |
 | POST | `/replenishments/{id}/pay/` | bugalter |
 | POST | `/replenishments/{id}/events/` | buyurtmachi / bugalter |

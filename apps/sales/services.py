@@ -50,6 +50,21 @@ def create_contract_from_configuration(configuration, user, client=None):
     return contract
 
 
+def _notify_role(role, contract, title, message, level=Notification.Level.WARNING):
+    """Bosqich egasiga (roldagi barcha faol foydalanuvchilarga) eslatma."""
+    from apps.accounts.models import User
+
+    for recipient in User.objects.filter(role=role, is_active=True):
+        Notification.objects.create(
+            user=recipient,
+            title=title,
+            message=message,
+            level=level,
+            entity='Contract',
+            object_id=str(contract.pk),
+        )
+
+
 def _require_role(user, *, bugalter=False, admin=False, sales=False):
     if not user or not user.is_authenticated:
         raise PermissionDenied('Avtorizatsiya talab qilinadi.')
@@ -74,6 +89,16 @@ def submit_contract(contract, user):
         raise ValidationError('Shartnoma qatorlari kiritilmagan.')
     contract.status = Contract.Status.PENDING_BUGALTER
     contract.save()
+    from apps.accounts.models import User
+
+    _notify_role(
+        User.Role.BUGALTER, contract,
+        title=f'{contract.number}: shartnoma tekshiruvga keldi',
+        message=(
+            f'Sales yubordi. Summa: {contract.total_amount} {contract.currency} — '
+            'tekshirib tasdiqlang, keyin adminga o\'tadi.'
+        ),
+    )
     return contract
 
 
@@ -99,17 +124,36 @@ def approve_contract(contract, user, comment=''):
         comment=comment,
         decided_by=user,
     )
-    if contract.status == Contract.Status.APPROVED:
-        Notification.objects.create(
-            title=f'{contract.number}: admin tasdiqladi',
+    from apps.accounts.models import User
+
+    if contract.status == Contract.Status.PENDING_ADMIN:
+        _notify_role(
+            User.Role.ADMIN, contract,
+            title=f'{contract.number}: admin tasdig\'i kutilmoqda',
+            message=(
+                f'Bugalter tekshirib tasdiqladi. Summa: {contract.total_amount} '
+                f'{contract.currency} — oxirgi tasdiq sizdan.'
+            ),
+        )
+    elif contract.status == Contract.Status.APPROVED:
+        _notify_role(
+            User.Role.BUGALTER, contract,
+            title=f'{contract.number}: admin tasdiqladi — pul kutilmoqda',
             message=(
                 f"Oldindan to'lov {contract.prepayment_percent}% — "
-                f'{contract.prepayment_amount} {contract.currency}. Pul kutilmoqda.'
+                f'{contract.prepayment_amount} {contract.currency}. '
+                'Pul kelgach confirm-payment qiling.'
             ),
-            level=Notification.Level.INFO,
-            entity='Contract',
-            object_id=str(contract.pk),
         )
+        if contract.created_by:
+            Notification.objects.create(
+                user=contract.created_by,
+                title=f'{contract.number}: shartnoma tasdiqlandi',
+                message='Bugalter va admin tasdiqladi — mijozdan to\'lov kutilmoqda.',
+                level=Notification.Level.INFO,
+                entity='Contract',
+                object_id=str(contract.pk),
+            )
     return contract
 
 
@@ -134,6 +178,15 @@ def reject_contract(contract, user, comment=''):
         comment=comment,
         decided_by=user,
     )
+    if contract.created_by:
+        Notification.objects.create(
+            user=contract.created_by,
+            title=f'{contract.number}: shartnoma qaytarildi',
+            message=comment,
+            level=Notification.Level.WARNING,
+            entity='Contract',
+            object_id=str(contract.pk),
+        )
     return contract
 
 
