@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **222 ta test, hammasi OK**.
+Hozirgi holat: **229 ta test, hammasi OK**.
 
 ---
 
@@ -48,6 +48,7 @@ Hozirgi holat: **222 ta test, hammasi OK**.
 | `apps/sales/tests/test_contract_flow.py` | `SHT-` raqami, 30% va 15% foizlar, qo'lda foiz, to'liq approve zanjiri, bugalter admin bosqichini o'tolmasligi, sales tasdiqlay olmasligi, to'lov sanoqni boshlashi va kassaga tushishi, qo'shimcha to'lov /contract-payments/ orqali (paid_at'siz, kassa bilan, completed), draft'ga to'lov 400, configuration filtri, timeline ranglari, narx bugalterdan yashirilishi |
 | `apps/purchases/tests/test_purchase_flow.py` | `KIR-` raqami, bojxona+soliq bilan jami, `expected_at` hisoblanishi, `receive` ombor va kassaga ta'siri, takroriy `receive` xatosi, yo'ldagilar ro'yxati, sales kirim qo'sha olmasligi, exe va 10 MB+ fayl rad etilishi |
 | `apps/finance/tests/test_kassa.py` | tizim kategoriyalari, yo'nalish kategoriyadan olinishi, `summary` balansi, yangi yacheyka qo'shish, qarz kirimi va deadline, qarz yopilishi, xarajat so'rovi admin ruxsati bilan, rad etish |
+| `apps/sales/tests/test_contract_print.py` | Finalize'da avtomatik draft shartnoma (ZVK mijozi yoki tanadagi mijoz bilan, QQS bilan jami, mijozsiz contract=null, noto'g'ri mijoz 400) va chop etish shakli: kompaniya+mijoz rekvizitlari, qatorlar/yig'indilar, bugalterga 403, adminga 200 |
 | `apps/sales/tests/test_vat.py` | Shartnomada QQS: default 12% (5 mln + 600 ming = 5,6 mln), jami QQS bilan sinxronlanishi va oldindan to'lov, 0% imtiyoz, QQS maydonlari bugalterdan yashirinligi |
 | `apps/procurement/tests/test_sales_gate.py` | Sales-gate: konfiguratsiyali hisob submit'da sales'ga borishi va notification, oddiy to'ldirish bugalterga, sales'siz bugalter tasdiqlay olmasligi (403), to'liq sales→bugalter→admin zanjiri va tarixda sales bosqichi, mijoz rad etsa buyurtmachiga qaytishi, sales hisobni o'qiy olishi |
 | `apps/procurement/tests/test_vat.py` | To'ldirishda QQS: default 0, buyurtmachi 12% kiritganda yig'indilar, total_amount = QQS bilan qatorlar + logistika + boshqa |

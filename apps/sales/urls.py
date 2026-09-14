@@ -35,6 +35,9 @@ urlpatterns = [
     path('contracts/<int:pk>/timeline/', ContractViewSet.as_view({
         'get': 'timeline',
     }), name='contract-timeline'),
+    path('contracts/<int:pk>/print/', ContractViewSet.as_view({
+        'get': 'print_form',
+    }), name='contract-print'),
 
     path('contract-items/', ContractItemViewSet.as_view(LIST), name='contractitem-list'),
     path('contract-items/<int:pk>/', ContractItemViewSet.as_view(DETAIL), name='contractitem-detail'),

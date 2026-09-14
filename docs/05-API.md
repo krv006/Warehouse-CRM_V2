@@ -187,7 +187,7 @@ Holatlar: `new` → `in_progress` (take) → `done` (complete). Raqam: `ZVK-0000
 | PUT/PATCH/DELETE | `/configurations/{id}/` | faqat `draft` holatida — `ready`/`attached` 400 qaytaradi |
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
-| POST | `/configurations/{id}/finalize/` | **sales bosqichi** (engineer 403); ACT majburiy, tanada berish mumkin: `{"act": 2}`; ombor tanlanmagan bo'lsa faol ombor o'zi olinadi |
+| POST | `/configurations/{id}/finalize/` | **sales bosqichi** (engineer 403); ACT majburiy, tanada berish mumkin: `{"act": 2, "client": 3}`; ombor tanlanmagan bo'lsa faol ombor o'zi olinadi; yakunda **draft shartnoma avtomatik ochiladi** (javobda `contract`) |
 | POST | `/configurations/{id}/attach/` | kirim buyurtmasiga biriktirish |
 | POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan to'ldirish hisobi (TLD) ochib buyurtmachi/sales/bugalterga xabar beradi; hammasi omborda bo'lsa 400 |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
@@ -292,6 +292,19 @@ Nima bo'ladi:
 
 Konfiguratsiya javobida `removals[]` — yechib olingan qismlar tarixi.
 
+**Finalize'da avtomatik shartnoma.** Yakunlash muvaffaqiyatli bo'lsa, backend
+**draft shartnoma** ochib beradi — sales bugalterga yuborishdan oldin shartnoma
+(chop etish shakli bilan) tayyor turadi:
+
+- mijoz: tanada `{"client": id}` berilgan bo'lsa o'sha, bo'lmasa zayavkadagi
+  (ZVK) mijoz olinadi; mijoz aniqlanmasa shartnoma ochilmaydi (`contract: null`);
+- qator: tayyor variant (bo'lmasa bazaviy model), narxi konfiguratsiya narxidan
+  (QQS'siz), QQS default 12% qo'shiladi; `total_amount` — QQS bilan;
+- javobda: `"contract": {"id": 7, "number": "SHT-00007", "status": "draft"}`;
+- shartnoma allaqachon bor bo'lsa (qo'lda ochilgan) — yangisi yaratilmaydi.
+
+Sales shartnomani ochib tekshiradi, kerak bo'lsa tahrirlaydi va `submit` qiladi.
+
 **Biriktirish:**
 ```json
 POST /api/configurations/12/attach/
@@ -373,6 +386,7 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | POST | `/contracts/{id}/reject/` | bugalter / admin |
 | POST | `/contracts/{id}/confirm-payment/` | bugalter |
 | GET | `/contracts/{id}/timeline/` | hamma |
+| GET | `/contracts/{id}/print/` | **faqat sales, admin** — chop etish shakli (qator narxlari bor) |
 | GET | `/contracts/deadlines/` | hamma |
 | GET/POST | `/contract-items/` | admin, sales |
 | GET/POST | `/contract-payments/` | admin, bugalter; POST `confirm-payment` bilan bir xil yo'ldan o'tadi: `paid_at` ixtiyoriy (default: hozir), kassaga kirim, balans yopilsa `completed` |
@@ -413,6 +427,38 @@ yuborsa bo'ladi. `unit_price` — **QQS'siz sof narx**. Javobda hisoblab berilad
 
 `items_total` — Yetkazish jami (QQS'siz), `vat_total` — QQS jami,
 `items_total_with_vat` — Jami (chop etishdagi pastki qator).
+
+**Chop etish shakli** — rasmiy shartnoma modalini chizish uchun hamma narsa
+bitta javobda (bajaruvchi `/company/` dan, buyurtmachi — mijoz):
+
+```json
+GET /api/contracts/7/print/
+{
+  "number": "SHT-00007",
+  "signed_at": "2026-08-18", "start_date": null,
+  "term_days": 90, "deadline": null, "currency": "UZS",
+  "company": {"name": "Swiftcore MCHJ", "inn": "305123456",
+    "phone": "+998911198877", "email": "swiftcore@gmail.com",
+    "address": "Toshkent shahri, Yunusobod tumani",
+    "bank_name": "...", "mfo": "...", "account_number": "...",
+    "director_name": "..."},
+  "client": {"name": "Navoiy Qurilish Servis", "type": "legal",
+    "inn": "301111111", "phone": "+998900000002", "email": "...",
+    "address": "...", "bank_name": "...", "mfo": "...",
+    "account_number": "...", "director_name": "...", "jshshir": "..."},
+  "items": [{"name": "adas", "sku": "ADS-1", "unit": "dona",
+    "quantity": 1, "unit_price": "5000000.00", "vat_percent": "12.00",
+    "vat_amount": "600000.00", "total_with_vat": "5600000.00"}],
+  "totals": {"items_total": "5000000.00", "vat_total": "600000.00",
+    "total": "5600000.00", "total_amount": "5600000.00",
+    "prepayment_percent": "30.00", "prepayment_amount": "1680000.00"},
+  "terms": "To'lov 30% oldindan...",
+  "note": "CFG-00012 konfiguratsiyasi asosida avtomatik ochildi"
+}
+```
+
+`client.name` — tayyor `display_name` (jismoniy: F.I.SH, yuridik: kompaniya
+nomi). Bugalter uchun `print/` yopiq (403) — qator narxlari bor.
 
 **Tasdiqlash:**
 ```json

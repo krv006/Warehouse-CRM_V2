@@ -155,7 +155,7 @@ O'qish hammaga; **yozish faqat engineer** (admin). Sales matnli zayavka yuboradi
 `Configuration` + `ConfigurationItem`: har bir qator uchun `available` / `shortage` / `source`
 (`stock` yoki `purchase`) hisoblanadi.
 - `GET /configurations/{id}/stock-check/`
-- `POST /configurations/{id}/finalize/` — **ACT majburiy**; ACT va yakunlash — **sales bosqichi** (engineer ACT'siz tayyorlab `complete` qiladi), tanada `{"act": id}` qabul qilinadi
+- `POST /configurations/{id}/finalize/` — **ACT majburiy**; ACT va yakunlash — **sales bosqichi** (engineer ACT'siz tayyorlab `complete` qiladi), tanada `{"act": id, "client": id}` qabul qilinadi; yakunda **draft shartnoma avtomatik ochiladi** (mijoz — tanadagi yoki ZVK'dagi), chop etish shakli: `GET /contracts/{id}/print/`
 - `POST /configurations/{id}/attach/` — tayyor konfiguratsiyani kirim buyurtmasiga biriktiradi
 - `GET /configurations/{id}/export-excel/` — chernovik Excel (openpyxl)
 - Narx ombordan avtomatik olinadi; narxsiz qator bo'lsa `finalize` bloklanadi

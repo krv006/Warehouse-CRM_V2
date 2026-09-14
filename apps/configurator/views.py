@@ -154,9 +154,23 @@ class ConfigurationViewSet(BaseModelViewSet):
         """POST /configurations/{id}/finalize/ — ACT bilan yakunlash.
 
         Tana (ixtiyoriy): {"act": id} — ACT shu yerning o'zida biriktiriladi,
-        oldindan PATCH qilish shart emas.
+        oldindan PATCH qilish shart emas; {"client": id} — shartnoma uchun mijoz
+        (berilmasa zayavkadagi mijoz olinadi).
+
+        Yakunda avtomatik **draft shartnoma** ochiladi (mijoz aniq bo'lsa):
+        qatori — tayyor variant, narxi konfiguratsiyadan, QQS bilan. Javobda
+        `contract` maydoni keladi.
         """
+        from apps.clients.models import Client
+
         configuration = self.get_object()
+        client = None
+        if request.data.get('client'):
+            client = Client.objects.filter(pk=request.data['client']).first()
+            if not client:
+                return Response(
+                    {'client': 'Mijoz topilmadi.'}, status=HTTP_400_BAD_REQUEST,
+                )
         if configuration.status != Configuration.Status.DRAFT:
             return Response(
                 {'detail': 'Faqat chernovik holatidagi konfiguratsiya yakunlanadi.'},
@@ -206,12 +220,30 @@ class ConfigurationViewSet(BaseModelViewSet):
             configuration.variant = variant
             configuration.status = Configuration.Status.READY
             configuration.save()
+
+            # Bugalterga yuborishdan oldin shartnoma tayyor tursin (chop etish shakli bilan)
+            from apps.sales.services import create_contract_from_configuration
+
+            contract = create_contract_from_configuration(
+                configuration, request.user, client,
+            )
         self.log_action(
             ActivityLog.Action.UPDATE, configuration,
             f'Yakunlandi ({configuration.get_mode_display()}), variant: {variant.sku} '
-            + ('(yangi)' if created else '(ombordan)'),
+            + ('(yangi)' if created else '(ombordan)')
+            + (f', shartnoma: {contract.number}' if contract else ''),
         )
-        return Response(self.get_serializer(configuration).data)
+        if contract:
+            self.log_action(
+                ActivityLog.Action.CREATE, contract,
+                f'{configuration.number} dan avtomatik ochildi',
+            )
+        data = self.get_serializer(configuration).data
+        data['contract'] = (
+            {'id': contract.id, 'number': contract.number, 'status': contract.status}
+            if contract else None
+        )
+        return Response(data)
 
     def attach(self, request, pk=None):
         """POST /configurations/{id}/attach/ — kirim buyurtmasiga biriktirish."""

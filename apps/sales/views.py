@@ -85,6 +85,81 @@ class ContractViewSet(BaseModelViewSet):
         )
         return Response(self.get_serializer(contract).data)
 
+    def print_form(self, request, pk=None):
+        """GET /contracts/{id}/print/ — chop etish shakli uchun barcha ma'lumot.
+
+        Bajaruvchi (kompaniya rekvizitlari), buyurtmachi (mijoz), qatorlar
+        (QQS bilan) va yig'indilar bitta javobda — front rasmiy shartnoma
+        modalini shu javobdan chizadi. Qator narxlari bor — faqat sales/admin.
+        """
+        from rest_framework.exceptions import PermissionDenied
+
+        from apps.core.models import CompanyProfile
+
+        user = request.user
+        if not (user.is_admin or user.is_sales):
+            raise PermissionDenied('Chop etish shakli sales va admin uchun.')
+
+        contract = self.get_object()
+        company = CompanyProfile.load()
+        client = contract.client
+        return Response({
+            'number': contract.number,
+            'status': contract.status,
+            'signed_at': contract.signed_at,
+            'start_date': contract.start_date,
+            'term_days': contract.term_days,
+            'deadline': contract.progress.get('deadline'),
+            'currency': contract.currency,
+            'company': {
+                'name': company.name,
+                'inn': company.inn,
+                'phone': company.phone,
+                'email': company.email,
+                'address': company.address,
+                'bank_name': company.bank_name,
+                'mfo': company.mfo,
+                'account_number': company.account_number,
+                'director_name': company.director_name,
+            },
+            'client': {
+                'name': client.display_name,
+                'type': client.type,
+                'inn': client.inn,
+                'jshshir': client.jshshir,
+                'phone': client.phone,
+                'email': client.email,
+                'address': client.address,
+                'bank_name': client.bank_name,
+                'mfo': client.mfo,
+                'account_number': client.account_number,
+                'director_name': client.director_name,
+            },
+            'items': [
+                {
+                    'name': item.product.name,
+                    'sku': item.product.sku,
+                    'unit': 'dona',
+                    'quantity': item.quantity,
+                    'unit_price': item.unit_price,
+                    'vat_percent': item.vat_percent,
+                    'vat_amount': item.vat_amount,
+                    'total_with_vat': item.total_with_vat,
+                }
+                for item in contract.items.select_related('product')
+            ],
+            'totals': {
+                'items_total': contract.items_total,
+                'vat_total': contract.vat_total,
+                'total': contract.items_total_with_vat,
+                'total_amount': contract.total_amount,
+                'prepayment_percent': contract.prepayment_percent,
+                'prepayment_amount': contract.prepayment_amount,
+            },
+            'terms': company.contract_terms,
+            'note': contract.note,
+        })
+
     def timeline(self, request, pk=None):
         """GET /contracts/{id}/timeline/ — line chart uchun kunlar va ranglar."""
         contract = self.get_object()

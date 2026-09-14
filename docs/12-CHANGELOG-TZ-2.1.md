@@ -531,6 +531,24 @@ Texnik: yangi status `pending_sales`, approval step `sales`, permission
 servis tekshiradi), sales'ga to'ldirish bo'limi o'qishga ochildi
 (migration procurement.0004). Front: 13-FRONT-TODO 10-bo'lim.
 
+## 8.15 Avtomatik shartnoma + chop etish shakli 🖨️
+
+Mijoz bilan oxirgi bosqich: sales finalize qilganda **draft shartnoma o'zi
+ochiladi** — bugalterga yuborishdan oldin rasmiy shakl tayyor turadi.
+
+- `POST /configurations/{id}/finalize/` endi tanada `{"client": id}` ham
+  qabul qiladi; mijoz berilmasa zayavkadagi (ZVK) mijoz olinadi. Yakunda
+  draft shartnoma: qatori — tayyor variant, narxi konfiguratsiyadan, QQS 12%
+  bilan, `total_amount` — mijoz to'laydigan real summa. Javobda `contract`
+  maydoni. Mijoz aniqlanmasa `contract: null` — sales qo'lda ochadi.
+- Yangi endpoint **`GET /contracts/{id}/print/`** (95-endpoint) — chop etish
+  shakli uchun hamma narsa bitta javobda: bajaruvchi (`/company/` rekvizitlari),
+  buyurtmachi (mijoz, tayyor `display_name` bilan), qatorlar (birlik, narx,
+  QQS%, QQS, jami), yig'indilar (Yetkazish/QQS/Jami), oldindan to'lov, shartlar
+  matni (`company.contract_terms`). Faqat sales/admin (qator narxlari bor).
+
+Front: 13-FRONT-TODO 11-bo'lim.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -559,8 +577,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **94** |
+| REST endpoint | 70 | **95** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **31** |
-| Testlar | 66 | **222** |
+| Testlar | 66 | **229** |
 | Rollar | 3 | **5** |

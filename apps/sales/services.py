@@ -4,7 +4,50 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.core.models import Notification
 from apps.finance.services import record_transaction
-from apps.sales.models import Contract, ContractApproval, ContractPayment
+from apps.sales.models import Contract, ContractApproval, ContractItem, ContractPayment
+
+
+@atomic
+def create_contract_from_configuration(configuration, user, client=None):
+    """Yakunlangan konfiguratsiyadan avtomatik draft shartnoma ochadi.
+
+    Sales finalize qilganda chaqiriladi — bugalterga yuborishdan oldin
+    shartnoma (chop etish shakli bilan) tayyor turadi. Mijoz: berilgan
+    `client`, bo'lmasa zayavkadagi (ZVK) mijoz. Mijoz aniqlanmasa shartnoma
+    ochilmaydi (None qaytadi) — sales qo'lda ochishi mumkin.
+
+    Qator: tayyor variant (yo'q bo'lsa bazaviy model), narxi konfiguratsiya
+    narxidan (QQS'siz), QQS esa default foiz bilan qo'shiladi.
+    """
+    existing = Contract.objects.filter(configuration=configuration).first()
+    if existing:
+        return existing
+
+    if client is None:
+        request_obj = (
+            configuration.requests.filter(client__isnull=False)
+            .order_by('-created_at').first()
+        )
+        client = request_obj.client if request_obj else None
+    if client is None:
+        return None
+
+    contract = Contract.objects.create(
+        client=client,
+        configuration=configuration,
+        note=f'{configuration.number} konfiguratsiyasi asosida avtomatik ochildi',
+        created_by=user,
+    )
+    ContractItem.objects.create(
+        contract=contract,
+        product=configuration.variant or configuration.base_product,
+        quantity=1,
+        unit_price=configuration.total_price,
+    )
+    contract.total_amount = contract.items_total_with_vat
+    contract.prepayment_percent = None
+    contract.save()
+    return contract
 
 
 def _require_role(user, *, bugalter=False, admin=False, sales=False):

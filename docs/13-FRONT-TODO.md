@@ -373,6 +373,47 @@ Front vazifasi:
 Maqsad: bugalter va adminga faqat mijoz "ha" degan hisoblar borsin —
 ular bo'sh ish bilan band bo'lmasin.
 
+## 11. Shartnoma avtomatik ochiladi + chop etish shakli backenddan 🔴 MUHIM
+
+**A. Finalize'dan keyin shartnoma tayyor.** Sales konfiguratsiyani ACT bilan
+yakunlaganda (`POST /configurations/{id}/finalize/`) backend o'zi **draft
+shartnoma** ochadi — javobda keladi:
+
+```json
+{"...": "konfiguratsiya maydonlari",
+ "contract": {"id": 7, "number": "SHT-00007", "status": "draft"}}
+```
+
+- Finalize muvaffaqiyatli bo'lgach sales'ni **shu shartnoma sahifasiga**
+  olib o'ting — u tekshiradi, kerak bo'lsa tahrirlaydi, so'ng `submit`.
+- Mijoz qayerdan: finalize tanasida `{"client": id}` yuborsangiz o'sha;
+  yubormasangiz zayavkadagi (ZVK) mijoz. Ikkalasi ham yo'q bo'lsa
+  `contract: null` — "shartnomani qo'lda oching" deb ko'rsating.
+  **Tavsiya:** zayavka (ZVK) formasida mijoz select'i bor (`client` maydoni,
+  backendda allaqachon mavjud) — shuni majburiy qilib to'ldiring, shunda
+  zanjir oxirigacha avtomatik bog'lanadi.
+
+**B. Chop etish modali — endi hamma ma'lumot bitta endpointdan:**
+
+```
+GET /api/contracts/{id}/print/     (faqat sales/admin)
+```
+
+Rasmdagi modal maydonlari:
+
+| Modal qismi | Javob maydoni |
+|---|---|
+| BAJARUVCHI bloki | `company{name, inn, phone, email, address, ...}` |
+| BUYURTMACHI bloki | `client{name, inn, phone, email, address, ...}` — `name` tayyor `display_name` (hozirgi shifrlangan satr xatosi shu bilan tuzatiladi) |
+| Jadval qatorlari | `items[]`: `name`, `unit` ("dona"), `quantity`, `unit_price`, `vat_percent`, `vat_amount`, `total_with_vat`; Seriya/Shtrix — "—" |
+| Pastki yig'indi | `totals`: `items_total` (Yetkazish), `vat_total` (QQS), `total` (Jami) |
+| Sana qatori | `signed_at` — `deadline` (start_date + term_days; pul tushmagan bo'lsa null) |
+| Shartlar matni | `terms` (admin `/company/` da kiritgan standart matn) + `note` |
+| Imzo qatori | `company.name` / `client.name` |
+
+"Chop etish / PDF" — brauzer print oynasi bilan (backend PDF bermaydi,
+kerak emas). Bugalterga bu endpoint 403 — tugmani unga ko'rsatmang.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |
