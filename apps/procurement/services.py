@@ -16,7 +16,7 @@ from apps.procurement.models import (
 )
 
 
-def _require(user, *, supplier=False, bugalter=False, admin=False):
+def _require(user, *, supplier=False, bugalter=False, sales=False, admin=False):
     if not user or not user.is_authenticated:
         raise PermissionDenied('Avtorizatsiya talab qilinadi.')
     if user.is_admin:
@@ -24,6 +24,8 @@ def _require(user, *, supplier=False, bugalter=False, admin=False):
     if supplier and user.is_supplier:
         return
     if bugalter and user.is_bugalter:
+        return
+    if sales and user.is_sales:
         return
     if admin:
         raise PermissionDenied('Bu bosqichni faqat admin tasdiqlaydi.')
@@ -78,7 +80,12 @@ def build_from_low_stock(warehouse, user, supplier=''):
 
 @atomic
 def submit(replenishment, user):
-    """Buyurtmachi hisobni bugalter tekshiruviga yuboradi."""
+    """Buyurtmachi hisobni tekshiruvga yuboradi.
+
+    Mijoz buyurtmasidan (konfiguratsiyadan) ochilgan hisob avval **sales**ga
+    boradi — sales mijoz bilan narxlarni kelishmasdan bugalter/adminga hech
+    narsa tushmaydi. Oddiy ombor to'ldirish esa to'g'ridan-to'g'ri bugalterga.
+    """
     _require(user, supplier=True)
     if replenishment.status not in {Replenishment.Status.DRAFT, Replenishment.Status.REJECTED}:
         raise ValidationError('Faqat qoralama holatidagi hisob yuboriladi.')
@@ -92,15 +99,47 @@ def submit(replenishment, user):
             'detail': 'Narxi kiritilmagan pozitsiyalar bor.',
         })
 
-    replenishment.status = Replenishment.Status.PENDING_BUGALTER
+    if replenishment.configuration_id:
+        replenishment.status = Replenishment.Status.PENDING_SALES
+        _notify_sales_for_client_approval(replenishment)
+    else:
+        replenishment.status = Replenishment.Status.PENDING_BUGALTER
     replenishment.save()
     return replenishment
 
 
+def _notify_sales_for_client_approval(replenishment):
+    """Sales'larga xabar: narxlar tayyor, mijoz roziligini olish kerak."""
+    from apps.accounts.models import User
+
+    config_number = replenishment.configuration.number
+    for sales_user in User.objects.filter(role=User.Role.SALES, is_active=True):
+        Notification.objects.create(
+            user=sales_user,
+            title=f'{replenishment.number}: mijoz roziligi kerak',
+            message=(
+                f'{config_number} bo\'yicha yetishmayotgan mahsulotlarga narxlar '
+                'kiritildi. Mijoz bilan kelishib tasdiqlang — shundan keyin '
+                'hisob bugalterga o\'tadi.'
+            ),
+            level=Notification.Level.WARNING,
+            entity='Replenishment',
+            object_id=str(replenishment.pk),
+        )
+
+
 @atomic
 def approve(replenishment, user, comment=''):
-    """Bugalter tekshiradi -> admin tasdiqlaydi (TZ 9)."""
-    if replenishment.status == Replenishment.Status.PENDING_BUGALTER:
+    """Tasdiqlash zanjiri (TZ 9).
+
+    Mijoz buyurtmasidan ochilgan hisobda: sales (mijoz roziligi) -> bugalter
+    -> admin. Oddiy to'ldirishda: bugalter -> admin.
+    """
+    if replenishment.status == Replenishment.Status.PENDING_SALES:
+        _require(user, sales=True)
+        step = ReplenishmentApproval.Step.SALES
+        replenishment.status = Replenishment.Status.PENDING_BUGALTER
+    elif replenishment.status == Replenishment.Status.PENDING_BUGALTER:
         _require(user, bugalter=True)
         step = ReplenishmentApproval.Step.BUGALTER
         replenishment.status = Replenishment.Status.PENDING_ADMIN
@@ -124,8 +163,11 @@ def approve(replenishment, user, comment=''):
 
 @atomic
 def reject(replenishment, user, comment=''):
-    """Bugalter yoki admin hisobni qaytaradi."""
-    if replenishment.status == Replenishment.Status.PENDING_BUGALTER:
+    """Sales, bugalter yoki admin hisobni qaytaradi."""
+    if replenishment.status == Replenishment.Status.PENDING_SALES:
+        _require(user, sales=True)
+        step = ReplenishmentApproval.Step.SALES
+    elif replenishment.status == Replenishment.Status.PENDING_BUGALTER:
         _require(user, bugalter=True)
         step = ReplenishmentApproval.Step.BUGALTER
     elif replenishment.status == Replenishment.Status.PENDING_ADMIN:
@@ -266,7 +308,8 @@ def receive(replenishment, user):
     _require(user, supplier=True, bugalter=True)
     if replenishment.status == Replenishment.Status.DELIVERED:
         raise ValidationError('Bu hisob allaqachon omborga kirim qilingan.')
-    if replenishment.status in {Replenishment.Status.DRAFT, Replenishment.Status.PENDING_BUGALTER,
+    if replenishment.status in {Replenishment.Status.DRAFT, Replenishment.Status.PENDING_SALES,
+                                Replenishment.Status.PENDING_BUGALTER,
                                 Replenishment.Status.PENDING_ADMIN, Replenishment.Status.REJECTED}:
         raise ValidationError('Avval hisob tasdiqlanib, to\'lov qilinishi kerak.')
 

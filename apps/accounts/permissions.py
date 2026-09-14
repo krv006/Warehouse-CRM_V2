@@ -120,14 +120,28 @@ class PurchaseAccess(RoleAccess):
 
 
 class ProcurementAccess(RoleAccess):
-    """Omborni to'ldirish: buyurtmachi yuritadi, bugalter tekshiradi (TZ 7, 9)."""
+    """Omborni to'ldirish: buyurtmachi yuritadi, bugalter tekshiradi (TZ 7, 9).
 
-    read_roles = (BUGALTER, SUPPLIER)
+    Sales ham o'qiy oladi — mijoz buyurtmasidan ochilgan hisobni mijoz bilan
+    kelishishi uchun ko'rishi kerak.
+    """
+
+    read_roles = (BUGALTER, SUPPLIER, SALES)
     write_roles = (SUPPLIER,)
-    message = "To'ldirish bo'limi admin, bugalter va buyurtmachi uchun."
+    message = "To'ldirish bo'limi admin, bugalter, buyurtmachi va sales uchun."
 
 
 class ProcurementSharedAccess(ProcurementAccess):
     """Qabul qilish va bosqich qo'shish — buyurtmachi ham, bugalter ham."""
 
     write_roles = (SUPPLIER, BUGALTER)
+
+
+class ProcurementApprovalAccess(ProcurementAccess):
+    """Hisob tasdig'i: sales (mijoz roziligi) -> bugalter -> admin.
+
+    Qaysi rol qaysi bosqichda tasdiqlashini servis holatga qarab tekshiradi.
+    """
+
+    write_roles = (SALES, BUGALTER)
+    message = 'Hisobni sales, bugalter yoki admin tasdiqlaydi.'

@@ -20,7 +20,9 @@ READ_MATRIX = {
     '/api/loans/': {'admin', 'bugalter'},
     '/api/expense-requests/': {'admin', 'bugalter'},
     '/api/purchases/': {'admin', 'bugalter', 'buyurtmachi'},
-    '/api/replenishments/': {'admin', 'bugalter', 'buyurtmachi'},
+    # Sales ham o'qiydi: mijoz buyurtmasidan ochilgan hisobni mijoz bilan
+    # kelishib tasdiqlashi kerak (sales-gate)
+    '/api/replenishments/': {'admin', 'bugalter', 'buyurtmachi', 'sales'},
     '/api/configuration-requests/': ALL,
 
     # Faqat admin

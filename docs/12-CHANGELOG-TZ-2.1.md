@@ -508,6 +508,29 @@ Hisob-faktura ko'rinishi (Narx · QQS% · QQS · Jami) uchun backend hisob-kitob
 
 Migratsiyalar: `sales.0002`, `procurement.0003`. Front: 13-FRONT-TODO 9-bo'lim.
 
+## 8.14 Sales-gate: mijoz roziligisiz hisob bugalterga bormaydi ⛔
+
+Muammo: mijoz buyurtmasidan ochilgan TLD hisobi buyurtmachi narx kiritishi
+bilan darrov bugalter/adminga tushardi — mijoz hali rozi bo'lmagan bo'lsa
+ularning vaqti bekor ketardi.
+
+Endi zanjir hisob turiga qarab:
+
+- **Mijoz buyurtmasidan** (konfiguratsiyadan, `request-procurement` orqali)
+  ochilgan hisob: buyurtmachi narx kiritib `submit` → **`pending_sales`** —
+  sales'larga notification, sales mijoz bilan kelishib `approve` (yoki mijoz
+  rozi bo'lmasa `reject`) → shundan keyingina bugalter → admin → to'lov;
+- **oddiy ombor to'ldirish** (konfiguratsiyasiz): eskicha to'g'ridan-to'g'ri
+  bugalter → admin — hech narsa o'zgarmadi;
+- hammasi omborda bo'lsa TLD umuman ochilmaydi (`request-procurement` 400) —
+  engineer `complete` qiladi, sales shartnoma bilan davom etadi; bugalterga
+  faqat shartnoma tasdig'i boradi.
+
+Texnik: yangi status `pending_sales`, approval step `sales`, permission
+`ProcurementApprovalAccess` (approve/reject — sales/bugalter/admin, bosqichni
+servis tekshiradi), sales'ga to'ldirish bo'limi o'qishga ochildi
+(migration procurement.0004). Front: 13-FRONT-TODO 10-bo'lim.
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -539,5 +562,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **94** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **31** |
-| Testlar | 66 | **216** |
+| Testlar | 66 | **222** |
 | Rollar | 3 | **5** |

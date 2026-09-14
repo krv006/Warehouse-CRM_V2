@@ -473,7 +473,7 @@ Omborda yetarli bo'lmasa — `400`:
 | GET/POST | `/replenishments/` | yozish: admin, buyurtmachi |
 | GET/PUT/PATCH/DELETE | `/replenishments/{id}/` | admin, buyurtmachi |
 | POST | `/replenishments/{id}/submit/` | buyurtmachi |
-| POST | `/replenishments/{id}/approve/` | avval bugalter, keyin admin |
+| POST | `/replenishments/{id}/approve/` | mijoz buyurtmasidan ochilganda: avval **sales** (mijoz roziligi), keyin bugalter, keyin admin; oddiy to'ldirishda bugalter → admin |
 | POST | `/replenishments/{id}/reject/` | bugalter / admin |
 | POST | `/replenishments/{id}/pay/` | bugalter |
 | POST | `/replenishments/{id}/events/` | buyurtmachi / bugalter |
@@ -538,6 +538,13 @@ POST /api/replenishments/from-low-stock/
   "items": [], "approvals": [], "events": []
 }
 ```
+
+**Tasdiqlash zanjiri:** konfiguratsiyadan (mijoz buyurtmasidan) ochilgan hisob
+`submit`dan keyin **`pending_sales`** bo'ladi — sales'larga notification tushadi,
+sales mijoz bilan kelishib `approve` qiladi (rozi bo'lmasa `reject` — hisob
+buyurtmachiga qaytadi); shundan keyingina `pending_bugalter` → `pending_admin`
+→ `approved`. Oddiy to'ldirish `submit`da to'g'ri `pending_bugalter`ga o'tadi.
+Tarixda `approvals[].step`: `sales` / `bugalter` / `admin`.
 
 **To'lov** — pul yetmasa farqi qarzga o'tadi:
 ```json

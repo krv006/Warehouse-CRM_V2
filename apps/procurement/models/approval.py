@@ -14,6 +14,7 @@ class ReplenishmentApproval(TimeStampedModel):
     """Tasdiqlash zanjiri: buyurtmachi -> bugalter -> admin (TZ 9)."""
 
     class Step(TextChoices):
+        SALES = 'sales', 'Sales \u2014 mijoz roziligi'
         BUGALTER = 'bugalter', 'Bugalter tekshiruvi'
         ADMIN = 'admin', 'Admin tasdig\u2019i'
 

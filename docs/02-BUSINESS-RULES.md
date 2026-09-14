@@ -260,12 +260,20 @@ Client qo'shish **bugalterda yo'q** — sales, buyurtmachi va adminda bor (TZ 11
 | 1 | Yetishmayotganlar ro'yxati | hamma ko'radi | `GET /replenishments/low-stock/` |
 | 2 | Hisob shakllantirish | buyurtmachi | `POST /replenishments/from-low-stock/` |
 | 3 | Ta'minotchi narxlari, logistika va boshqa xarajatlar | buyurtmachi | `PATCH /replenishments/{id}/` |
-| 4 | Bugalterga yuborish | buyurtmachi | `POST /{id}/submit/` |
+| 4 | Tekshiruvga yuborish | buyurtmachi | `POST /{id}/submit/` |
+| 4a | **Mijoz roziligi** — konfiguratsiyadan ochilgan hisobda | **sales** | `POST /{id}/approve/` yoki `/{id}/reject/` |
 | 5 | Tekshirish | bugalter | `POST /{id}/approve/` |
 | 6 | Tasdiqlash, miqdorni o'zgartirish, pozitsiya o'chirish | **admin** | `POST /{id}/approve/`, `PATCH/DELETE /replenishment-items/{id}/` |
 | 7 | To'lov | bugalter | `POST /{id}/pay/` |
 | 8 | Yetkazib berish bosqichlari (bojxona va h.k.) | buyurtmachi / bugalter | `POST /{id}/events/` |
 | 9 | Omborga kirim | buyurtmachi / bugalter | `POST /{id}/receive/` |
+
+**Sales-gate qoidasi:** mijoz buyurtmasidan (konfiguratsiyadan) ochilgan hisob
+`submit`da avval **sales**ga boradi (`pending_sales`) — sales mijoz bilan
+narxlarni kelishib tasdiqlagachgina bugalter/adminga tushadi; mijoz rozi
+bo'lmasa sales qaytaradi va hisob bugalter/admin stolini band qilmaydi.
+Hammasi omborda bo'lsa TLD umuman ochilmaydi (`request-procurement` 400) —
+engineer `complete` qiladi, sales shartnoma bilan davom etadi.
 
 ### Pul yetmagan holat
 

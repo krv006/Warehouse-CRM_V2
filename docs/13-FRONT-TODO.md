@@ -339,6 +339,40 @@ TLD'da bundan tashqari: `total_amount` = `items_total_with_vat` + `logistics_cos
 - To'ldirishda QQS default 0 — ta'minotchi hisobida QQS bo'lsa buyurtmachi
   foizni o'zi kiritadi; eskicha ishlayotgan frontga hech narsa buzilmaydi.
 
+## 10. Sales-gate — TLD'da mijoz roziligi bosqichi 🔴 MUHIM
+
+Mijoz buyurtmasidan (konfiguratsiyadan) ochilgan to'ldirish hisobi endi
+buyurtmachi `submit` qilganda **bugalterga emas, avval sales'ga** boradi —
+yangi status: `pending_sales` ("Sales — mijoz roziligi kutilmoqda").
+
+Oqim:
+
+```
+buyurtmachi narx+QQS kiritadi → submit
+  ├─ configuration bor  → pending_sales → sales approve → pending_bugalter → admin → pay
+  └─ configuration yo'q → pending_bugalter → admin → pay (eskicha)
+```
+
+Front vazifasi:
+
+- **Sales menyusida** "To'ldirish hisoblari" ko'rinishi kerak (sales endi
+  `GET /api/replenishments/` ni o'qiy oladi) — kamida `?status=pending_sales`
+  filtrli ro'yxat: "Mijoz roziligi kutilayotganlar".
+- Sales hisobni ochganda 9-bo'limdagi **hisob-faktura ko'rinishi** (QQS bilan)
+  chiqadi + ikkita tugma: **"Mijoz rozi — tasdiqlash"**
+  (`POST /api/replenishments/{id}/approve/` `{"comment": "..."}`) va
+  **"Rad etish"** (`POST .../reject/`) — rad etilsa hisob buyurtmachiga
+  qaytadi (`rejected`, tahrirlab qayta yuborsa bo'ladi).
+- Submit'da sales'larga notification tushadi (`entity='Replenishment'`,
+  sarlavhasi "mijoz roziligi kerak") — bosilganda shu hisobga olib boring.
+- Status badge'lariga `pending_sales` qo'shing; `approvals[]` tarixida yangi
+  `step: "sales"` ("Sales — mijoz roziligi") chiqadi.
+- Bugalter oynasida hech narsa o'zgarmaydi — unga hisob faqat sales
+  tasdig'idan keyin tushadi (oddiy to'ldirish esa eskicha to'g'ri tushadi).
+
+Maqsad: bugalter va adminga faqat mijoz "ha" degan hisoblar borsin —
+ular bo'sh ish bilan band bo'lmasin.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

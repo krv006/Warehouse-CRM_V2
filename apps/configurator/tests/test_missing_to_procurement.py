@@ -153,10 +153,14 @@ class MissingToProcurementTests(APITestCase):
         self.assertEqual(self._send().status_code, 403)
 
     def test_chain_continues_to_supplier_flow(self):
-        """Yaratilgan hisob TZ 7 zanjiriga tushadi: buyurtmachi submit qila oladi."""
+        """Yaratilgan hisob zanjirga tushadi: submit'da avval SALES'ga boradi.
+
+        Mijoz buyurtmasidan ochilgan hisob mijoz roziligisiz bugalterga
+        tushmaydi (sales-gate).
+        """
         self._send()
         replenishment = Replenishment.objects.get()
         self.client.force_authenticate(self.buyurtmachi)
         response = self.client.post(f'/api/replenishments/{replenishment.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data['status'], Replenishment.Status.PENDING_BUGALTER)
+        self.assertEqual(response.data['status'], Replenishment.Status.PENDING_SALES)

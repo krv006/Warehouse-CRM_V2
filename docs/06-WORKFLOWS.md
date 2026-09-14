@@ -52,7 +52,10 @@ qolgan kun:  90 ─────────────── 31 │ 30 ──�
 ```mermaid
 stateDiagram-v2
     [*] --> draft: Yetishmayotganlar ro'yxatidan hisob
-    draft --> pending_bugalter: POST /submit/ (buyurtmachi)
+    draft --> pending_sales: POST /submit/ (mijoz buyurtmasidan)
+    draft --> pending_bugalter: POST /submit/ (oddiy to'ldirish)
+    pending_sales --> pending_bugalter: POST /approve/ (sales — mijoz rozi)
+    pending_sales --> rejected: POST /reject/ (mijoz rozi emas)
     pending_bugalter --> pending_admin: POST /approve/ (bugalter)
     pending_bugalter --> rejected: POST /reject/
     pending_admin --> approved: POST /approve/ (admin)
@@ -71,7 +74,10 @@ Qadamlar:
 1. **Buyurtmachi** `GET /replenishments/low-stock/` bilan yetishmayotganlarni ko'radi va
    `POST /replenishments/from-low-stock/` bilan hisob shakllantiradi
 2. Har bir pozitsiyaga ta'minotchi narxini, so'ng `logistics_cost` va `other_cost` ni kiritadi
-3. `POST /submit/` → **Bugalter** tekshiradi (`approve`) yoki qaytaradi (`reject`)
+3. `POST /submit/` → mijoz buyurtmasidan (konfiguratsiyadan) ochilgan hisob avval
+   **Sales**ga boradi — sales mijoz bilan kelishib `approve` qiladi (rozi bo'lmasa
+   `reject`); oddiy to'ldirish to'g'ridan-to'g'ri **Bugalter**ga tushadi va bugalter
+   tekshiradi (`approve`) yoki qaytaradi (`reject`)
 4. **Admin** ko'rib chiqadi: miqdorni o'zgartiradi, pozitsiya o'chiradi, so'ng tasdiqlaydi.
    Oynada `total_amount` va `cash_available` yonma-yon turadi
 5. **Bugalter** `POST /pay/` qiladi:

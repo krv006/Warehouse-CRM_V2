@@ -25,8 +25,9 @@
 | `CanManageClients` | barcha login qilganlar | admin, sales, buyurtmachi |
 | `FinanceAccess` | **admin, bugalter** | admin, bugalter |
 | `PurchaseAccess` | **admin, bugalter, buyurtmachi** | admin, bugalter |
-| `ProcurementAccess` | **admin, bugalter, buyurtmachi** | admin, buyurtmachi |
-| `ProcurementSharedAccess` | admin, bugalter, buyurtmachi | admin, buyurtmachi, bugalter |
+| `ProcurementAccess` | admin, bugalter, buyurtmachi, sales | admin, buyurtmachi |
+| `ProcurementSharedAccess` | admin, bugalter, buyurtmachi, sales | admin, buyurtmachi, bugalter |
+| `ProcurementApprovalAccess` | admin, bugalter, buyurtmachi, sales | admin, sales, bugalter — qaysi bosqichda kim tasdiqlashini servis tekshiradi |
 | `ConfiguratorAccess` | barcha login qilganlar | **admin, engineer** |
 | `ProductSpecAccess` | barcha login qilganlar | admin, engineer, buyurtmachi |
 | `ConfigurationRequestAccess` | barcha login qilganlar | admin, sales, engineer |
@@ -55,7 +56,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | `/api/contract-payments/` | hamma | admin, bugalter | |
 | `/api/contract-approvals/` | hamma | — | faqat o'qish |
 | `/api/purchases/`, `/purchase-items/` | **admin, bugalter, buyurtmachi** | admin, bugalter | sales — 403 |
-| `/api/replenishments/` va qatorlari | **admin, bugalter, buyurtmachi** | admin, buyurtmachi | `approve`/`reject`/`pay` — admin, bugalter; `receive`/`events` — buyurtmachi va bugalter; sales — 403 |
+| `/api/replenishments/` va qatorlari | admin, bugalter, buyurtmachi, sales | admin, buyurtmachi | `approve`/`reject` — bosqichga qarab: **sales (mijoz roziligi) → bugalter → admin** (mijoz buyurtmasidan ochilgan hisobda; oddiy to'ldirishda sales bosqichi yo'q); `pay` — admin, bugalter; `receive`/`events` — buyurtmachi va bugalter |
 | `/api/cash-categories/`, `/cash-transactions/`, `/loans/`, `/expense-requests/` | **admin, bugalter** | admin, bugalter | `expense-requests/approve\|reject` — **faqat admin**; sales — 403 |
 
 ### Sales roli aynan nimani ko'radi (TZ 8.3)
@@ -72,7 +73,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | Eslatmalar | ✅ o'ziniki |
 | Kassa, qarzlar, xarajat so'rovlari | ⛔ **403** |
 | Kirim (purchases) | ⛔ **403** |
-| To'ldirish (buyurtmachi bo'limi) | ⛔ **403** |
+| To'ldirish (buyurtmachi bo'limi) | 👁 **o'qiydi**; mijoz buyurtmasidan ochilgan hisobni mijoz bilan kelishib **tasdiqlaydi/qaytaradi** (`pending_sales` bosqichi) |
 | Foydalanuvchilar, Audit | ⛔ **403** |
 
 ## Shartnoma zanjiridagi rol tekshiruvi
@@ -93,6 +94,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | Amal | Kim bajara oladi |
 |---|---|
 | `from-low-stock`, `submit` | buyurtmachi, admin |
+| `approve`/`reject` (pending_sales → pending_bugalter) — mijoz buyurtmasidan ochilgan hisobda | **sales**, admin |
 | `approve` (pending_bugalter → pending_admin) | bugalter, admin |
 | `approve` (pending_admin → approved) | **faqat admin** |
 | `pay` | bugalter, admin |

@@ -24,6 +24,9 @@ class Replenishment(TimeStampedModel):
 
     class Status(TextChoices):
         DRAFT = 'draft', 'Qoralama'
+        # Mijoz buyurtmasidan (konfiguratsiyadan) ochilgan hisob avval sales'ga
+        # boradi — sales mijoz bilan narxlarni kelishib tasdiqlaydi
+        PENDING_SALES = 'pending_sales', 'Sales — mijoz roziligi kutilmoqda'
         PENDING_BUGALTER = 'pending_bugalter', 'Bugalter tekshiruvida'
         PENDING_ADMIN = 'pending_admin', 'Admin tasdiqlashida'
         APPROVED = 'approved', 'Tasdiqlandi, buyurtma berish mumkin'

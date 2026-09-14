@@ -4,6 +4,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import (
     FinanceAccess,
     ProcurementAccess,
+    ProcurementApprovalAccess,
     ProcurementSharedAccess,
 )
 from apps.core.mixins import BaseModelViewSet
@@ -32,8 +33,11 @@ from apps.procurement.services import (
     submit,
 )
 
-# Bugalter/admin bajaradigan amallar
-BUGALTER_ACTIONS = {'approve', 'reject', 'pay'}
+# Tasdiqlash zanjiri: sales (mijoz roziligi) -> bugalter -> admin — bosqichni servis tekshiradi
+APPROVAL_ACTIONS = {'approve', 'reject'}
+
+# Faqat bugalter/admin bajaradigan amallar
+BUGALTER_ACTIONS = {'pay'}
 
 # Buyurtmachi ham, bugalter ham bajaradi — rolni servis tekshiradi
 SHARED_ACTIONS = {'receive', 'add_event'}
@@ -55,6 +59,8 @@ class ReplenishmentViewSet(BaseModelViewSet):
     ordering_fields = ['created_at', 'number']
 
     def get_permissions(self):
+        if self.action in APPROVAL_ACTIONS:
+            return [ProcurementApprovalAccess()]
         if self.action in BUGALTER_ACTIONS:
             return [FinanceAccess()]
         if self.action in SHARED_ACTIONS:
@@ -94,13 +100,20 @@ class ReplenishmentViewSet(BaseModelViewSet):
         return Response(self.get_serializer(replenishment).data)
 
     def submit(self, request, pk=None):
-        """POST /replenishments/{id}/submit/ — bugalterga yuborish."""
+        """POST /replenishments/{id}/submit/ — tekshiruvga yuborish.
+
+        Konfiguratsiyadan (mijoz buyurtmasidan) ochilgan hisob avval sales'ga,
+        oddiy to'ldirish to'g'ridan-to'g'ri bugalterga boradi.
+        """
         replenishment = submit(self.get_object(), request.user)
-        self.log_action(ActivityLog.Action.UPDATE, replenishment, 'Bugalterga yuborildi')
+        self.log_action(
+            ActivityLog.Action.UPDATE, replenishment,
+            replenishment.get_status_display(),
+        )
         return Response(self.get_serializer(replenishment).data)
 
     def approve(self, request, pk=None):
-        """POST /replenishments/{id}/approve/ — bugalter, so'ng admin."""
+        """POST /replenishments/{id}/approve/ — sales (mijozniki bo'lsa), bugalter, admin."""
         replenishment = approve(
             self.get_object(), request.user, request.data.get('comment', ''),
         )
