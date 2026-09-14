@@ -339,7 +339,7 @@ POST /api/configurations/12/attach/
 | Metod | Manzil | Izoh |
 |---|---|---|
 | GET/POST | `/purchases/` | yozish: admin, bugalter |
-| POST | `/purchases/{id}/receive/` | omborga kirim + kassaga chiqim |
+| POST | `/purchases/{id}/receive/` | omborga kirim + kassaga chiqim; xarid narxi katalogga yoziladi (`cost_price`) |
 | GET | `/purchases/{id}/timeline/` | import kunlari line chart |
 | GET | `/purchases/in-transit/` | yo'ldagilar |
 | GET/POST | `/purchase-items/` | |
@@ -544,7 +544,7 @@ Omborda yetarli bo'lmasa — `400`:
 | POST | `/replenishments/{id}/reject/` | bugalter / admin |
 | POST | `/replenishments/{id}/pay/` | bugalter; `debt_amount` satr/son bo'lishi mumkin, noto'g'ri format 400 |
 | POST | `/replenishments/{id}/events/` | buyurtmachi / bugalter |
-| POST | `/replenishments/{id}/receive/` | buyurtmachi / bugalter |
+| POST | `/replenishments/{id}/receive/` | buyurtmachi / bugalter; xarid narxi katalogga yoziladi (`cost_price`) |
 | GET | `/replenishments/{id}/timeline/` | hamma |
 | GET/POST/PATCH/DELETE | `/replenishment-items/` | admin doim, buyurtmachi qoralamada |
 

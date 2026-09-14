@@ -275,6 +275,12 @@ bo'lmasa sales qaytaradi va hisob bugalter/admin stolini band qilmaydi.
 Hammasi omborda bo'lsa TLD umuman ochilmaydi (`request-procurement` 400) —
 engineer `complete` qiladi, sales shartnoma bilan davom etadi.
 
+**Tannarx yangilanishi:** `receive` (TLD ham, KIR ham) har bir qator
+uchun mahsulot `cost_price`ini xarid narxi (QQS'siz `unit_price`) bilan
+yangilaydi — katalogda narxsiz mahsulot qolmaydi. TLD konfiguratsiyadan
+ochilgan bo'lsa, o'sha konfiguratsiyaning narxsiz qatorlari ham kirimdan
+keyin avtomatik narx oladi (`needs_price` o'chadi, finalize ochiladi).
+
 **Bildirishnomalar:** har bir tasdiq navbatni keyingi bosqich egasiga
 o'tkazganda unga `/notifications/` orqali xabar tushadi: submit'da sales
 (mijoz buyurtmasi) yoki bugalterga, sales tasdig'ida bugalterga, bugalter

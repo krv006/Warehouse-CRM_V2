@@ -4,7 +4,7 @@ from rest_framework.exceptions import ValidationError
 
 from apps.finance.services import record_transaction
 from apps.inventory.models import StockMovement
-from apps.inventory.services import apply_movement
+from apps.inventory.services import apply_movement, update_cost_price
 from apps.purchases.models import Purchase
 
 EXPENSE_CODE_BY_TYPE = {
@@ -34,6 +34,8 @@ def receive_purchase(purchase, user=None):
             reference=purchase.number,
             user=user,
         )
+        # Xarid narxi katalogga tushadi — tannarx 0 bo'lib qolmasin
+        update_cost_price(item.product, item.unit_price)
 
     record_transaction(
         code=EXPENSE_CODE_BY_TYPE[purchase.type],

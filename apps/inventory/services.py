@@ -63,6 +63,22 @@ def sync_stock(movement):
     return stock
 
 
+def update_cost_price(product, unit_price):
+    """Kirimdan keyin mahsulot tannarxini yangilaydi — oxirgi xarid narxi.
+
+    Narx QQS'siz sof xarid narxi (qator `unit_price`). 0 yoki manfiy kelsa
+    mavjud tannarx buzilmaydi. Shu tufayli kirimdan keyin `stock_price`
+    0 bo'lib qolmaydi va configurator qatori `needs_price` da qulflanmaydi.
+    """
+    from decimal import Decimal
+
+    price = Decimal(unit_price or 0)
+    if price <= 0 or product.cost_price == price:
+        return
+    product.cost_price = price
+    product.save(update_fields=['cost_price'])
+
+
 def configuration_signature(base_product_id, items):
     """Konfiguratsiya tarkibining takrorlanmas imzosi.
 

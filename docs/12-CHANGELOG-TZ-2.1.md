@@ -630,6 +630,31 @@ satr ko'rinishidagi son: `{"debt_amount": "500000"}`.
 
 ---
 
+## 8.19 Kirimda xarid narxi katalogga tushadi 🐛→✅
+
+**Muammo (front bug-reporti, TLD-00031):** mol omborga kirim qilinardi,
+lekin narxi katalogga tushmas edi — `Product.cost_price` 0 bo'lib
+qolaverar, `stock_price` ham 0 berar, configurator qatori `needs_price`
+bilan `finalize`ni 400 qilib zanjirni qulflar edi (engineer TLD'dagi
+narxni ko'ra olmaydi — 403).
+
+**Yechim:**
+
+1. `inventory.services.update_cost_price` — kirimdan keyin mahsulot
+   tannarxi **oxirgi xarid narxi** (QQS'siz qator `unit_price`) bilan
+   yangilanadi. 0 yoki manfiy narx mavjud tannarxni buzmaydi.
+2. Ikkala kirim yo'lida ham qo'llanadi:
+   `POST /replenishments/{id}/receive/` (TLD) va
+   `POST /purchases/{id}/receive/` (KIR).
+3. Bonus: TLD konfiguratsiyadan ochilgan bo'lsa, o'sha konfiguratsiyaning
+   **narxsiz qatorlari kirimdan keyin avtomatik narx oladi** —
+   `needs_price` o'chadi, sales hech narsa kiritmasdan yakunlay oladi.
+
+Logistika/boshqa xarajatlar tannarxga taqsimlanmaydi (ular kassa
+chiqimida hisoblangan) — tannarx siyosati: oxirgi xarid narxi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -661,5 +686,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **95** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **31** |
-| Testlar | 66 | **249** |
+| Testlar | 66 | **253** |
 | Rollar | 3 | **5** |

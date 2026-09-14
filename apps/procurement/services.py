@@ -387,6 +387,8 @@ def receive(replenishment, user):
                                 Replenishment.Status.PENDING_ADMIN, Replenishment.Status.REJECTED}:
         raise ValidationError('Avval hisob tasdiqlanib, to\'lov qilinishi kerak.')
 
+    from apps.inventory.services import update_cost_price
+
     for item in replenishment.items.select_related('product'):
         apply_movement(
             product=item.product,
@@ -397,6 +399,15 @@ def receive(replenishment, user):
             reference=replenishment.number,
             user=user,
         )
+        # Xarid narxi katalogga tushadi — aks holda mahsulot tannarxsiz
+        # qolib, configurator qatori needs_price bilan qulflanardi
+        update_cost_price(item.product, item.unit_price)
+
+    # Bog'langan konfiguratsiyaning narxsiz qatorlari yangi tannarxni oladi —
+    # save() ombordagi narxni o'zi to'ldiradi, sales endi yakunlay oladi
+    if replenishment.configuration_id:
+        for config_item in replenishment.configuration.items.filter(unit_price=0):
+            config_item.save()
 
     today = localdate()
     replenishment.delivered_at = today

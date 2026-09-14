@@ -67,6 +67,16 @@ class PurchaseFlowTests(APITestCase):
         self.assertEqual(transaction.category.code, 'import')
         self.assertEqual(transaction.amount, purchase.total_amount)
 
+    def test_receive_updates_cost_price(self):
+        """Kirimdan keyin xarid narxi katalogga tushadi — tannarx 0 qolmaydi."""
+        purchase = self._purchase()
+        self.assertEqual(self.product.cost_price, Decimal('0'))
+        self.client.post(f'/api/purchases/{purchase.id}/receive/')
+
+        self.product.refresh_from_db()
+        self.assertEqual(self.product.cost_price, Decimal('4000000'))
+        self.assertEqual(self.product.stock_price, Decimal('4000000'))
+
     def test_double_receive_is_rejected(self):
         purchase = self._purchase()
         self.client.post(f'/api/purchases/{purchase.id}/receive/')
