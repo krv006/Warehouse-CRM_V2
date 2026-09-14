@@ -275,6 +275,12 @@ bo'lmasa sales qaytaradi va hisob bugalter/admin stolini band qilmaydi.
 Hammasi omborda bo'lsa TLD umuman ochilmaydi (`request-procurement` 400) —
 engineer `complete` qiladi, sales shartnoma bilan davom etadi.
 
+**Bitta konfiguratsiya — bitta ochiq TLD:** ochiq (bekor/kirim qilinmagan)
+hisob turganda `request-procurement` qayta chaqirilsa 400 qaytadi — ikkita
+parallel hisob ochilib ketmaydi. Konfiguratsiya javobidagi
+`sent_to_procurement` va `procurement` maydonlari jarayon holatini ko'rsatib
+turadi (`rejected` — hali ochiq: buyurtmachi to'g'irlab qayta yuboradi).
+
 ### Pul yetmagan holat
 
 Admin oynasida doimo ko'rinadi:

@@ -48,7 +48,7 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 | Django ilovalari | 9 ta (`core`, `accounts`, `clients`, `inventory`, `configurator`, `purchases`, `procurement`, `sales`, `finance`) |
 | Modellar | 31 ta |
 | Rollar | 5 ta: admin, bugalter, sales, buyurtmachi, engineer |
-| Testlar | **229 ta**, hammasi o'tadi |
+| Testlar | **236 ta**, hammasi o'tadi |
 
 ---
 
@@ -192,7 +192,7 @@ Shartnoma, qarz, import va kelishuv ("Keyingi aloqa") muddatlarini tekshirib esl
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (229 ta).
+Barcha testlar (236 ta).
 
 ---
 

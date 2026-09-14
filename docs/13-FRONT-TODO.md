@@ -414,6 +414,46 @@ Rasmdagi modal maydonlari:
 "Chop etish / PDF" — brauzer print oynasi bilan (backend PDF bermaydi,
 kerak emas). Bugalterga bu endpoint 403 — tugmani unga ko'rsatmang.
 
+## 12. Konfiguratsiyada "Buyurtmachiga yuborilgan" flagi 🔴 MUHIM
+
+**Muammo (siz topgan):** yetishmayotganlar buyurtmachiga yuborilgach
+konfiguratsiya sahifasida buni aniqlab bo'lmasdi. Endi backend flag beradi.
+
+`GET /configurations/` va `GET /configurations/{id}/` javobida:
+
+```json
+{
+  "sent_to_procurement": true,
+  "procurement": {
+    "id": 4, "number": "TLD-00004",
+    "status": "pending_sales",
+    "status_display": "Sales — mijoz roziligi kutilmoqda",
+    "is_open": true, "created_at": "..."
+  }
+}
+```
+
+**Nima qilish kerak:**
+
+1. **Badge:** `sent_to_procurement === true` bo'lsa konfiguratsiya sarlavhasi
+   yonida badge: `🚚 Buyurtmachida — TLD-00004 (Sales — mijoz roziligi
+   kutilmoqda)`. Matn tayyor: `procurement.number` + `procurement.status_display`.
+   Badge'ni bosganda TLD sahifasiga o'tkazing (`/replenishments/{procurement.id}`).
+2. **Tugma:** `sent_to_procurement === true` bo'lsa "Buyurtmachiga yuborish"
+   tugmasini **yashiring yoki disable qiling** — backend baribir 400 beradi:
+   `{"detail": "... allaqachon ochilgan ...", "replenishment": 4}`.
+3. **Tarix:** `procurement !== null` lekin `is_open === false` — oxirgi hisob
+   bekor qilingan yoki omborga kirim bo'lgan; xohlasangiz kulrang badge bilan
+   "TLD-00004 — Bekor qilingan" deb ko'rsating, tugma yana faol bo'ladi.
+4. **Statuslar lug'ati** (badge rangi uchun): `draft`/`rejected` — buyurtmachida
+   (sariq), `pending_sales` — sizda/salesda (ko'k), `pending_bugalter`/
+   `pending_admin` — tasdiqda, `approved`/`ordered`/`in_transit`/`customs` —
+   yo'lda, `delivered` — kelib bo'lgan (yopiq), `cancelled` — bekor (yopiq).
+   Aniq matnni har doim `status_display`dan oling.
+
+Ro'yxat sahifasida ham xuddi shu maydonlar bor — kartochkalarga kichik
+badge chiqarsangiz engineer nimalar buyurtmachida turganini bir qarashda ko'radi.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

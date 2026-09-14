@@ -189,7 +189,7 @@ Holatlar: `new` → `in_progress` (take) → `done` (complete). Raqam: `ZVK-0000
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
 | POST | `/configurations/{id}/finalize/` | **sales bosqichi** (engineer 403); ACT majburiy, tanada berish mumkin: `{"act": 2, "client": 3}`; ombor tanlanmagan bo'lsa faol ombor o'zi olinadi; yakunda **draft shartnoma avtomatik ochiladi** (javobda `contract`) |
 | POST | `/configurations/{id}/attach/` | kirim buyurtmasiga biriktirish |
-| POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan to'ldirish hisobi (TLD) ochib buyurtmachi/sales/bugalterga xabar beradi; hammasi omborda bo'lsa 400 |
+| POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan to'ldirish hisobi (TLD) ochib buyurtmachi/sales/bugalterga xabar beradi; hammasi omborda bo'lsa 400; **ochiq TLD bor bo'lsa ham 400** (takror ochilmaydi) |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
 | GET/POST | `/configuration-items/` | qatorni alohida qo'shish — `configuration` majburiy, faqat `draft`; bazada yo'q tovar uchun `new_component_name` |
 | GET/PUT/PATCH/DELETE | `/configuration-items/{id}/` | filtr: `configuration`, `component`; faqat `draft` da o'zgaradi |
@@ -211,6 +211,27 @@ Yetishmaganlarni buyurtmachiga yuborish (javob — yaratilgan TLD hisobi):
 ```json
 POST /api/configurations/12/request-procurement/
 ```
+
+Yuborilganidan keyin konfiguratsiya javobida flag paydo bo'ladi —
+front "Buyurtmachiga yuborilgan" badge'ini shu yerdan oladi:
+```json
+GET /api/configurations/12/
+{
+  "...": "...",
+  "sent_to_procurement": true,
+  "procurement": {
+    "id": 4, "number": "TLD-00004",
+    "status": "pending_sales",
+    "status_display": "Sales — mijoz roziligi kutilmoqda",
+    "is_open": true, "created_at": "2026-09-14T10:00:00+05:00"
+  }
+}
+```
+`procurement` — oxirgi TLD (yuborilmagan bo'lsa `null`); `is_open=false` —
+jarayon tugagan (`cancelled` yoki `delivered`), shunda `sent_to_procurement`
+ham `false` bo'ladi va yangi TLD ochish mumkin. Ochiq TLD turganda
+`request-procurement` qayta bosilsa **400**: `{"detail": "CFG-00023 uchun
+TLD-00004 hisobi allaqachon ochilgan (...)", "replenishment": 4}`.
 
 **Yaratish** (`items` ixtiyoriy — yuborilmasa zavod tarkibi avtomatik yuklanadi):
 ```json

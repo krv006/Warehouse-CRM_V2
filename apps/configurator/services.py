@@ -328,6 +328,18 @@ def send_missing_to_procurement(configuration, user):
     if not (user.is_admin or user.is_engineer):
         raise PermissionDenied('Buyurtmachiga yuborishni Engineer bajaradi.')
 
+    # Bitta konfiguratsiya uchun bitta ochiq hisob: tugma ikki marta bosilsa
+    # ikkinchi TLD ochilmaydi — front mavjudini `procurement` maydonidan ko'radi
+    existing = configuration.open_replenishment
+    if existing:
+        raise ValidationError({
+            'detail': (
+                f'{configuration.number} uchun {existing.number} hisobi allaqachon '
+                f'ochilgan ({existing.get_status_display()}) — yangisini ochish shart emas.'
+            ),
+            'replenishment': existing.pk,
+        })
+
     missing = [
         item for item in configuration.items.select_related('component')
         if item.shortage > 0

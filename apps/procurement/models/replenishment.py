@@ -37,6 +37,10 @@ class Replenishment(TimeStampedModel):
         REJECTED = 'rejected', 'Rad etildi'
         CANCELLED = 'cancelled', 'Bekor qilingan'
 
+    # Jarayon tugagan holatlar: bekor qilingan yoki omborga kirim qilingan.
+    # REJECTED yopiq emas — buyurtmachi to'g'irlab qayta yuboradi (submit).
+    CLOSED_STATUSES = (Status.CANCELLED, Status.DELIVERED)
+
     number = CharField(max_length=30, unique=True, blank=True)
     warehouse = ForeignKey('inventory.Warehouse', PROTECT, related_name='replenishments')
     supplier = CharField(max_length=200, blank=True)
@@ -73,6 +77,11 @@ class Replenishment(TimeStampedModel):
         if not self.number:
             self.number = next_number(Replenishment, 'TLD')
         super().save(*args, **kwargs)
+
+    @property
+    def is_open(self):
+        """Jarayon hali tugamaganmi — bekor qilinmagan va kirim qilinmagan."""
+        return self.status not in self.CLOSED_STATUSES
 
     @property
     def items_total(self):

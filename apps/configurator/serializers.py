@@ -123,6 +123,8 @@ class ConfigurationSerializer(ModelSerializer):
     variant_sku = ReadOnlyField(source='variant.sku')
     missing_count = SerializerMethodField()
     ready_variant = SerializerMethodField()
+    procurement = SerializerMethodField()
+    sent_to_procurement = SerializerMethodField()
 
     class Meta:
         model = Configuration
@@ -131,13 +133,35 @@ class ConfigurationSerializer(ModelSerializer):
             'warehouse', 'act', 'act_number', 'purchase', 'mode', 'mode_display',
             'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
-            'ready_variant', 'missing_count', 'removals',
-            'created_by', 'created_at',
+            'ready_variant', 'missing_count', 'procurement', 'sent_to_procurement',
+            'removals', 'created_by', 'created_at',
         ]
         read_only_fields = ['number', 'created_by', 'purchase', 'variant']
 
     def get_missing_count(self, obj):
         return len(obj.missing_items)
+
+    def get_procurement(self, obj):
+        """Buyurtmachiga yuborilgan oxirgi TLD hisobi — front badge shu yerdan.
+
+        None — hech qachon yuborilmagan; is_open=False — jarayon tugagan
+        (bekor qilingan yoki omborga kirim bo'lgan).
+        """
+        replenishment = obj.last_replenishment
+        if not replenishment:
+            return None
+        return {
+            'id': replenishment.id,
+            'number': replenishment.number,
+            'status': replenishment.status,
+            'status_display': replenishment.get_status_display(),
+            'is_open': replenishment.is_open,
+            'created_at': replenishment.created_at,
+        }
+
+    def get_sent_to_procurement(self, obj):
+        """Yetishmayotganlar buyurtmachida va jarayon hali tugamagan — qisqa flag."""
+        return obj.open_replenishment is not None
 
     def get_ready_variant(self, obj):
         """Xuddi shu tarkib omborda tayyor pozitsiya sifatida bormi (TZ 6.2)."""

@@ -141,6 +141,22 @@ class Configuration(TimeStampedModel):
         return [item for item in self.items.all() if item.shortage > 0]
 
     @property
+    def last_replenishment(self):
+        """Buyurtmachiga yuborilgan oxirgi to'ldirish hisobi (TLD) — flag manbai."""
+        replenishments = list(self.replenishments.all())
+        if not replenishments:
+            return None
+        return max(replenishments, key=lambda rep: rep.pk)
+
+    @property
+    def open_replenishment(self):
+        """Hali yopilmagan (bekor/kirim qilinmagan) TLD — takrorni bloklash uchun."""
+        open_ones = [rep for rep in self.replenishments.all() if rep.is_open]
+        if not open_ones:
+            return None
+        return max(open_ones, key=lambda rep: rep.pk)
+
+    @property
     def items_without_price(self):
         """Narxi aniqlanmagan qatorlar — yakunlashga to'sqinlik qiladi."""
         return [item for item in self.items.all() if item.needs_price]

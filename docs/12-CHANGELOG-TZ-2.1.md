@@ -549,6 +549,30 @@ ochiladi** — bugalterga yuborishdan oldin rasmiy shakl tayyor turadi.
 
 Front: 13-FRONT-TODO 11-bo'lim.
 
+## 8.16 Konfiguratsiyada buyurtmachi flagi 🚚
+
+**Muammo (front topdi):** yetishmayotganlar buyurtmachiga yuborilgach
+konfiguratsiya sahifasida buni bilib bo'lmas edi — hech qanday status/flag
+yo'q, "Buyurtmachiga yuborish" tugmasi yuborilgandan keyin ham turaverardi
+(va ikkinchi marta bosilsa yana bitta TLD ochilardi).
+
+**Yechim:**
+
+1. `GET /configurations/` va `/configurations/{id}/` javobida ikkita yangi maydon:
+   - `sent_to_procurement` — `true` bo'lsa yetishmayotganlar buyurtmachida va
+     jarayon hali tugamagan (badge ko'rsatiladi, tugma yashiriladi);
+   - `procurement` — oxirgi TLD hisobi: `{id, number, status, status_display,
+     is_open, created_at}`; hech qachon yuborilmagan bo'lsa `null`.
+2. `is_open` qoidasi: `cancelled` va `delivered` — yopiq; `rejected` ochiq
+   qoladi (buyurtmachi to'g'irlab qayta yuboradi).
+3. Takror yuborish blokdan o'tmaydi: ochiq TLD bor bo'lsa
+   `request-procurement` **400** qaytaradi (`detail`da mavjud hisob raqami,
+   `replenishment`da id).
+
+Front vazifasi: [13-FRONT-TODO.md](13-FRONT-TODO.md) §12.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -580,5 +604,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **95** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **31** |
-| Testlar | 66 | **229** |
+| Testlar | 66 | **236** |
 | Rollar | 3 | **5** |

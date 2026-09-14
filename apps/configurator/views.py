@@ -62,7 +62,7 @@ class ConfigurationViewSet(BaseModelViewSet):
     queryset = (
         Configuration.objects
         .select_related('client', 'base_product', 'act', 'warehouse', 'created_by')
-        .prefetch_related('items__component__stocks')
+        .prefetch_related('items__component__stocks', 'replenishments')
         .all()
     )
     serializer_class = ConfigurationSerializer
