@@ -95,6 +95,19 @@ class ProductSpecAccess(RoleAccess):
     message = 'Tarkibni engineer yoki buyurtmachi kiritadi.'
 
 
+class UserDirectoryAccess(RoleAccess):
+    """Xodimlar ro'yxati: admin va bugalter o'qiydi (EGALIK §5.3).
+
+    Bugalter "Xodim" filtrini to'ldirishi va oylik yozishi uchun xodimlarni
+    to'liq ko'radi. Yozish bu sinf orqali umuman yo'q — rol berish faqat
+    IsAdmin bilan (aks holda bugalter o'ziga admin roli bera olardi).
+    """
+
+    read_roles = (BUGALTER,)
+    write_roles = ()
+    message = 'Xodimlar ro\'yxati admin va bugalter uchun.'
+
+
 class ProductPricingAccess(RoleAccess):
     """Katalog narx siyosati: sotuv narxi, minimal qoldiq, faollik.
 

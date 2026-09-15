@@ -7,11 +7,17 @@ from apps.core.views import (
     ActivityLogViewSet,
     CompanyProfileViewSet,
     DashboardView,
+    MyWorkView,
     NotificationViewSet,
+    SidebarCountsView,
 )
 
 urlpatterns = [
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
+
+    # EGALIK §2: bitta collect_work() — ikkita endpoint
+    path('my-work/', MyWorkView.as_view(), name='my-work'),
+    path('sidebar-counts/', SidebarCountsView.as_view(), name='sidebar-counts'),
 
     path('company/', CompanyProfileViewSet.as_view({
         'get': 'retrieve',

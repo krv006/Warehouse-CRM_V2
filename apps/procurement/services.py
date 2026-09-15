@@ -34,35 +34,50 @@ def _require(user, *, supplier=False, bugalter=False, sales=False, admin=False):
     raise PermissionDenied('Bu amal uchun ruxsat yo\'q.')
 
 
+def low_stock_queryset(warehouse=None):
+    """Yetishmayotganlar — TO'LIQ SQL darajasida (EGALIK §2.4 unumdorlik).
+
+    Hisoblagich har daqiqada chaqiriladi, shuning uchun bu yerda Python
+    sikli emas, bitta annotatsiyali so'rov: erkin qoldiq (jami − qattiq
+    bron, §11.4: band mol sotilgan hisoblanadi) <= reorder_level.
+    Har bir qatorga `current_stock` annotatsiyasi biriktiriladi.
+    """
+    from django.db.models import DecimalField, F, OuterRef, Subquery, Sum, Value
+    from django.db.models.functions import Coalesce
+
+    from apps.inventory.models import Stock, StockReservation
+
+    stock_rows = Stock.objects.filter(product=OuterRef('pk'))
+    reserved_rows = StockReservation.objects.filter(
+        product=OuterRef('pk'),
+        status=StockReservation.Status.ACTIVE,
+        kind=StockReservation.Kind.HARD,
+    )
+    if warehouse is not None:
+        stock_rows = stock_rows.filter(warehouse=warehouse)
+        reserved_rows = reserved_rows.filter(warehouse=warehouse)
+
+    zero = Value(0, output_field=DecimalField(max_digits=18, decimal_places=2))
+    stock_sum = stock_rows.values('product').annotate(t=Sum('quantity')).values('t')
+    reserved_sum = reserved_rows.values('product').annotate(t=Sum('quantity')).values('t')
+
+    return (
+        Product.objects.filter(is_active=True)
+        .annotate(
+            stock_quantity=Coalesce(Subquery(stock_sum), zero),
+            hard_reserved=Coalesce(Subquery(reserved_sum), zero),
+            current_stock=F('stock_quantity') - F('hard_reserved'),
+        )
+        .filter(current_stock__lte=F('reorder_level'))
+    )
+
+
 def low_stock_products(warehouse=None):
     """Qoldig'i tugagan yoki reorder darajasidan pastga tushgan mahsulotlar (TZ 7.1).
 
     Omborda hali umuman yozuvi yo'q mahsulot ham ro'yxatga tushadi — qoldig'i 0.
-    Har bir mahsulotga `current_stock` qiymati biriktiriladi.
-
-    §11.4: shartnomalarga band qilingan (qattiq bron) mol sotilgan hisoblanadi —
-    erkin qoldiq bo'yicha tekshiriladi, band mol "bor" bo'lib ko'rinmaydi.
     """
-    from apps.inventory.services import reserved_quantity
-    from apps.inventory.models import StockReservation
-
-    products = Product.objects.filter(is_active=True).prefetch_related('stocks')
-    found = []
-    for product in products:
-        if warehouse is None:
-            quantity = product.total_stock
-        else:
-            quantity = sum(
-                stock.quantity for stock in product.stocks.all()
-                if stock.warehouse_id == warehouse.id
-            )
-        quantity -= reserved_quantity(
-            product, warehouse, kind=StockReservation.Kind.HARD,
-        )
-        if quantity <= product.reorder_level:
-            product.current_stock = quantity
-            found.append(product)
-    return found
+    return list(low_stock_queryset(warehouse))
 
 
 @atomic

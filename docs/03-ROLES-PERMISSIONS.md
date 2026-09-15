@@ -30,6 +30,7 @@
 | `ProcurementApprovalAccess` | admin, bugalter, buyurtmachi, sales | admin, sales, bugalter — qaysi bosqichda kim tasdiqlashini servis tekshiradi |
 | `ConfiguratorAccess` | barcha login qilganlar | **admin, engineer** |
 | `ProductSpecAccess` | barcha login qilganlar | admin, engineer, buyurtmachi |
+| `UserDirectoryAccess` | **admin, bugalter** — xodimlar ro'yxati (`GET /users/`); yozish bu sinfda umuman yo'q |
 | `ProductPricingAccess` | barcha login qilganlar | **admin, bugalter** — katalog narx siyosati: `PATCH /products/{id}/` (`sale_price`, `cost_price`, `reorder_level`, `is_active`) |
 | `ConfigurationRequestAccess` | barcha login qilganlar | admin, sales, engineer |
 
@@ -42,9 +43,10 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 
 | Endpoint | O'qish | Yozish | Maxsus |
 |---|---|---|---|
-| `/api/dashboard/` | hamma | — | |
+| `/api/dashboard/` | hamma | — | `kassa` bloki faqat admin/bugalterga |
+| `/api/my-work/`, `/api/sidebar-counts/` | hamma | — | javob so'rovchi roli bo'yicha (EGALIK §2) |
 | `/api/company/` | hamma | **faqat admin** | bajaruvchi (o'z firmamiz) rekvizitlari — shartnoma chop etishda ishlatiladi |
-| `/api/users/` | admin | admin | `/users/me/` — hamma |
+| `/api/users/` | **admin, bugalter** (EGALIK §5.3 — "Xodim" filtri, oylik) | **faqat admin** (rol berish) | `/users/me/` — hamma |
 | `/api/activity-logs/` | **admin** | — | audit |
 | `/api/notifications/` | o'ziniki + umumiy | — | `mark-read` |
 | `/api/clients/` | hamma | admin, sales, buyurtmachi | bugalter faqat o'qiydi |

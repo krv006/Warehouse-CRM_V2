@@ -123,6 +123,7 @@ class ReplenishmentSerializer(ModelSerializer):
     status_display = ReadOnlyField(source='get_status_display')
     warehouse_name = ReadOnlyField(source='warehouse.name')
     configuration_number = ReadOnlyField(source='configuration.number')
+    owner_sales_name = ReadOnlyField(source='owner_sales.display_name')
     items_total = ReadOnlyField()
     vat_total = ReadOnlyField()
     items_total_with_vat = ReadOnlyField()
@@ -137,7 +138,8 @@ class ReplenishmentSerializer(ModelSerializer):
         model = Replenishment
         fields = [
             'id', 'number', 'warehouse', 'warehouse_name', 'supplier',
-            'configuration', 'configuration_number', 'status',
+            'configuration', 'configuration_number',
+            'owner_sales', 'owner_sales_name', 'status',
             'status_display', 'currency', 'exchange_rate',
             'logistics_cost', 'other_cost',
             'items_total', 'vat_total', 'items_total_with_vat',
@@ -149,6 +151,7 @@ class ReplenishmentSerializer(ModelSerializer):
         ]
         read_only_fields = [
             'number', 'status', 'created_by', 'paid_amount', 'debt', 'delivered_at',
+            'owner_sales',
         ]
 
     def _is_finance_user(self):

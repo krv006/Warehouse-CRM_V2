@@ -1,9 +1,9 @@
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
 from rest_framework.response import Response
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 
 from apps.accounts.models import User
-from apps.accounts.permissions import IsAdmin
+from apps.accounts.permissions import IsAdmin, UserDirectoryAccess
 from apps.accounts.serializers import UserSerializer, UserCreateSerializer
 from apps.core.mixins import BaseModelViewSet
 
@@ -21,6 +21,14 @@ class RefreshView(TokenRefreshView):
 
 
 class UserViewSet(BaseModelViewSet):
+    """Foydalanuvchilar.
+
+    O'qish — admin va bugalter (EGALIK §5.3: bugalter "Xodim" filtrini
+    to'ldirishi va oylik yozishi uchun xodimlarni to'liq ko'radi); yozish
+    (yaratish, rol berish) — **faqat admin**: aks holda bugalter o'ziga
+    admin roli berib qo'ya olardi.
+    """
+
     queryset = User.objects.all().order_by('username')
     serializer_class = UserSerializer
     permission_classes = [IsAdmin]
@@ -35,6 +43,8 @@ class UserViewSet(BaseModelViewSet):
     def get_permissions(self):
         if self.action == 'me':
             return [IsAuthenticated()]
+        if self.request.method in SAFE_METHODS:
+            return [UserDirectoryAccess()]
         return super().get_permissions()
 
     def me(self, request):

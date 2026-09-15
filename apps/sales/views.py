@@ -40,8 +40,9 @@ class ContractViewSet(BaseModelViewSet):
     serializer_class = ContractSerializer
     permission_classes = [IsAdminOrSales]
     search_fields = ['number', 'client__full_name', 'client__company_name']
-    filterset_fields = ['status', 'client', 'currency', 'configuration']
-    ordering_fields = ['created_at', 'number', 'total_amount']
+    # EGALIK §5: admin/bugalter "sales1 ning shartnomalari"ni ajratib ko'radi
+    filterset_fields = ['status', 'client', 'currency', 'configuration', 'created_by']
+    ordering_fields = ['created_at', 'number', 'total_amount', 'created_by']
 
     EDITABLE_STATUSES = {Contract.Status.DRAFT, Contract.Status.REJECTED}
 

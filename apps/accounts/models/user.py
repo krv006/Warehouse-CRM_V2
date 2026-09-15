@@ -22,6 +22,15 @@ class User(AbstractUser):
     language = CharField(max_length=5, choices=Language.choices, default=Language.UZ)
 
     def __str__(self):
+        return self.display_name
+
+    @property
+    def display_name(self):
+        """Ekranda ko'rinadigan ism: to'liq ism, bo'lmasa username (EGALIK §6.4).
+
+        Serializerlar `source='...username'` emas, shu maydonni ishlatadi —
+        "sales1" o'rniga "Aziz Sobirov" chiqsin.
+        """
         return self.get_full_name() or self.username
 
     @property

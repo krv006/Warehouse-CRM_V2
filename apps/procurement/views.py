@@ -55,8 +55,11 @@ class ReplenishmentViewSet(BaseModelViewSet):
     serializer_class = ReplenishmentSerializer
     permission_classes = [ProcurementAccess]
     search_fields = ['number', 'supplier']
-    filterset_fields = ['status', 'warehouse', 'currency', 'configuration']
-    ordering_fields = ['created_at', 'number']
+    filterset_fields = [
+        'status', 'warehouse', 'currency', 'configuration',
+        'created_by', 'owner_sales',
+    ]
+    ordering_fields = ['created_at', 'number', 'created_by']
 
     def get_permissions(self):
         if self.action in APPROVAL_ACTIONS:

@@ -68,8 +68,8 @@ class ConfigurationViewSet(BaseModelViewSet):
     )
     serializer_class = ConfigurationSerializer
     search_fields = ['number', 'client__full_name', 'client__company_name']
-    filterset_fields = ['status', 'client', 'base_product', 'act']
-    ordering_fields = ['created_at', 'number']
+    filterset_fields = ['status', 'client', 'base_product', 'act', 'created_by']
+    ordering_fields = ['created_at', 'number', 'created_by']
 
     # §11.1: finalize ham engineerda — ACT bilan yakunlash tarkib egasining
     # ishi. ConfiguratorAccess (yozish: engineer, admin) buni o'zi qamraydi.
@@ -360,8 +360,8 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
     serializer_class = ConfigurationRequestSerializer
     permission_classes = [ConfigurationRequestAccess]
     search_fields = ['number', 'text', 'client__full_name', 'client__company_name']
-    filterset_fields = ['status', 'client', 'taken_by', 'configuration']
-    ordering_fields = ['created_at', 'number']
+    filterset_fields = ['status', 'client', 'taken_by', 'configuration', 'created_by']
+    ordering_fields = ['created_at', 'number', 'created_by']
 
     def perform_create(self, serializer):
         super().perform_create(serializer)

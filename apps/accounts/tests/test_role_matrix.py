@@ -25,8 +25,9 @@ READ_MATRIX = {
     '/api/replenishments/': {'admin', 'bugalter', 'buyurtmachi', 'sales'},
     '/api/configuration-requests/': ALL,
 
-    # Faqat admin
-    '/api/users/': {'admin'},
+    # EGALIK §5.3: bugalter xodimlarni ko'radi ("Xodim" filtri, oylik uchun);
+    # yozish (rol berish) baribir faqat admin
+    '/api/users/': {'admin', 'bugalter'},
     '/api/activity-logs/': {'admin'},
 }
 

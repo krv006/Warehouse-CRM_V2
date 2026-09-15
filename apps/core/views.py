@@ -124,6 +124,34 @@ class DashboardView(APIView):
         })
 
 
+class MyWorkView(APIView):
+    """GET /my-work/ — "menga taqalgan ish" navbati (EGALIK §2.1).
+
+    Javob: {counts, items}. Havola va matnni backend qurmaydi — `entity`+`id`
+    va `reason` kodi qaytadi, front o'zi manzil va ko'rsatma matnini chizadi.
+    """
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        from apps.core.services import collect_work
+
+        return Response(collect_work(request.user, include_items=True))
+
+
+class SidebarCountsView(APIView):
+    """GET /sidebar-counts/ — yon panel hisoblagichi (EGALIK §2.4).
+
+    `my-work` bilan bitta `collect_work()` dan chiqadi — raqamlar ta'rifan
+    mos. Faqat COUNT so'rovlari yuradi (har 60 soniyada chaqiriladi).
+    """
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        from apps.core.services import collect_work
+
+        return Response(collect_work(request.user, include_items=False)['counts'])
+
+
 class CompanyProfileViewSet(BaseModelViewSet):
     """Bajaruvchi (o'z firmamiz) rekvizitlari — yagona yozuv.
 

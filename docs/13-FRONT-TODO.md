@@ -536,6 +536,44 @@ umumiy xabar yo'q. Frontda o'zgarish shart emas — qo'ng'iroqcha avvalgidek
 `/notifications/` ni o'qiyveradi (endi shovqin keskin kamayadi).
 TLD javobiga keyingi bosqichda `owner_sales` filtri qo'shiladi (B-to'plam).
 
+## 15. Navbat + yon panel hisoblagichi + "Xodim" (EGALIK B-to'plam) 🔴
+
+### 15.1. Yon panel badge'lari
+
+- `GET /api/sidebar-counts/` — 60 soniyada bir (`refetchInterval: 60_000`,
+  `refetchIntervalInBackground: false`, `staleTime: 15_000`,
+  `refetchOnWindowFocus: true`, `enabled: Boolean(user)`).
+- Global invalidatsiya BITTA joyda — `MutationCache.onSuccess` da
+  `invalidateQueries(['sidebar-counts'])` (har mutatsiyaga qo'lda yozilmaydi).
+- `NavItem` ga `count?: keyof SidebarCounts` maydoni; 0 — badge yo'q;
+  akkordeon yopiq bo'lsa guruhda yig'indi; yig'ilgan panelda nuqta;
+  `99+`; rang `primary`; xato jim yutiladi — menyu ishlayveradi.
+
+### 15.2. Bosh sahifa navbati — endi bitta so'rov
+
+`GET /api/my-work/` — eski 3-6 talik so'rov to'plamini almashtiradi.
+Havola: `entityLink(item.entity, item.id)`. Matn: `reason` kodi bo'yicha
+frontda lug'at (kodlar ro'yxati 05-API da). `level=danger` birinchi.
+Raqamlar yon panel bilan ta'rifan bir xil — ikkala manba bitta funksiya.
+
+### 15.3. "Xodim" ustuni va filtri (admin/bugalter)
+
+- `created_by_name` endi shartnoma va konfiguratsiyada (to'liq ism).
+- Filtr: `?created_by=3` (shartnoma/konfiguratsiya/zayavka/TLD),
+  TLD da `?owner_sales=3` ham. Tanlov `GET /users/?role=sales` dan —
+  bugalterga ham ochildi. Qiymat URL da saqlansin.
+- Ustun faqat hammasini ko'radigan rollarda (admin, bugalter, buyurtmachi).
+- Zayavkada ikkala xodim: `created_by_name` (kim so'radi) va
+  `taken_by_name` (kim bajaryapti).
+
+### 15.4. Bosqichda egasining ismi (§6)
+
+Birinchi qadam "Chernovik" o'rniga **tuzgan sales ismi**
+(`created_by_name`); qolgan qadamlar o'zgarishsiz. O'z hujjatida "Siz" deb
+yozish mumkin. Uzun ism: `max-w-[10ch]` + `truncate` + `title`.
+⚠️ Admin foydalanuvchilarning ism-familiyasini to'ldirsin — aks holda
+`sales1` chiqadi.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

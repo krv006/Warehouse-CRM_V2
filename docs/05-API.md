@@ -197,6 +197,24 @@ Holatlar: `new` → `in_progress` (take) → `done` (complete). Raqam: `ZVK-0000
 
 ---
 
+## Menga taqalgan ish (EGALIK §2)
+
+| Metod | Manzil | Izoh |
+|---|---|---|
+| GET | `/my-work/` | bosh sahifa navbati: `{counts, items}` — rol bo'yicha "mendan amal kutilmoqda" ro'yxati |
+| GET | `/sidebar-counts/` | yon panel hisoblagichi: faqat sonlar; `/my-work/` `counts` bilan aynan bir xil (bitta funksiya) |
+
+`items[]` qatori: `{section, entity, id, number, reason, amount, currency,
+level}`. Havolani front `entity`+`id` dan quradi, ko'rsatma matnini `reason`
+kodidan yozadi (`awaiting_didox`, `awaiting_payment`, `client_approval`,
+`draft_to_submit`, `fix_and_resubmit`, `contact_due`, `take_request`,
+`configure`, `assemble`, `track_delivery`, `decide_expense`, `loan_due`,
+`awaiting_admin_approve`, `awaiting_client_payment`, `awaiting_check`,
+`in_progress`). `level`: `info`/`warning`/`danger` — danger birinchi turadi.
+Bo'lim kalitlari: `contracts`, `leads`, `requests`, `configurations`,
+`replenishments`, `low_stock`, `expense_requests`, `loans`; 0 bo'lsa badge
+chizilmaydi. Ruxsat: istalgan login — javob so'rovchi roli bo'yicha.
+
 ## Configurator
 
 | Metod | Manzil | Izoh |

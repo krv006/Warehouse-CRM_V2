@@ -118,6 +118,8 @@ class ConfigurationSerializer(ModelSerializer):
     client_name = ReadOnlyField(source='client.display_name')
     base_product_name = ReadOnlyField(source='base_product.name')
     status_display = ReadOnlyField(source='get_status_display')
+    # EGALIK §5: "Xodim" ustuni uchun — qaysi engineer ishlayapti
+    created_by_name = ReadOnlyField(source='created_by.display_name')
     act_number = ReadOnlyField(source='act.number')
     total_price = ReadOnlyField()
     items_total = ReadOnlyField()
@@ -135,7 +137,7 @@ class ConfigurationSerializer(ModelSerializer):
             'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
             'ready_variant', 'missing_count', 'procurement', 'sent_to_procurement',
-            'removals', 'created_by', 'created_at',
+            'removals', 'created_by', 'created_by_name', 'created_at',
         ]
         read_only_fields = ['number', 'created_by', 'variant']
 
@@ -224,8 +226,9 @@ class ConfigurationRequestSerializer(ModelSerializer):
     client_name = ReadOnlyField(source='client.display_name')
     base_product_name = ReadOnlyField(source='base_product.name')
     configuration_number = ReadOnlyField(source='configuration.number')
-    taken_by_name = ReadOnlyField(source='taken_by.username')
-    created_by_name = ReadOnlyField(source='created_by.username')
+    # Ikki xodim: kim so'radi (sales) va kim bajaryapti (engineer) — EGALIK §5.5
+    taken_by_name = ReadOnlyField(source='taken_by.display_name')
+    created_by_name = ReadOnlyField(source='created_by.display_name')
 
     class Meta:
         model = ConfigurationRequest

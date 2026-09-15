@@ -731,6 +731,43 @@ Texnik o'zgarishlar:
 
 ---
 
+## 8.22 "Menga taqalgan ish" API si va "kim ishlayapti" 📊
+
+SIDEBAR-VA-EGALIK spetsifikatsiyasi, B-to'plam.
+
+**Ikki yangi endpoint, bitta manba** (`apps/core/services.py::collect_work`):
+
+- `GET /my-work/` — bosh sahifa navbati: `{counts, items}`. Har item:
+  `section`, `entity`+`id` (havolani front quradi), `number`, `reason` kodi
+  (matnni front yozadi: `awaiting_didox`, `client_approval`,
+  `fix_and_resubmit`, `assemble`, `track_delivery`, `loan_due`...),
+  `amount`, `currency`, `level` (`info`/`warning`/`danger`, danger birinchi).
+- `GET /sidebar-counts/` — yon panel: faqat sonlar, faqat COUNT so'rovlari
+  (60 soniyalik polling uchun); my-work `counts` bilan ta'rifan bir xil.
+
+Rol bo'yicha nima sanaladi — spetsifikatsiyaning §2.3 jadvali aynan:
+sales faqat O'ZINIKI (shartnoma draft/rejected/approved, kelishuv aloqa
+sanasi, `pending_sales` hisob — `owner_sales` bo'yicha), engineer `new`
+zayavka + o'zi olgani + o'z konfiguratsiyalari (draft + yig'ilmagan ready),
+bugalter/admin tasdiq navbatlari, buyurtmachi qoralamalar/yo'ldagilar +
+yetishmayotganlar, admin xarajat so'rovlari, bugalter/admin qarz ≤ 10 kun.
+
+**Unumdorlik (§2.4):** `low_stock` Python siklidan bitta SQL annotatsiyaga
+o'tkazildi (`low_stock_queryset()` — jami − qattiq bron <= reorder_level);
+qarz muddati ham SQL sharti bilan.
+
+**Kim ishlayapti (§5/§6):**
+
+- `User.display_name` (to'liq ism, bo'lmasa username) — `created_by_name`
+  endi `Contract` va `Configuration` javoblarida; approvals/zayavka
+  serializerlari ham `username` emas, `display_name` qaytaradi.
+- `created_by` filtri va saralash: shartnoma, konfiguratsiya, zayavka, TLD;
+  TLD da qo'shimcha `owner_sales` (+`owner_sales_name`).
+- `GET /users/` o'qish **bugalterga ochildi** (yangi `UserDirectoryAccess`) —
+  "Xodim" filtri to'ldiriladi; yozish (rol berish) faqat adminda qoldi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -759,8 +796,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **98** |
+| REST endpoint | 70 | **100** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **32** |
-| Testlar | 66 | **300** |
+| Testlar | 66 | **312** |
 | Rollar | 3 | **5** |

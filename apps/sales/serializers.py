@@ -57,7 +57,7 @@ class ContractItemSerializer(ModelSerializer):
 class ContractApprovalSerializer(ModelSerializer):
     step_display = ReadOnlyField(source='get_step_display')
     decision_display = ReadOnlyField(source='get_decision_display')
-    decided_by_name = ReadOnlyField(source='decided_by.username')
+    decided_by_name = ReadOnlyField(source='decided_by.display_name')
 
     class Meta:
         model = ContractApproval
@@ -89,6 +89,8 @@ class ContractSerializer(ModelSerializer):
     approvals = ContractApprovalSerializer(many=True, read_only=True)
     payments = ContractPaymentSerializer(many=True, read_only=True)
     client_name = ReadOnlyField(source='client.display_name')
+    # EGALIK §6: bosqich chizig'ining birinchi qadami — tuzgan sales ismi
+    created_by_name = ReadOnlyField(source='created_by.display_name')
     status_display = ReadOnlyField(source='get_status_display')
     items_total = ReadOnlyField()
     vat_total = ReadOnlyField()
@@ -103,7 +105,7 @@ class ContractSerializer(ModelSerializer):
         model = Contract
         fields = [
             'id', 'number', 'client', 'client_name', 'configuration', 'status',
-            'status_display', 'currency', 'items_total', 'vat_total',
+            'status_display', 'created_by_name', 'currency', 'items_total', 'vat_total',
             'items_total_with_vat', 'total_amount', 'prepayment_percent',
             'prepayment_amount', 'term_days', 'signed_at', 'start_date',
             'didox_number', 'didox_accepted_at', 'note',
