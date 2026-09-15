@@ -1,6 +1,6 @@
 from rest_framework.response import Response
 
-from apps.accounts.permissions import IsAdminOrBugalter, IsAdminOrSales
+from apps.accounts.permissions import IsAdminOrBugalter, IsAdminOrSales, IsOwnerOrAdmin
 from apps.core.mixins import BaseModelViewSet
 from apps.core.models import ActivityLog
 from apps.sales.models import (
@@ -38,13 +38,27 @@ class ContractViewSet(BaseModelViewSet):
         .all()
     )
     serializer_class = ContractSerializer
-    permission_classes = [IsAdminOrSales]
+    permission_classes = [IsAdminOrSales, IsOwnerOrAdmin]
     search_fields = ['number', 'client__full_name', 'client__company_name']
     # EGALIK §5: admin/bugalter "sales1 ning shartnomalari"ni ajratib ko'radi
     filterset_fields = ['status', 'client', 'currency', 'configuration', 'created_by']
     ordering_fields = ['created_at', 'number', 'total_amount', 'created_by']
 
     EDITABLE_STATUSES = {Contract.Status.DRAFT, Contract.Status.REJECTED}
+
+    def get_queryset(self):
+        """EGALIK §3.2: sales faqat O'Z shartnomasini ko'radi.
+
+        Bugalter va admin zanjirda — hammasini ko'radi (tasdiqlash uchun).
+        Egasiz eski yozuvlar faqat admin/bugalterga ko'rinadi.
+        """
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_admin or user.is_bugalter:
+            return qs
+        if user.is_sales:
+            return qs.filter(created_by=user)
+        return qs.none()
 
     def get_permissions(self):
         if self.action in BUGALTER_ACTIONS:
@@ -245,8 +259,17 @@ class ContractItemViewSet(BaseModelViewSet):
 
     queryset = ContractItem.objects.select_related('contract', 'product').all()
     serializer_class = ContractItemSerializer
-    permission_classes = [IsAdminOrSales]
+    permission_classes = [IsAdminOrSales, IsOwnerOrAdmin]
     filterset_fields = ['contract', 'product']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_admin or user.is_bugalter:
+            return qs
+        if user.is_sales:
+            return qs.filter(contract__created_by=user)
+        return qs.none()
 
     EDITABLE_STATUSES = {Contract.Status.DRAFT, Contract.Status.REJECTED}
 
@@ -302,6 +325,15 @@ class ContractPaymentViewSet(BaseModelViewSet):
     permission_classes = [IsAdminOrBugalter]
     filterset_fields = ['contract', 'method', 'is_prepayment']
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_admin or user.is_bugalter:
+            return qs
+        if user.is_sales:
+            return qs.filter(contract__created_by=user)
+        return qs.none()
+
     def create(self, request, *args, **kwargs):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
@@ -332,13 +364,32 @@ class ContractApprovalViewSet(BaseModelViewSet):
     serializer_class = ContractApprovalSerializer
     filterset_fields = ['contract', 'step', 'decision']
 
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_admin or user.is_bugalter:
+            return qs
+        if user.is_sales:
+            return qs.filter(contract__created_by=user)
+        return qs.none()
+
 
 class LeadViewSet(BaseModelViewSet):
     """Og'zaki kelishuv jarayoni."""
 
     queryset = Lead.objects.select_related('client', 'contract', 'created_by').all()
     serializer_class = LeadSerializer
-    permission_classes = [IsAdminOrSales]
+    permission_classes = [IsAdminOrSales, IsOwnerOrAdmin]
     search_fields = ['title', 'client__full_name', 'client__company_name']
-    filterset_fields = ['stage', 'client']
+    filterset_fields = ['stage', 'client', 'created_by']
     ordering_fields = ['created_at', 'next_contact_at']
+
+    def get_queryset(self):
+        """EGALIK §3.2: kelishuv — shaxsiy quvur, sales faqat o'zinikini ko'radi."""
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_admin:
+            return qs
+        if user.is_sales:
+            return qs.filter(created_by=user)
+        return qs.none()

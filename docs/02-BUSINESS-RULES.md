@@ -304,6 +304,16 @@ boshqa valyuta doim adminga (§11.3). Shartnoma va qatorlari tasdiqqa
 yuborilgach qulflanadi (faqat admin), qator o'zgarganda `total_amount`
 avtomatik qayta hisoblanadi (§10.3); rad etilgani tuzatilib qayta yuboriladi.
 
+**Hujjat egaligi (EGALIK §3):** sales va engineer ko'p, shuning uchun
+ularda egalik filtri bor: sales faqat o'z shartnomasi/kelishuvi/zayavkasini
+(va o'z zayavkasidan tug'ilgan konfiguratsiyani), engineer o'z
+konfiguratsiyasi + hali olinmagan `new` zayavkalarni ko'radi; TLD da sales
+faqat o'z `pending_sales` hisobini ko'radi. Bugalter/admin zanjirda —
+hammasini ko'radi; buyurtmachi bitta bo'lim — TLD ni to'liq ko'radi.
+Yozish — faqat egasi va admin. Admin to'liq zaxira: ta'tildagi sales o'rniga
+ko'radi, tahrirlaydi va yubora oladi. Avtomatik shartnoma egasi — zayavkani
+yozgan sales.
+
 **Hovuz va egalik (EGALIK §4):** bildirishnoma yo hovuzga (roldagi har
 bir odamga alohida yozuv — keyingi qadamni istalgani bajara oladi), yo
 egasiga (faqat u bajara oladi) boradi; `user=None` umumiy xabar taqiqlangan.

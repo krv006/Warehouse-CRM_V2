@@ -128,7 +128,17 @@ class SalesGateTests(APITestCase):
         )
 
     def test_sales_reads_replenishment(self):
-        """Sales hisobni ochib ko'ra oladi (mijoz bilan kelishish uchun)."""
+        """Sales o'z navbatidagi (pending_sales) hisobni ochib ko'ra oladi.
+
+        EGALIK §3.2: sales uchun faqat mijoz roziligi bosqichidagi hisob
+        ochiq — qoralama va boshqa bosqichlar unga ko'rinmaydi.
+        """
+        self.client.force_authenticate(self.sales)
+        # Hali yuborilmagan (draft) hisob sales'ga ko'rinmaydi
+        response = self.client.get(f'/api/replenishments/{self.client_order.id}/')
+        self.assertEqual(response.status_code, 404)
+
+        self._submit(self.client_order)
         self.client.force_authenticate(self.sales)
         response = self.client.get(f'/api/replenishments/{self.client_order.id}/')
         self.assertEqual(response.status_code, 200)

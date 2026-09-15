@@ -46,20 +46,29 @@ def create_contract_from_configuration(configuration, user, client=None):
     if existing:
         return existing
 
+    request_obj = (
+        configuration.requests.filter(created_by__isnull=False)
+        .order_by('-created_at').first()
+    )
     if client is None:
-        request_obj = (
+        client_request = (
             configuration.requests.filter(client__isnull=False)
             .order_by('-created_at').first()
         )
-        client = request_obj.client if request_obj else None
+        client = client_request.client if client_request else None
     if client is None:
         return None
+
+    # EGALIK §3.2: avtomatik shartnomaning egasi — zayavkani yozgan SALES
+    # (finalize'ni engineer bosadi, lekin shartnoma sales'niki bo'lishi kerak,
+    # aks holda u o'z shartnomasini ko'rmay qolardi)
+    owner = request_obj.created_by if request_obj else user
 
     contract = Contract.objects.create(
         client=client,
         configuration=configuration,
         note=f'{configuration.number} konfiguratsiyasi asosida avtomatik ochildi',
-        created_by=user,
+        created_by=owner,
     )
     ContractItem.objects.create(
         contract=contract,
@@ -121,6 +130,14 @@ def _require_role(user, *, bugalter=False, admin=False, sales=False):
 def submit_contract(contract, user):
     """Sales shartnomani bugalter tasdig'iga yuboradi."""
     _require_role(user, sales=True)
+    # EGALIK §3.4: istalgan sales emas — faqat egasi yuboradi (admin istisno;
+    # egasiz eski yozuvni bloklamaymiz)
+    if (
+        not user.is_admin
+        and contract.created_by_id
+        and contract.created_by_id != user.id
+    ):
+        raise PermissionDenied('Bu shartnoma sizniki emas — faqat egasi yuboradi.')
     # Rad etilgan shartnoma tuzatilib qayta yuboriladi (TLD dagi kabi)
     if contract.status not in {Contract.Status.DRAFT, Contract.Status.REJECTED}:
         raise ValidationError('Faqat qoralama shartnoma yuboriladi.')

@@ -574,6 +574,26 @@ yozish mumkin. Uzun ism: `max-w-[10ch]` + `truncate` + `title`.
 ⚠️ Admin foydalanuvchilarning ism-familiyasini to'ldirsin — aks holda
 `sales1` chiqadi.
 
+## 16. Hujjat egaligi (EGALIK C-to'plam) 🔴
+
+Backend endi obyekt darajasida filtrlaydi — front ro'yxatni qo'shimcha
+filtrlamaydi, u o'zi qisqargan bo'lib keladi. Ikki joy o'zgaradi:
+
+1. **Tugmalar:** "Tahrirlash"/"Yuborish" boshqaning hujjatida chiqmasin —
+   `created_by` javobda bor, joriy user id bilan solishtiring (admin doim
+   ko'radi). Endi boshqaniki baribir **404** (403 emas — hujjat borligi ham
+   bilinmasin).
+2. **Bo'sh ro'yxat matni:** "Shartnoma yo'q" emas — **"Sizda shartnoma
+   yo'q"** (sales tizimda umuman shartnoma yo'q deb o'ylamasin). Kelishuv,
+   zayavka, konfiguratsiyada ham shunday.
+
+Diqqat: sales endi TLD ro'yxatida faqat o'z `pending_sales` hisobini
+ko'radi (draft/boshqa bosqichlar 404) — sales'ning TLD sahifasi shunga
+moslansin. Buyurtmachi TLD kartasidagi konfiguratsiya havolasi buyurtmachiga
+404 beradi (konfiguratsiya unga ochiq emas) — havolani faqat ko'ra oladigan
+rollarga chizing. `reassign` (egasini almashtirish) hozircha yo'q — ta'tilda
+admin davom ettiradi.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

@@ -7,6 +7,7 @@ from rest_framework.status import HTTP_400_BAD_REQUEST
 from apps.accounts.permissions import (
     ConfigurationRequestAccess,
     ConfiguratorAccess,
+    IsOwnerOrAdmin,
 )
 from apps.configurator.models import (
     Act,
@@ -58,7 +59,7 @@ class ConfigurationViewSet(BaseModelViewSet):
     konfiguratsiyani tayyorlab zayavkaga biriktiradi.
     """
 
-    permission_classes = [ConfiguratorAccess]
+    permission_classes = [ConfiguratorAccess, IsOwnerOrAdmin]
 
     queryset = (
         Configuration.objects
@@ -70,6 +71,23 @@ class ConfigurationViewSet(BaseModelViewSet):
     search_fields = ['number', 'client__full_name', 'client__company_name']
     filterset_fields = ['status', 'client', 'base_product', 'act', 'created_by']
     ordering_fields = ['created_at', 'number', 'created_by']
+
+    def get_queryset(self):
+        """EGALIK §3.2: engineer o'zinikini, sales o'z zayavkasidan tug'ilganini.
+
+        Sales uchun bog'lanish zanjir bo'ylab: Configuration -> requests ->
+        created_by — aks holda u o'z shartnomasining ortidagi
+        konfiguratsiyani umuman ko'rmay qolardi.
+        """
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_admin:
+            return qs
+        if user.is_engineer:
+            return qs.filter(created_by=user)
+        if user.is_sales:
+            return qs.filter(requests__created_by=user).distinct()
+        return qs.none()
 
     # §11.1: finalize ham engineerda — ACT bilan yakunlash tarkib egasining
     # ishi. ConfiguratorAccess (yozish: engineer, admin) buni o'zi qamraydi.
@@ -314,8 +332,19 @@ class ConfigurationItemViewSet(BaseModelViewSet):
 
     queryset = ConfigurationItem.objects.select_related('configuration', 'component').all()
     serializer_class = ConfigurationItemSerializer
-    permission_classes = [ConfiguratorAccess]
+    permission_classes = [ConfiguratorAccess, IsOwnerOrAdmin]
     filterset_fields = ['configuration', 'component']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_admin:
+            return qs
+        if user.is_engineer:
+            return qs.filter(configuration__created_by=user)
+        if user.is_sales:
+            return qs.filter(configuration__requests__created_by=user).distinct()
+        return qs.none()
 
     def _check_draft(self, configuration):
         if configuration.status != Configuration.Status.DRAFT:
@@ -330,9 +359,15 @@ class ConfigurationItemViewSet(BaseModelViewSet):
         sync_configuration_reservations(configuration)
 
     def perform_create(self, serializer):
+        from rest_framework.exceptions import PermissionDenied
+
         configuration = serializer.validated_data.get('configuration')
         if configuration is None:
             raise ValidationError({'configuration': "Konfiguratsiya ko'rsatilishi shart."})
+        # EGALIK §3: boshqa engineerning konfiguratsiyasiga qator qo'shilmaydi
+        user = self.request.user
+        if not user.is_admin and configuration.created_by_id not in (None, user.id):
+            raise PermissionDenied('Bu konfiguratsiya sizniki emas.')
         self._check_draft(configuration)
         super().perform_create(serializer)
         self._resync_reservations(configuration)
@@ -362,6 +397,23 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
     search_fields = ['number', 'text', 'client__full_name', 'client__company_name']
     filterset_fields = ['status', 'client', 'taken_by', 'configuration', 'created_by']
     ordering_fields = ['created_at', 'number', 'created_by']
+
+    def get_queryset(self):
+        """EGALIK §3.3: engineer `new` hammasini ko'radi (kim birinchi olsa
+        o'shaniki) + o'zi olganini; sales — o'zi yozganini; admin — hammasini."""
+        from django.db.models import Q
+
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_admin:
+            return qs
+        if user.is_engineer:
+            return qs.filter(
+                Q(status=ConfigurationRequest.Status.NEW) | Q(taken_by=user),
+            )
+        if user.is_sales:
+            return qs.filter(created_by=user)
+        return qs.none()
 
     def perform_create(self, serializer):
         super().perform_create(serializer)

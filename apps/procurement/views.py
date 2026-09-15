@@ -61,6 +61,23 @@ class ReplenishmentViewSet(BaseModelViewSet):
     ]
     ordering_fields = ['created_at', 'number', 'created_by']
 
+    def get_queryset(self):
+        """EGALIK §3.2: ta'minot — bitta bo'lim, buyurtmachi/bugalter/admin
+        hammasini ko'radi; sales faqat mijoz roziligi bosqichidagi O'Z hisobini
+        (egasiz eskilarini ham — xabar yo'qolmasin)."""
+        from django.db.models import Q
+
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_admin or user.is_bugalter or user.is_supplier:
+            return qs
+        if user.is_sales:
+            return qs.filter(
+                Q(owner_sales=user) | Q(owner_sales__isnull=True),
+                status=Replenishment.Status.PENDING_SALES,
+            )
+        return qs.none()
+
     def get_permissions(self):
         if self.action in APPROVAL_ACTIONS:
             return [ProcurementApprovalAccess()]
@@ -192,6 +209,19 @@ class ReplenishmentItemViewSet(BaseModelViewSet):
     serializer_class = ReplenishmentItemSerializer
     permission_classes = [ProcurementAccess]
     filterset_fields = ['replenishment', 'product']
+
+    def get_queryset(self):
+        from django.db.models import Q
+
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_sales:
+            return qs.filter(
+                Q(replenishment__owner_sales=user)
+                | Q(replenishment__owner_sales__isnull=True),
+                replenishment__status=Replenishment.Status.PENDING_SALES,
+            )
+        return qs
 
     def _check_editable(self, item):
         user = self._current_user()

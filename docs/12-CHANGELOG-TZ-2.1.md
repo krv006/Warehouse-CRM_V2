@@ -768,6 +768,39 @@ qarz muddati ham SQL sharti bilan.
 
 ---
 
+## 8.23 Hujjat egaligi: sales va engineer faqat o'zinikini ko'radi 🔐
+
+SIDEBAR-VA-EGALIK spetsifikatsiyasi, C-to'plam. Obyekt darajasidagi filtr
+endi backendda (`get_queryset()`) — UI da yashirish yetarli emas edi:
+`GET /contracts/{id}/` va `PATCH` baribir ishlayotgandi.
+
+**Ko'rinish (§3.2 jadvali aynan):**
+
+| Model | sales | engineer | bugalter | admin |
+|---|---|---|---|---|
+| Shartnoma (+qatorlar, to'lovlar, tasdiqlar) | faqat o'ziniki | — | hammasi | hammasi |
+| Kelishuv (Lead) | faqat o'ziniki | — | — | hammasi |
+| Zayavka (ZVK) | o'zi yozgani | `new` hammasi + o'zi olgani | — | hammasi |
+| Konfiguratsiya (+qatorlar) | o'z zayavkasidan tug'ilgani | faqat o'ziniki | — | hammasi |
+| To'ldirish (TLD) | o'z `pending_sales` hisobi | — | hammasi | hammasi (buyurtmachi ham hammasini) |
+
+Boshqaning hujjati endi ro'yxatda chiqmaydi va `GET/PATCH/submit` **404**
+qaytaradi — hujjat borligi ham bilinmaydi.
+
+**Tahrir:** yangi `IsOwnerOrAdmin` — yozish faqat egasi va admin (qatorlar
+ota-hujjat orqali tekshiriladi); `submit_contract` da xizmat darajasidagi
+qo'riqchi ham bor. Egasiz eski yozuvlar bloklanmaydi (admin/bugalter ko'radi).
+
+**Avtomatik shartnoma egasi:** `finalize`ni engineer bossa ham shartnoma
+**zayavkani yozgan sales'niki** bo'ladi — aks holda sales o'z shartnomasini
+ko'rmay qolardi.
+
+**Zaxira:** admin hammasini ko'radi, tahrirlaydi va sales nomidan yubora
+oladi — ta'tildagi xodim ishni qulflamaydi. `reassign` (egasini almashtirish)
+keyingi bosqichga yozib qo'yildi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -799,5 +832,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **100** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **32** |
-| Testlar | 66 | **312** |
+| Testlar | 66 | **323** |
 | Rollar | 3 | **5** |

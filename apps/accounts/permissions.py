@@ -95,6 +95,38 @@ class ProductSpecAccess(RoleAccess):
     message = 'Tarkibni engineer yoki buyurtmachi kiritadi.'
 
 
+class IsOwnerOrAdmin(BasePermission):
+    """Yozish — faqat hujjat egasi va admin (EGALIK §3.4).
+
+    O'qishga aralashmaydi (ko'rinishni `get_queryset()` hal qiladi).
+    Egasi to'g'ridan-to'g'ri (`created_by`) yoki ota-hujjat orqali
+    (qator -> shartnoma/konfiguratsiya) topiladi. Egasiz eski yozuvni
+    faqat admin o'zgartiradi.
+    """
+
+    message = 'Bu hujjat sizniki emas — faqat egasi va admin o\'zgartiradi.'
+
+    def _owner_id(self, obj):
+        if getattr(obj, 'created_by_id', None):
+            return obj.created_by_id
+        parent = getattr(obj, 'contract', None) or getattr(obj, 'configuration', None)
+        if parent is not None:
+            return parent.created_by_id
+        return None
+
+    def has_object_permission(self, request, view, obj):
+        if request.method in SAFE_METHODS:
+            return True
+        user = request.user
+        if user.is_admin:
+            return True
+        owner_id = self._owner_id(obj)
+        if owner_id is None:
+            # Egasiz eski yozuv — rol ruxsati yetadi (bloklab qo'ymaslik uchun)
+            return True
+        return owner_id == user.id
+
+
 class UserDirectoryAccess(RoleAccess):
     """Xodimlar ro'yxati: admin va bugalter o'qiydi (EGALIK §5.3).
 

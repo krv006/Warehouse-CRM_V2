@@ -30,6 +30,7 @@
 | `ProcurementApprovalAccess` | admin, bugalter, buyurtmachi, sales | admin, sales, bugalter — qaysi bosqichda kim tasdiqlashini servis tekshiradi |
 | `ConfiguratorAccess` | barcha login qilganlar | **admin, engineer** |
 | `ProductSpecAccess` | barcha login qilganlar | admin, engineer, buyurtmachi |
+| `IsOwnerOrAdmin` | aralashmaydi (ko'rinish — `get_queryset()`) | **egasi + admin** — shartnoma/kelishuv/konfiguratsiya va qatorlari (EGALIK §3.4) |
 | `UserDirectoryAccess` | **admin, bugalter** — xodimlar ro'yxati (`GET /users/`); yozish bu sinfda umuman yo'q |
 | `ProductPricingAccess` | barcha login qilganlar | **admin, bugalter** — katalog narx siyosati: `PATCH /products/{id}/` (`sale_price`, `cost_price`, `reorder_level`, `is_active`) |
 | `ConfigurationRequestAccess` | barcha login qilganlar | admin, sales, engineer |
@@ -57,7 +58,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | `/api/acts/` | hamma | **engineer** (admin) | §11.1: ACT — tarkibga asos hujjat, uni tarkib egasi (engineer) yuritadi |
 | `/api/configurations/`, `/configuration-items/` | hamma | **admin, engineer** | sales configurator ishini qilmaydi — zayavka yuboradi; §11.1: `finalize` va `assemble` ham **engineer** (admin), sales'ga 403 |
 | `/api/configuration-requests/` | hamma | admin, sales, engineer | `take`/`complete` — faqat engineer (admin) |
-| `/api/leads/`, `/contracts/`, `/contract-items/` | hamma | admin, sales | narx faqat sales va adminga ko'rinadi |
+| `/api/leads/`, `/contracts/`, `/contract-items/` | EGALIK §3: sales — **faqat o'ziniki**; bugalter/admin — hammasi (lead: faqat egasi va admin) | egasi (admin) | narx faqat sales va adminga ko'rinadi; boshqaniki 404 |
 | `/api/contract-payments/` | hamma | admin, bugalter | |
 | `/api/contract-approvals/` | hamma | — | faqat o'qish |
 | `/api/purchases/`, `/purchase-items/` | **admin, bugalter, buyurtmachi** | admin, bugalter | sales — 403 |
@@ -71,7 +72,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | Dashboard | ✅ ko'radi |
 | Mijozlar | ✅ ko'radi va qo'shadi |
 | Leads (og'zaki kelishuv) | ✅ ko'radi va yuritadi |
-| Shartnomalar | ✅ tuzadi, yuboradi, **sotuv narxini ko'radi** |
+| Shartnomalar | ✅ tuzadi, yuboradi, **sotuv narxini ko'radi** — lekin **faqat o'zinikini** (EGALIK §3) |
 | Configurator | 👁 ko'radi; **zayavka yuboradi** (`/configuration-requests/`); §11.1: engineer ACT bilan yakunlab tayyor shartnomani topshiradi |
 | ACT | 👁 faqat ko'radi — §11.1: ACT engineerga o'tdi |
 | Ombor (mahsulot, qoldiq, harakat) | 👁 **faqat ko'radi** — bu bo'lim hamma uchun faqat o'qish |
