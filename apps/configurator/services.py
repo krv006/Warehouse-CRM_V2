@@ -431,10 +431,21 @@ def send_missing_to_procurement(configuration, user):
             'detail': "Barcha butlovchilar omborda yetarli — buyurtmachiga yuborish shart emas.",
         })
 
+    # §4.3 (SIDEBAR-VA-EGALIK): zayavka egasi (sales) bir marta topilib hisobga
+    # yozib qo'yiladi — bildirishnoma va pending_sales bosqichi shu odamniki
+    owner_request = (
+        configuration.requests
+        .filter(created_by__isnull=False)
+        .order_by('-created_at')
+        .first()
+    )
+    owner_sales = owner_request.created_by if owner_request else None
+
     with atomic():
         replenishment = Replenishment.objects.create(
             warehouse=configuration.warehouse or main_warehouse(),
             configuration=configuration,
+            owner_sales=owner_sales,
             note=f"{configuration.number} uchun yetishmayotgan butlovchilar",
             created_by=user,
         )
@@ -447,18 +458,29 @@ def send_missing_to_procurement(configuration, user):
                 note=f'{configuration.number} konfiguratsiyasi uchun',
             )
 
+    # Hovuz: buyurtmachi (ish unga keldi) va bugalter (oldindan biladi).
+    # Sales — hovuz EMAS (§4.2): faqat zayavka egasi; egasi aniqlanmasa
+    # (ZVK'siz konfiguratsiya) barcha sales'ga tushadi — xabar yo'qolmasin.
+    names = ', '.join(item.component.name for item in missing)
     messages = {
         User.Role.SUPPLIER: 'kirim qilish kerak — buyurtmani rasmiylashtirib yuboring.',
-        User.Role.SALES: 'kirim qilish kerak — mijoz buyurtmasi shu kirimni kutadi.',
         User.Role.BUGALTER: "tekshirib chiqing — buyurtmachi yuborgach tasdiq sizdan boshlanadi.",
     }
-    names = ', '.join(item.component.name for item in missing)
-    recipients = User.objects.filter(role__in=messages.keys(), is_active=True)
-    for recipient in recipients:
+    recipients = list(
+        User.objects.filter(role__in=messages.keys(), is_active=True)
+    )
+    sales_message = 'kirim qilish kerak — mijoz buyurtmangiz shu kirimni kutadi.'
+    if owner_sales:
+        sales_recipients = [owner_sales]
+    else:
+        sales_recipients = list(
+            User.objects.filter(role=User.Role.SALES, is_active=True)
+        )
+    for recipient in recipients + sales_recipients:
         Notification.objects.create(
             user=recipient,
             title=f"{configuration.number}: omborda yo'q butlovchilar ({replenishment.number})",
-            message=f'{names} — {messages[recipient.role]}',
+            message=f'{names} — {messages.get(recipient.role, sales_message)}',
             level=Notification.Level.WARNING,
             entity='Replenishment',
             object_id=str(replenishment.pk),

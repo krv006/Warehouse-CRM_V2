@@ -528,6 +528,14 @@ bo'lim:
   `contract` bosqichiga o'tadi — kanban shunga tayyor bo'lsin.
 - `attach` endpointi va `attached` holati o'chirildi (§10.7).
 
+## 14. Bildirishnoma manzillari (EGALIK A-to'plam) 🟢 front ishi minimal
+
+Backend endi xabarlarni aniq egasiga yo'naltiradi: sales faqat O'Z zayavkasi
+bo'yicha xabar oladi, muddat eslatmalari rolga qarab boradi, `user=null`
+umumiy xabar yo'q. Frontda o'zgarish shart emas — qo'ng'iroqcha avvalgidek
+`/notifications/` ni o'qiyveradi (endi shovqin keskin kamayadi).
+TLD javobiga keyingi bosqichda `owner_sales` filtri qo'shiladi (B-to'plam).
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

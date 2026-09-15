@@ -304,6 +304,13 @@ boshqa valyuta doim adminga (§11.3). Shartnoma va qatorlari tasdiqqa
 yuborilgach qulflanadi (faqat admin), qator o'zgarganda `total_amount`
 avtomatik qayta hisoblanadi (§10.3); rad etilgani tuzatilib qayta yuboriladi.
 
+**Hovuz va egalik (EGALIK §4):** bildirishnoma yo hovuzga (roldagi har
+bir odamga alohida yozuv — keyingi qadamni istalgani bajara oladi), yo
+egasiga (faqat u bajara oladi) boradi; `user=None` umumiy xabar taqiqlangan.
+Sales hovuz emas: TLD bo'yicha xabarlar zayavka egasiga (`owner_sales`)
+boradi. Muddat eslatmalari: shartnoma — egasi+bugalter+admin, qarz —
+bugalter+admin, kirim — bugalter+buyurtmachi, kelishuv — egasi.
+
 **Bildirishnomalar:** har bir tasdiq navbatni keyingi bosqich egasiga
 o'tkazganda unga `/notifications/` orqali xabar tushadi: submit'da sales
 (mijoz buyurtmasi) yoki bugalterga, sales tasdig'ida bugalterga, bugalter

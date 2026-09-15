@@ -118,9 +118,7 @@ class DashboardView(APIView):
             },
             'deadlines': deadlines,
             'notifications': NotificationSerializer(
-                Notification.objects.filter(
-                    Q(user=request.user) | Q(user__isnull=True), is_read=False,
-                )[:10],
+                Notification.objects.filter(user=request.user, is_read=False)[:10],
                 many=True,
             ).data,
         })
@@ -162,11 +160,10 @@ class NotificationViewSet(ReadOnlyModelViewSet):
     filterset_fields = ['is_read', 'level', 'entity']
 
     def get_queryset(self):
+        # §4.4: faqat o'ziniki — user=None "e'lon taxtasi" endi mavjud emas
         if getattr(self, 'swagger_fake_view', False) or not self.request.user.is_authenticated:
             return Notification.objects.none()
-        return Notification.objects.filter(
-            Q(user=self.request.user) | Q(user__isnull=True),
-        )
+        return Notification.objects.filter(user=self.request.user)
 
     def mark_read(self, request, pk=None):
         """POST /notifications/{id}/mark-read/ — o'qilgan deb belgilash."""

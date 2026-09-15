@@ -703,6 +703,34 @@ Front vazifalari: [13-FRONT-TODO.md](13-FRONT-TODO.md) §13.
 
 ---
 
+## 8.21 Bildirishnoma manzillari: hovuz va egalik ajratildi 📬
+
+SIDEBAR-VA-EGALIK spetsifikatsiyasi, A-to'plam. Qoida: **keyingi qadamni
+roldagi istalgan odam bajara olsa — hovuz (roldagi har biriga alohida
+yozuv); faqat egasi bajara olsa — egasiga.**
+
+| Voqea | Avval | Endi |
+|---|---|---|
+| Yetishmayotganlar buyurtmachiga ketdi | barcha sales | **zayavka egasi** (topilmasa — barcha sales) |
+| Mijoz roziligi kerak (`pending_sales`) | barcha sales | **zayavka egasi** |
+| Shartnoma muddati yaqin | `user=None` — hammaga | egasi + bugalter + admin |
+| Qarz muddati yaqin | `user=None` — hammaga | bugalter + admin |
+| Kirim muddati yaqin | `user=None` — hammaga | bugalter + buyurtmachi |
+
+Texnik o'zgarishlar:
+
+1. **`Replenishment.owner_sales` FK** — zayavka egasi hisob ochilganda
+   zanjirdan (`configuration -> requests -> created_by`) bir marta topilib
+   yozib qo'yiladi; migratsiya eski hisoblarni ham to'ldiradi.
+2. **`Notification.user` endi majburiy** (CASCADE) — "e'lon taxtasi"
+   (user=None, hammaga ko'rinadigan) xabar butunlay taqiqlandi;
+   `NotificationViewSet` va dashborddan `user__isnull=True` olib tashlandi;
+   migratsiya eski egasiz yozuvlarni adminga biriktiradi.
+3. `check_deadlines` `_notify` endi bir voqeani bir nechta odamga alohida,
+   **per-user idempotent** yozadi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -734,5 +762,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **98** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **32** |
-| Testlar | 66 | **294** |
+| Testlar | 66 | **300** |
 | Rollar | 3 | **5** |

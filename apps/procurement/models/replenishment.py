@@ -49,6 +49,13 @@ class Replenishment(TimeStampedModel):
         'configurator.Configuration', SET_NULL, related_name='replenishments',
         null=True, blank=True,
     )
+    # Zayavka egasi (sales) — mijoz roziligi bosqichi va bildirishnomalar
+    # aynan shu odamga boradi; hisob ochilganda zanjirdan bir marta topiladi
+    # (Replenishment -> configuration -> requests -> created_by)
+    owner_sales = ForeignKey(
+        'accounts.User', SET_NULL, related_name='owned_replenishments',
+        null=True, blank=True,
+    )
     status = CharField(max_length=30, choices=Status.choices, default=Status.DRAFT)
     currency = CharField(max_length=3, choices=Currency.choices, default=Currency.UZS)
     # Import uchun valyuta kursi — to'lov va hisobotlarda so'mga o'girish uchun

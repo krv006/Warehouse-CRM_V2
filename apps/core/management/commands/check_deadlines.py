@@ -67,31 +67,57 @@ class Command(BaseCommand):
                 created += 1
         return created
 
-    def _notify(self, *, title, message, color, entity, object_id, due_date, user=None):
+    def _role_users(self, *roles):
+        from apps.accounts.models import User
+
+        return list(User.objects.filter(role__in=roles, is_active=True))
+
+    def _notify(self, *, title, message, color, entity, object_id, due_date,
+                user=None, users=None):
+        """Eslatma yaratadi — har bir qabul qiluvchiga alohida, takrorsiz.
+
+        `user=None` "hammaga" degani EMAS (§4.4) — manzilsiz eslatma umuman
+        yozilmaydi: har bir xabarning aniq egasi yoki hovuzi bor.
+        """
         level = LEVEL_BY_COLOR.get(color)
         if not level:
             return 0
-        exists = Notification.objects.filter(
-            entity=entity, object_id=str(object_id), due_date=due_date, is_read=False,
-        ).exists()
-        if exists:
-            return 0
-        Notification.objects.create(
-            user=user,
-            title=title,
-            message=message,
-            level=level,
-            entity=entity,
-            object_id=str(object_id),
-            due_date=due_date,
-        )
-        return 1
+        recipients = [u for u in (users if users is not None else [user]) if u]
+        created = 0
+        for recipient in recipients:
+            exists = Notification.objects.filter(
+                user=recipient, entity=entity, object_id=str(object_id),
+                due_date=due_date, is_read=False,
+            ).exists()
+            if exists:
+                continue
+            Notification.objects.create(
+                user=recipient,
+                title=title,
+                message=message,
+                level=level,
+                entity=entity,
+                object_id=str(object_id),
+                due_date=due_date,
+            )
+            created += 1
+        return created
 
     def _check_contracts(self):
+        from apps.accounts.models import User
+
         created = 0
-        contracts = Contract.objects.filter(status=Contract.Status.ACTIVE)
+        # §4.2: shartnoma muddati — egasi (sales) + bugalter + admin;
+        # engineer/buyurtmachiga shartnoma summasi tegishli emas
+        pool = self._role_users(User.Role.BUGALTER, User.Role.ADMIN)
+        contracts = Contract.objects.filter(
+            status=Contract.Status.ACTIVE,
+        ).select_related('created_by')
         for contract in contracts:
             progress = contract.progress
+            recipients = list(pool)
+            if contract.created_by and contract.created_by not in recipients:
+                recipients.append(contract.created_by)
             created += self._notify(
                 title=f'{contract.number}: {progress["days_left"]} kun qoldi',
                 message=f'Qoldiq: {contract.balance} {contract.currency}',
@@ -99,11 +125,16 @@ class Command(BaseCommand):
                 entity='Contract',
                 object_id=contract.pk,
                 due_date=progress['deadline'],
+                users=recipients,
             )
         return created
 
     def _check_loans(self):
+        from apps.accounts.models import User
+
         created = 0
+        # §4.2: qarz — pul masalasi, faqat bugalter + admin
+        pool = self._role_users(User.Role.BUGALTER, User.Role.ADMIN)
         for loan in Loan.objects.filter(status=Loan.Status.ACTIVE):
             if loan.days_left > RED_ZONE_DAYS:
                 continue
@@ -114,6 +145,7 @@ class Command(BaseCommand):
                 entity='Loan',
                 object_id=loan.pk,
                 due_date=loan.deadline,
+                users=pool,
             )
         return created
 
@@ -155,7 +187,11 @@ class Command(BaseCommand):
         return created
 
     def _check_imports(self):
+        from apps.accounts.models import User
+
         created = 0
+        # §4.2: kirim muddati — bugalter (hujjat egasi) + buyurtmachi (kuzatuvchi)
+        pool = self._role_users(User.Role.BUGALTER, User.Role.SUPPLIER)
         purchases = Purchase.objects.filter(
             status__in=[Purchase.Status.ORDERED, Purchase.Status.IN_TRANSIT],
         )
@@ -168,5 +204,6 @@ class Command(BaseCommand):
                 entity='Purchase',
                 object_id=purchase.pk,
                 due_date=progress['deadline'],
+                users=pool,
             )
         return created

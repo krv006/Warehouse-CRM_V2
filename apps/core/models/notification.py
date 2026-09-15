@@ -1,5 +1,5 @@
 from django.db.models import (
-    SET_NULL,
+    CASCADE,
     BooleanField,
     CharField,
     DateField,
@@ -12,17 +12,19 @@ from apps.core.models.base import TimeStampedModel
 
 
 class Notification(TimeStampedModel):
-    """Muddat eslatmalari (shartnoma, qarz, import)."""
+    """Muddat eslatmalari (shartnoma, qarz, import).
+
+    §4.4 (SIDEBAR-VA-EGALIK): `user` MAJBURIY — "e'lon taxtasi" (user=None,
+    hammaga ko'rinadigan) xabar taqiqlangan: har bir xabarning aniq egasi
+    yoki hovuzi bor, hovuz roldagi har bir odamga alohida yozuv bo'lib tushadi.
+    """
 
     class Level(TextChoices):
         INFO = 'info', "Ma'lumot"
         WARNING = 'warning', 'Ogohlantirish'
         DANGER = 'danger', 'Shoshilinch'
 
-    user = ForeignKey(
-        'accounts.User', SET_NULL, related_name='notifications',
-        null=True, blank=True,
-    )
+    user = ForeignKey('accounts.User', CASCADE, related_name='notifications')
     title = CharField(max_length=200)
     message = TextField(blank=True)
     level = CharField(max_length=20, choices=Level.choices, default=Level.INFO)

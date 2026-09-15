@@ -130,20 +130,25 @@ class DeadlineNotificationTests(APITestCase):
 
     def test_lead_without_date_or_closed_no_reminder(self):
         """Sana yo'q yoki yopilgan kelishuvga eslatma yozilmaydi; qayta yurishda takror yo'q."""
+        sales = User.objects.create_user('sales2', password='p', role=User.Role.SALES)
         Lead.objects.create(
             client=self.client_obj, title='Sanasiz', stage=Lead.Stage.NEW,
+            created_by=sales,
         )
         Lead.objects.create(
             client=self.client_obj, title='Yopilgan',
             stage=Lead.Stage.LOST, next_contact_at=now() - timedelta(days=1),
+            created_by=sales,
         )
         Lead.objects.create(
             client=self.client_obj, title='Hali uzoq',
             stage=Lead.Stage.NEW, next_contact_at=now() + timedelta(days=10),
+            created_by=sales,
         )
         remind_lead = Lead.objects.create(
             client=self.client_obj, title='Eslatiladigan',
             stage=Lead.Stage.NEW, next_contact_at=now() + timedelta(days=1),
+            created_by=sales,
         )
         call_command('check_deadlines', stdout=StringIO())
         call_command('check_deadlines', stdout=StringIO())
@@ -154,7 +159,10 @@ class DeadlineNotificationTests(APITestCase):
         self.assertIn('Ertaga', notes.get().message)
 
     def test_notification_list_and_mark_read(self):
-        Notification.objects.create(title='Test', level=Notification.Level.INFO)
+        # §4.4: user majburiy — "e'lon taxtasi" (user=None) endi mavjud emas
+        Notification.objects.create(
+            user=self.user, title='Test', level=Notification.Level.INFO,
+        )
         self.client.force_authenticate(self.user)
         response = self.client.get('/api/notifications/')
         self.assertEqual(response.status_code, 200)

@@ -145,18 +145,34 @@ def _notify_role(role, replenishment, title, message):
 
 
 def _notify_sales_for_client_approval(replenishment):
-    """Sales'larga xabar: narxlar tayyor, mijoz roziligini olish kerak."""
+    """Zayavka egasiga xabar: narxlar tayyor, mijoz roziligini olish kerak.
+
+    §4.2 (SIDEBAR-VA-EGALIK): bu hovuz emas — mijoz bilan aynan zayavka
+    egasi gaplashgan. Egasi aniqlanmagan bo'lsa (eski/ZVK'siz hisob)
+    barcha sales'ga tushadi — xabar yo'qolmasin.
+    """
     from apps.accounts.models import User
 
     config_number = replenishment.configuration.number
+    message = (
+        f'{config_number} bo\'yicha yetishmayotgan mahsulotlarga narxlar '
+        'kiritildi. Mijoz bilan kelishib tasdiqlang — shundan keyin '
+        'hisob bugalterga o\'tadi.'
+    )
+    if replenishment.owner_sales_id:
+        Notification.objects.create(
+            user=replenishment.owner_sales,
+            title=f'{replenishment.number}: mijoz roziligi kerak',
+            message=message,
+            level=Notification.Level.WARNING,
+            entity='Replenishment',
+            object_id=str(replenishment.pk),
+        )
+        return
     _notify_role(
         User.Role.SALES, replenishment,
         title=f'{replenishment.number}: mijoz roziligi kerak',
-        message=(
-            f'{config_number} bo\'yicha yetishmayotgan mahsulotlarga narxlar '
-            'kiritildi. Mijoz bilan kelishib tasdiqlang — shundan keyin '
-            'hisob bugalterga o\'tadi.'
-        ),
+        message=message,
     )
 
 
@@ -264,14 +280,15 @@ def reject(replenishment, user, comment=''):
         comment=comment,
         decided_by=user,
     )
-    Notification.objects.create(
-        user=replenishment.created_by,
-        title=f'{replenishment.number}: hisob qaytarildi',
-        message=comment,
-        level=Notification.Level.WARNING,
-        entity='Replenishment',
-        object_id=str(replenishment.pk),
-    )
+    if replenishment.created_by:
+        Notification.objects.create(
+            user=replenishment.created_by,
+            title=f'{replenishment.number}: hisob qaytarildi',
+            message=comment,
+            level=Notification.Level.WARNING,
+            entity='Replenishment',
+            object_id=str(replenishment.pk),
+        )
     return replenishment
 
 

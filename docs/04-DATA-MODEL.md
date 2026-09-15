@@ -365,6 +365,11 @@ va'da qilingan"ni yozadi (shuning uchun `StockMovement`ga qo'shilmagan).
 | `expires_at` | muddat — CompanyProfile'dagi kunlardan |
 | `released_by`, `release_note` | qo'lda bo'shatilgan bo'lsa kim va nega |
 
+`Replenishment.owner_sales` (FK, EGALIK §4.3) — zayavka egasi (sales):
+mijoz roziligi bosqichi va bildirishnomalar shu odamga; hisob ochilganda
+zanjirdan bir marta to'ldiriladi. `Notification.user` — endi **majburiy**
+(CASCADE): egasiz "e'lon taxtasi" yozuv mavjud emas.
+
 Boshqa yangi maydonlar (shu bosqichda): `Contract.didox_number`,
 `Contract.didox_accepted_at` (§11.2); `CompanyProfile.admin_approval_threshold`,
 `contract_reservation_days`, `configuration_reservation_days` (§11.3/§11.4);
