@@ -51,12 +51,16 @@ class Replenishment(TimeStampedModel):
     )
     status = CharField(max_length=30, choices=Status.choices, default=Status.DRAFT)
     currency = CharField(max_length=3, choices=Currency.choices, default=Currency.UZS)
+    # Import uchun valyuta kursi — to'lov va hisobotlarda so'mga o'girish uchun
+    exchange_rate = DecimalField(max_digits=18, decimal_places=4, default=1)
 
     # Buyurtmachi kiritadigan qo'shimcha xarajatlar (TZ 7.1)
     logistics_cost = DecimalField(max_digits=18, decimal_places=2, default=0)
     other_cost = DecimalField(max_digits=18, decimal_places=2, default=0)
 
     paid_amount = DecimalField(max_digits=18, decimal_places=2, default=0)
+    # To'lov paytida muzlatilgan qarz summasi — keyin kassa o'zgarsa ham o'zgarmaydi
+    debt_amount = DecimalField(max_digits=18, decimal_places=2, default=0)
     debt = ForeignKey(
         'finance.Loan', SET_NULL, related_name='replenishments',
         null=True, blank=True,
@@ -110,15 +114,31 @@ class Replenishment(TimeStampedModel):
 
         return cash_balance()
 
+    # To'lov qilib bo'lingan holatlar — shortfall endi jonli hisoblanmaydi
+    PAID_STATUSES = (
+        Status.ORDERED, Status.IN_TRANSIT, Status.CUSTOMS, Status.DELIVERED,
+    )
+
     @property
     def shortfall(self):
-        """Yetmayotgan summa — shu qism qarzga o'tqaziladi."""
+        """Yetmayotgan summa — shu qism qarzga o'tqaziladi.
+
+        To'lovdan keyin kassa qoldig'i o'zgargani bilan bu raqam o'zgarmaydi —
+        pay() paytida muzlatilgan `debt_amount` qaytadi.
+        """
+        if self.status in self.PAID_STATUSES:
+            return self.debt_amount
         return max(self.total_amount - self.cash_available, 0)
 
     @property
     def debt_progress(self):
-        """Qarz muddati: mahsulot kelgan kundan 2 oy (TZ 7.2)."""
-        if not self.debt:
+        """Qarz muddati: mahsulot kelgan kundan 2 oy (TZ 7.2).
+
+        Qarz yopilgan bo'lsa sanoq to'xtaydi.
+        """
+        from apps.finance.models import Loan
+
+        if not self.debt or self.debt.status == Loan.Status.CLOSED:
             return deadline_progress(None, 0)
         return deadline_progress(self.debt.taken_at, DEBT_TERM_DAYS)
 

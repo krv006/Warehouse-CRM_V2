@@ -349,3 +349,27 @@ Property: `term_days`, `days_left`, `color`, `repaid`, `balance`.
 
 Singleton: ikkinchi yozuv `save()` da bloklanadi; `CompanyProfile.load()`
 yagona yozuvni qaytaradi (bo'lmasa bo'sh ochadi). Yozish faqat adminda.
+
+
+## StockReservation (§11.4 — bron)
+
+`apps/inventory/models/reservation.py` — qoldiqni O'ZGARTIRMAYDI, "kimga
+va'da qilingan"ni yozadi (shuning uchun `StockMovement`ga qo'shilmagan).
+
+| Maydon | Izoh |
+|---|---|
+| `product`, `warehouse`, `quantity` | nima, qayerda, qancha band |
+| `kind` | `soft` (Rejada — konfiguratsiya, to'smaydi) / `hard` (Band — shartnoma, to'sadi) |
+| `status` | `active` / `released` / `shipped` (to'lovda chiqim bo'ldi) / `expired` |
+| `contract` / `configuration` | egasi — aynan bittasi to'ldiriladi (CheckConstraint) |
+| `expires_at` | muddat — CompanyProfile'dagi kunlardan |
+| `released_by`, `release_note` | qo'lda bo'shatilgan bo'lsa kim va nega |
+
+Boshqa yangi maydonlar (shu bosqichda): `Contract.didox_number`,
+`Contract.didox_accepted_at` (§11.2); `CompanyProfile.admin_approval_threshold`,
+`contract_reservation_days`, `configuration_reservation_days` (§11.3/§11.4);
+`Replenishment.exchange_rate`, `Replenishment.debt_amount` (muzlatilgan qarz,
+§10.5); `CashTransaction.replenishment` FK (§10.9); `Purchase.replenishment` FK
+(§4.3); `Configuration.status`ga `sold` (terminal), `ConfigurationRequest`ga
+`archived` qo'shildi; `Configuration.purchase` FK va `attached` holati olib
+tashlandi (§10.7).

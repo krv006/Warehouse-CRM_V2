@@ -35,13 +35,15 @@ class CashTransactionViewSet(BaseModelViewSet):
 
     queryset = (
         CashTransaction.objects
-        .select_related('category', 'contract', 'purchase', 'loan', 'created_by')
+        .select_related('category', 'contract', 'purchase', 'loan', 'replenishment', 'created_by')
         .all()
     )
     serializer_class = CashTransactionSerializer
     permission_classes = [FinanceAccess]
     search_fields = ['description']
-    filterset_fields = ['direction', 'category', 'currency', 'contract', 'purchase', 'loan']
+    filterset_fields = [
+        'direction', 'category', 'currency', 'contract', 'purchase', 'loan', 'replenishment',
+    ]
     ordering_fields = ['occurred_at', 'amount']
 
     def summary(self, request):

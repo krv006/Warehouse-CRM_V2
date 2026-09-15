@@ -62,6 +62,7 @@ class ConfigurationItemSerializer(ModelSerializer):
     component_name = ReadOnlyField(source='component.name')
     subtotal = ReadOnlyField()
     available = ReadOnlyField()
+    stock_total = ReadOnlyField()
     shortage = ReadOnlyField()
     source = ReadOnlyField()
     stock_price = ReadOnlyField()
@@ -73,7 +74,7 @@ class ConfigurationItemSerializer(ModelSerializer):
             'id', 'configuration', 'component', 'new_component_name',
             'new_component_sku', 'component_name', 'label', 'quantity',
             'unit_price', 'stock_price', 'needs_price', 'subtotal',
-            'available', 'shortage', 'source',
+            'available', 'stock_total', 'shortage', 'source',
         ]
 
     def validate(self, attrs):
@@ -130,13 +131,13 @@ class ConfigurationSerializer(ModelSerializer):
         model = Configuration
         fields = [
             'id', 'number', 'client', 'client_name', 'base_product', 'base_product_name',
-            'warehouse', 'act', 'act_number', 'purchase', 'mode', 'mode_display',
+            'warehouse', 'act', 'act_number', 'mode', 'mode_display',
             'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
             'ready_variant', 'missing_count', 'procurement', 'sent_to_procurement',
             'removals', 'created_by', 'created_at',
         ]
-        read_only_fields = ['number', 'created_by', 'purchase', 'variant']
+        read_only_fields = ['number', 'created_by', 'variant']
 
     def get_missing_count(self, obj):
         return len(obj.missing_items)
@@ -178,7 +179,7 @@ class ConfigurationSerializer(ModelSerializer):
         }
 
     def create(self, validated_data):
-        from apps.inventory.services import main_warehouse
+        from apps.inventory.services import main_warehouse, sync_configuration_reservations
 
         items = validated_data.pop('items', [])
         if not validated_data.get('warehouse'):
@@ -194,9 +195,12 @@ class ConfigurationSerializer(ModelSerializer):
         else:
             # TZ 6.1: model tanlanganda uning ichidagi barcha narsa tayyor keladi
             copy_factory_spec(configuration)
+        sync_configuration_reservations(configuration)
         return configuration
 
     def update(self, instance, validated_data):
+        from apps.inventory.services import sync_configuration_reservations
+
         items = validated_data.pop('items', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -208,6 +212,8 @@ class ConfigurationSerializer(ModelSerializer):
                 ConfigurationItem.objects.create(
                     configuration=instance, **resolve_component(item),
                 )
+        # §11.4: qatorlar yoki holat o'zgardi — yumshoq bron moslashadi
+        sync_configuration_reservations(instance)
         return instance
 
 

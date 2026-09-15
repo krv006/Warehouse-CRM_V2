@@ -25,9 +25,9 @@ urlpatterns = [
     path('configurations/<int:pk>/finalize/', ConfigurationViewSet.as_view({
         'post': 'finalize',
     }), name='configuration-finalize'),
-    path('configurations/<int:pk>/attach/', ConfigurationViewSet.as_view({
-        'post': 'attach',
-    }), name='configuration-attach'),
+    path('configurations/<int:pk>/assemble/', ConfigurationViewSet.as_view({
+        'post': 'assemble',
+    }), name='configuration-assemble'),
     path('configurations/<int:pk>/request-procurement/', ConfigurationViewSet.as_view({
         'post': 'request_procurement',
     }), name='configuration-request-procurement'),

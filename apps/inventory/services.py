@@ -63,6 +63,193 @@ def sync_stock(movement):
     return stock
 
 
+# ---------------------------------------------------------------- Bron (§11.4)
+
+def reserved_quantity(product, warehouse=None, *, kind=None,
+                      exclude_contract=None, exclude_configuration=None):
+    """Faol bron yig'indisi — turlari va istisnolari bilan."""
+    from apps.inventory.models import StockReservation
+
+    qs = StockReservation.objects.filter(
+        product=product, status=StockReservation.Status.ACTIVE,
+    )
+    if warehouse is not None:
+        qs = qs.filter(warehouse=warehouse)
+    if kind is not None:
+        qs = qs.filter(kind=kind)
+    if exclude_contract is not None:
+        qs = qs.exclude(contract=exclude_contract)
+    if exclude_configuration is not None:
+        qs = qs.exclude(configuration=exclude_configuration)
+    return qs.aggregate(t=Sum('quantity'))['t'] or 0
+
+
+def sellable_quantity(product, warehouse=None, *, for_contract=None):
+    """Erkin qoldiq = Jami − qattiq bron. Sotish uchun ochiq raqam.
+
+    Umumiy qoida (§11.4): har qanday amal O'ZINING bronini o'ziga ochiq deb
+    hisoblaydi — `for_contract` bering, aks holda shartnoma o'z broni bilan
+    o'zini bloklab qo'yadi.
+    """
+    from apps.inventory.models import StockReservation
+
+    return available_quantity(product, warehouse) - reserved_quantity(
+        product, warehouse,
+        kind=StockReservation.Kind.HARD, exclude_contract=for_contract,
+    )
+
+
+def plannable_quantity(product, warehouse=None, *, for_configuration=None):
+    """Rejadan keyin = Jami − Band − Rejada. Rejalash uchun xavfsiz raqam.
+
+    Engineer konfiguratsiyada shu raqamni ko'radi — boshqa hujjatlarga va'da
+    qilingan mol "bor" bo'lib ko'rinmaydi (o'z rejasi hisobga olinmaydi).
+    """
+    from apps.inventory.models import StockReservation
+
+    return (
+        available_quantity(product, warehouse)
+        - reserved_quantity(product, warehouse, kind=StockReservation.Kind.HARD)
+        - reserved_quantity(
+            product, warehouse,
+            kind=StockReservation.Kind.SOFT,
+            exclude_configuration=for_configuration,
+        )
+    )
+
+
+def _reservation_expiry(kind):
+    """Bron muddati — admin CompanyProfile'da belgilaydi (0 — muddat yo'q)."""
+    from datetime import timedelta
+
+    from django.utils.timezone import localdate
+
+    from apps.core.models import CompanyProfile
+    from apps.inventory.models import StockReservation
+
+    profile = CompanyProfile.load()
+    days = (
+        profile.contract_reservation_days
+        if kind == StockReservation.Kind.HARD
+        else profile.configuration_reservation_days
+    )
+    return localdate() + timedelta(days=days) if days else None
+
+
+def release_reservations(*, contract=None, configuration=None,
+                         status=None, user=None, note=''):
+    """Hujjatning faol bronlarini bo'shatadi (released/shipped/expired)."""
+    from apps.inventory.models import StockReservation
+
+    status = status or StockReservation.Status.RELEASED
+    qs = StockReservation.objects.filter(status=StockReservation.Status.ACTIVE)
+    if contract is not None:
+        qs = qs.filter(contract=contract)
+    if configuration is not None:
+        qs = qs.filter(configuration=configuration)
+    return qs.update(status=status, released_by=user, release_note=note)
+
+
+def _contract_needs(contract, warehouse):
+    """Shartnoma nimani band qilishi kerak: {product: miqdor}.
+
+    Yig'ilmagan variant (build rejimi, §10.1) omborda yo'q — unga bron qo'yib
+    bo'lmaydi, shuning uchun bron uning BUTLOVCHILARIGA tushadi; to'lov paytida
+    butlovchilar chiqib, yig'ilgan variant chiqim bo'ladi.
+    """
+    needs = {}
+    configuration = contract.configuration
+    for item in contract.items.select_related('product'):
+        product = item.product
+        if (
+            configuration is not None
+            and configuration.variant_id == product.pk
+            and available_quantity(product, warehouse) < item.quantity
+        ):
+            for config_item in configuration.items.select_related('component'):
+                component = config_item.component
+                needs[component] = (
+                    needs.get(component, 0) + config_item.quantity * item.quantity
+                )
+        else:
+            needs[product] = needs.get(product, 0) + item.quantity
+    return needs
+
+
+def sync_contract_reservations(contract):
+    """Shartnomaning qattiq bronini qatorlariga moslab qayta quradi (§11.4).
+
+    Bor qismi band qilinadi, yetmagani "kutilmoqda" — shartnoma tuzish
+    to'silmaydi (yumshoq yo'l), lekin yetishmovchilik darhol ko'rinadi.
+    """
+    from apps.sales.models import Contract
+    from apps.inventory.models import StockReservation
+
+    closed = {
+        Contract.Status.REJECTED, Contract.Status.CANCELLED,
+        Contract.Status.COMPLETED,
+    }
+    if contract.status in closed:
+        release_reservations(contract=contract)
+        return
+    if contract.status == Contract.Status.ACTIVE:
+        return  # chiqim bo'lib bo'lgan — bron shipped holatda turadi
+
+    warehouse = main_warehouse()
+    StockReservation.objects.filter(
+        contract=contract, status=StockReservation.Status.ACTIVE,
+    ).delete()
+    for product, quantity in _contract_needs(contract, warehouse).items():
+        free = sellable_quantity(product, warehouse)
+        take = min(quantity, max(free, 0))
+        if take > 0:
+            StockReservation.objects.create(
+                product=product, warehouse=warehouse, quantity=take,
+                kind=StockReservation.Kind.HARD, contract=contract,
+                expires_at=_reservation_expiry(StockReservation.Kind.HARD),
+            )
+
+
+def sync_configuration_reservations(configuration):
+    """Konfiguratsiyaning yumshoq bronini qatorlariga moslab qayta quradi.
+
+    Chernovik butlovchilarni "Rejada" deb belgilaydi — bu hech kimni
+    to'smaydi, faqat boshqa engineer va salesga xavfni ko'rsatadi.
+    """
+    from apps.configurator.models import Configuration
+    from apps.inventory.models import StockReservation
+
+    if configuration.status != Configuration.Status.DRAFT:
+        release_reservations(configuration=configuration)
+        return
+
+    warehouse = configuration.warehouse or main_warehouse()
+    StockReservation.objects.filter(
+        configuration=configuration, status=StockReservation.Status.ACTIVE,
+    ).delete()
+    needs = {}
+    for item in configuration.items.select_related('component'):
+        needs[item.component] = needs.get(item.component, 0) + item.quantity
+    for product, quantity in needs.items():
+        room = plannable_quantity(product, warehouse)
+        take = min(quantity, max(room, 0))
+        if take > 0:
+            StockReservation.objects.create(
+                product=product, warehouse=warehouse, quantity=take,
+                kind=StockReservation.Kind.SOFT, configuration=configuration,
+                expires_at=_reservation_expiry(StockReservation.Kind.SOFT),
+            )
+
+
+def mark_reservations_shipped(contract):
+    """To'lov tasdiqlandi — bron chiqimga aylandi."""
+    from apps.inventory.models import StockReservation
+
+    release_reservations(
+        contract=contract, status=StockReservation.Status.SHIPPED,
+    )
+
+
 def update_cost_price(product, unit_price):
     """Kirimdan keyin mahsulot tannarxini yangilaydi — oxirgi xarid narxi.
 

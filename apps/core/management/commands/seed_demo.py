@@ -218,18 +218,18 @@ class Command(BaseCommand):
     def _act(self, users):
         from apps.configurator.models import Act
 
-        # ACT — sales bosqichi: engineer tayyorlagach sales rasmiylashtiradi
+        # §11.1: ACT — engineer bosqichi, tarkib egasi o'zi rasmiylashtiradi
         return Act.objects.create(
             number='ACT-0001',
             title='HP 880 tarkibini o\'zgartirish',
             description='Mijoz talabiga ko\'ra SSD va GPU almashtiriladi',
             issued_at=localdate(),
-            created_by=users['sales'],
+            created_by=users['engineer'],
         )
 
     def _configurations(self, products, warehouses, act, users):
         """2 ta konfiguratsiya: chernovik (yangi tovar + buyurtmachiga yuborilgan)
-        va yakunlangan (sales ACT bilan yopgan, variant bilan)."""
+        va yakunlangan (engineer ACT bilan yopgan, variant bilan — §11.1)."""
         from apps.clients.models import Client
         from apps.configurator.models import Configuration, ConfigurationItem
         from apps.configurator.services import (
@@ -266,7 +266,7 @@ class Command(BaseCommand):
         ready = Configuration.objects.create(
             client=clients[2], base_product=products['HP-880'],
             warehouse=warehouses['main'], act=act, created_by=users['engineer'],
-            note='Engineer tayyorladi, sales ACT bilan yakunladi',
+            note='Engineer ACT bilan yakunlab salesga topshirdi',
         )
         for sku, label, quantity in [('SSD-1TB', 'SSD', 2), ('GPU-32', 'GPU', 1),
                                      ('CPU-8', 'CPU', 1)]:

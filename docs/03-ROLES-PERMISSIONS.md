@@ -8,7 +8,7 @@
 | Bugalter | `bugalter` | Hujjatlar, pul kirdi-chiqdisi, shartnomaning birinchi tasdig'i, pul kelganini tasdiqlash |
 | Sales | `sales` | Zakaz shakllantiradi, configurator qiladi, client qo'shadi, sotuv narxini ko'radi |
 | Buyurtmachi | `buyurtmachi` | Omborda yetishmayotgan mahsulotlarni to'ldiradi: ta'minotchidan narx, logistika xarajati, yetkazib berish kuzatuvi |
-| Engineer | `engineer` | **Configurator tahriri to'liq unda**: sales'dan matnli zayavka oladi, konfiguratsiyani ACT'siz tayyorlab qaytaradi (ACT va yakunlash — sales'da) |
+| Engineer | `engineer` | **Configurator tahriri to'liq unda**: sales'dan matnli zayavka oladi, konfiguratsiyani tayyorlaydi, **ACT kiritib yakunlaydi** va salesga topshiradi (§11.1) |
 
 `is_superuser = True` bo'lgan foydalanuvchi ham admin sifatida qaraladi
 (`User.is_admin` property — `apps/accounts/models/user.py`).
@@ -30,6 +30,7 @@
 | `ProcurementApprovalAccess` | admin, bugalter, buyurtmachi, sales | admin, sales, bugalter — qaysi bosqichda kim tasdiqlashini servis tekshiradi |
 | `ConfiguratorAccess` | barcha login qilganlar | **admin, engineer** |
 | `ProductSpecAccess` | barcha login qilganlar | admin, engineer, buyurtmachi |
+| `ProductPricingAccess` | barcha login qilganlar | **admin, bugalter** — katalog narx siyosati: `PATCH /products/{id}/` (`sale_price`, `cost_price`, `reorder_level`, `is_active`) |
 | `ConfigurationRequestAccess` | barcha login qilganlar | admin, sales, engineer |
 
 Hammasi `RoleAccess` asosida: `read_roles` / `write_roles` ro'yxatlari, admin esa doim o'tadi.
@@ -47,10 +48,12 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | `/api/activity-logs/` | **admin** | — | audit |
 | `/api/notifications/` | o'ziniki + umumiy | — | `mark-read` |
 | `/api/clients/` | hamma | admin, sales, buyurtmachi | bugalter faqat o'qiydi |
-| `/api/warehouses/`, `/products/`, `/stocks/`, `/movements/` | hamma | **hech kim** | katalog faqat o'qish uchun; yangi mahsulot buyurtma orqali qo'shiladi |
+| `/api/warehouses/`, `/stocks/`, `/movements/` | hamma | **hech kim** | faqat o'qish; qoldiq Kirim/Chiqim orqali o'zgaradi |
+| `/api/products/` | hamma | **PATCH: admin, bugalter** (§10.2 — narx siyosati) | POST yo'q — yangi mahsulot buyurtma orqali qo'shiladi |
+| `/api/reservations/` | hamma | — (avtomatik yoziladi) | §11.4 bron; `release` — **faqat admin**, sabab majburiy |
 | `/api/product-specs/` | hamma | **admin, engineer, buyurtmachi** | tayyor model tarkibi (ichidagi configlar) — buyurtmachi kirim qilganda, engineer configurator ishida kiritadi |
-| `/api/acts/` | hamma | **sales** (admin) | Engineer tayyorlagach ACT ni sales kiritadi |
-| `/api/configurations/`, `/configuration-items/` | hamma | **admin, engineer** | sales configurator ishini qilmaydi — zayavka yuboradi; `finalize` esa **sales** (admin) — engineer'ga 403 |
+| `/api/acts/` | hamma | **engineer** (admin) | §11.1: ACT — tarkibga asos hujjat, uni tarkib egasi (engineer) yuritadi |
+| `/api/configurations/`, `/configuration-items/` | hamma | **admin, engineer** | sales configurator ishini qilmaydi — zayavka yuboradi; §11.1: `finalize` va `assemble` ham **engineer** (admin), sales'ga 403 |
 | `/api/configuration-requests/` | hamma | admin, sales, engineer | `take`/`complete` — faqat engineer (admin) |
 | `/api/leads/`, `/contracts/`, `/contract-items/` | hamma | admin, sales | narx faqat sales va adminga ko'rinadi |
 | `/api/contract-payments/` | hamma | admin, bugalter | |
@@ -67,8 +70,8 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | Mijozlar | ✅ ko'radi va qo'shadi |
 | Leads (og'zaki kelishuv) | ✅ ko'radi va yuritadi |
 | Shartnomalar | ✅ tuzadi, yuboradi, **sotuv narxini ko'radi** |
-| Configurator | 👁 ko'radi; **zayavka yuboradi** (`/configuration-requests/`), tayyorini engineer qaytaradi; tayyorini **ACT bilan yakunlaydi** (`finalize`) |
-| ACT | ✅ **kiritadi** (`POST /acts/`) — engineer tayyorlagach shu bosqichda |
+| Configurator | 👁 ko'radi; **zayavka yuboradi** (`/configuration-requests/`); §11.1: engineer ACT bilan yakunlab tayyor shartnomani topshiradi |
+| ACT | 👁 faqat ko'radi — §11.1: ACT engineerga o'tdi |
 | Ombor (mahsulot, qoldiq, harakat) | 👁 **faqat ko'radi** — bu bo'lim hamma uchun faqat o'qish |
 | Eslatmalar | ✅ o'ziniki |
 | Kassa, qarzlar, xarajat so'rovlari | ⛔ **403** |
@@ -82,10 +85,11 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 
 | Amal | Kim bajara oladi | Aks holda |
 |---|---|---|
-| `submit` (draft → pending_bugalter) | sales, admin | `403` |
-| `approve` (pending_bugalter → pending_admin) | bugalter, admin | `403` |
+| `submit` (draft/rejected → pending_bugalter) | sales, admin | `403` |
+| `approve` (pending_bugalter → pending_admin) — §11.2 "Didox qabuli", `didox_number` shu yerda saqlanadi | bugalter, admin | `403` |
+| §11.3: summa `admin_approval_threshold` dan **kichik** (UZS) bo'lsa — bugalter tasdig'i bilan to'g'ridan-to'g'ri `approved`, tarixda avtomatik admin yozuvi | — | — |
 | `approve` (pending_admin → approved) | **faqat admin** | `403` — bugalter ham o'tolmaydi |
-| `confirm-payment` (approved → active) | bugalter, admin | `403` |
+| `confirm-payment` (approved → active) — §11.2 "boshlang'ich to'lov", tarixga `payment` qadami yoziladi | bugalter, admin | `403` |
 
 ## To'ldirish (Buyurtmachi) zanjiridagi tekshiruv
 

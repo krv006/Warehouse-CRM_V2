@@ -1,6 +1,7 @@
+from rest_framework.response import Response
 from rest_framework.viewsets import ReadOnlyModelViewSet
 
-from apps.accounts.permissions import ProductSpecAccess
+from apps.accounts.permissions import ProductPricingAccess, ProductSpecAccess
 from apps.core.mixins import BaseModelViewSet
 from apps.inventory.models import (
     Warehouse,
@@ -8,6 +9,7 @@ from apps.inventory.models import (
     ProductSpec,
     Stock,
     StockMovement,
+    StockReservation,
 )
 from apps.inventory.serializers import (
     WarehouseSerializer,
@@ -15,6 +17,7 @@ from apps.inventory.serializers import (
     ProductSpecSerializer,
     StockSerializer,
     StockMovementSerializer,
+    StockReservationSerializer,
 )
 
 
@@ -27,12 +30,17 @@ class WarehouseViewSet(ReadOnlyModelViewSet):
     filterset_fields = ['is_active']
 
 
-class ProductViewSet(ReadOnlyModelViewSet):
-    """Mahsulotlar katalogi — faqat o'qish.
+class ProductViewSet(BaseModelViewSet):
+    """Mahsulotlar katalogi.
 
     Yangi mahsulot alohida "qo'shish" oynasi orqali emas, Buyurtmachi
-    to'ldirish buyurtmasiga qator qo'shganda katalogga tushadi (TZ 7).
+    to'ldirish buyurtmasiga qator qo'shganda katalogga tushadi (TZ 7) —
+    shuning uchun POST/DELETE marshrutda yo'q. PATCH esa ochiq: admin va
+    bugalter narx siyosatini yuritadi (`sale_price`, `reorder_level`,
+    `is_active`, `cost_price`) — qolgan maydonlar o'zgarmaydi.
     """
+
+    permission_classes = [ProductPricingAccess]
 
     queryset = (
         Product.objects
@@ -74,3 +82,49 @@ class StockMovementViewSet(ReadOnlyModelViewSet):
     queryset = StockMovement.objects.select_related('product', 'warehouse', 'created_by').all()
     serializer_class = StockMovementSerializer
     filterset_fields = ['product', 'warehouse', 'type', 'reason']
+
+
+class StockReservationViewSet(BaseModelViewSet):
+    """Bronlar (§11.4): jarayonlar avtomatik qo'yadi va bo'shatadi.
+
+    O'qish — mahsulotni ko'ra oladigan har kim; qo'lda bo'shatish
+    (`release`) — faqat admin, sabab majburiy va auditga tushadi.
+    """
+
+    queryset = (
+        StockReservation.objects
+        .select_related('product', 'warehouse', 'contract', 'configuration', 'released_by')
+        .order_by('-id')
+    )
+    serializer_class = StockReservationSerializer
+    filterset_fields = ['product', 'warehouse', 'kind', 'status', 'contract', 'configuration']
+
+    def get_permissions(self):
+        from apps.accounts.permissions import IsAdmin
+
+        if self.action == 'release':
+            return [IsAdmin()]
+        return super().get_permissions()
+
+    def release(self, request, pk=None):
+        """POST /reservations/{id}/release/ — favqulodda qo'lda bo'shatish."""
+        from rest_framework.exceptions import ValidationError
+
+        from apps.core.models import ActivityLog
+
+        reservation = self.get_object()
+        if reservation.status != StockReservation.Status.ACTIVE:
+            raise ValidationError({'detail': 'Faqat faol bron bo\'shatiladi.'})
+        note = (request.data.get('note') or '').strip()
+        if not note:
+            raise ValidationError({'note': 'Sabab majburiy — "mol qayerga ketdi" auditda qolsin.'})
+
+        reservation.status = StockReservation.Status.RELEASED
+        reservation.released_by = request.user
+        reservation.release_note = note
+        reservation.save()
+        self.log_action(
+            ActivityLog.Action.UPDATE, reservation,
+            f"Bron qo'lda bo'shatildi ({reservation.owner_number}): {note}",
+        )
+        return Response(self.get_serializer(reservation).data)

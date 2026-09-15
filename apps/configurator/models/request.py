@@ -23,6 +23,8 @@ class ConfigurationRequest(TimeStampedModel):
         NEW = 'new', 'Yangi'
         IN_PROGRESS = 'in_progress', 'Engineer ishlamoqda'
         DONE = 'done', 'Konfiguratsiya tayyor'
+        # Shartnoma ochilgach zayavka arxivga o'tadi — navbatlarda ko'rinmaydi
+        ARCHIVED = 'archived', 'Arxivlangan'
         CANCELLED = 'cancelled', 'Bekor qilingan'
 
     number = CharField(max_length=30, unique=True, blank=True)

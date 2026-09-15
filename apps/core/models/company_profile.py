@@ -1,5 +1,11 @@
 from django.core.exceptions import ValidationError
-from django.db.models import CharField, EmailField, TextField
+from django.db.models import (
+    CharField,
+    DecimalField,
+    EmailField,
+    PositiveIntegerField,
+    TextField,
+)
 
 from apps.core.models.base import TimeStampedModel
 
@@ -22,6 +28,22 @@ class CompanyProfile(TimeStampedModel):
     contract_terms = TextField(
         blank=True,
         help_text="Shartnoma chop etilganda chiqadigan standart shartlar matni",
+    )
+    # §11.3: shu summadan KICHIK (UZS) shartnomalar admin tasdig'isiz o'tadi.
+    # 0 = chegara yo'q — har bir shartnoma adminga boradi (hozirgi tartib).
+    # Solishtirish QQS BILAN total_amount ustida.
+    admin_approval_threshold = DecimalField(
+        max_digits=18, decimal_places=2, default=0,
+        help_text="Shu summadan kichik shartnomalar admin tasdig'isiz o'tadi (QQS bilan, UZS); 0 — chegara yo'q",
+    )
+    # §11.4: bron muddatlari (kun). 0 = muddat yo'q, qo'lda bo'shatilguncha turadi
+    contract_reservation_days = PositiveIntegerField(
+        default=7,
+        help_text='Shartnoma chernovigi bronni necha kun ushlab turadi (0 — cheksiz)',
+    )
+    configuration_reservation_days = PositiveIntegerField(
+        default=14,
+        help_text='Konfiguratsiya chernovigi rejadagi bronni necha kun ushlab turadi (0 — cheksiz)',
     )
 
     def __str__(self):

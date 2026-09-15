@@ -46,6 +46,21 @@ class ConfigurationItem(TimeStampedModel):
 
     @property
     def available(self):
+        """Rejadan keyin qolgan qoldiq (§11.4): Jami − Band − boshqalar rejasi.
+
+        Engineer xavfsiz raqamni ko'radi — boshqa shartnoma va konfiguratsiyalarga
+        va'da qilingan mol "bor" bo'lib ko'rinmaydi; o'z rejasi hisobga olinmaydi.
+        """
+        from apps.inventory.services import plannable_quantity
+
+        return plannable_quantity(
+            self.component, self.configuration.warehouse,
+            for_configuration=self.configuration,
+        )
+
+    @property
+    def stock_total(self):
+        """Ombordagi jami qoldiq — bronlarni hisobga olmagan xom raqam."""
         from apps.inventory.services import available_quantity
 
         return available_quantity(self.component, self.configuration.warehouse)

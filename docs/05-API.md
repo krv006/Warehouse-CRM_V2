@@ -91,13 +91,32 @@ Bugalter `POST` qilsa → `403`.
 
 Ombor bo'limi **faqat o'qish uchun** — TZ da alohida "mahsulot qo'shish" oynasi yo'q.
 Biznesda **BITTA ombor** bor (filial yo'q): ikkinchi ombor yaratib bo'lmaydi,
+### Bron (§11.4) — `Jami = Band + Rejada + Erkin`
+
+Mahsulot javobida to'rt raqam: `total_stock` (jami), `reserved_hard` (Band —
+shartnomalar), `reserved_soft` (Rejada — konfiguratsiyalar), `sellable_stock`
+(Erkin — sotuvga ochiq), `plannable_stock` (Rejadan keyin — yangi reja uchun).
+
+- Shartnoma tuzilganda mahsulot **qattiq** bron qilinadi (qoldiq o'zgarmaydi,
+  boshqa shartnoma ololmaydi); yetmasa bor qismi band bo'ladi — tuzish
+  to'silmaydi. To'lovda bron chiqimga aylanadi, reject'da bo'shaydi.
+- Konfiguratsiya chernovigi **yumshoq** bron qo'yadi — hech kimni to'smaydi,
+  faqat "Rejada" deb ko'rinadi. `finalize`da shartnoma broniga aylanadi.
+- Muddatlar admin sozlamasida (`/company/`): `contract_reservation_days` (7),
+  `configuration_reservation_days` (14); muddati o'tganini `check_deadlines`
+  bo'shatadi va egasiga xabar beradi. Qo'lda bo'shatish: `POST
+  /reservations/{id}/release/` — faqat admin, sabab auditga tushadi.
+- Konfiguratsiya qatoridagi `available` endi **rejadan keyingi** raqam
+  (o'z rejasi hisobga olinmaydi); xom qoldiq — `stock_total`.
+
 `GET /warehouses/` doim bitta yozuv qaytaradi. `warehouse` maydoni barcha
 jarayonlarda **ixtiyoriy** — yuborilmasa yagona ombor avtomatik olinadi.
 
 | Endpoint | Metod | Filtrlar |
 |---|---|---|
 | `/warehouses/` | GET | `is_active` |
-| `/products/` | GET | `kind`, `is_active`, `base_model` |
+| `/products/` | GET, **PATCH** (§10.2: admin/bugalter — `sale_price`, `cost_price`, `reorder_level`, `is_active`) | `kind`, `is_active`, `base_model` |
+| `/reservations/` | GET; `POST {id}/release/` (admin, `note` majburiy) | `product`, `kind` (`soft`/`hard`), `status`, `contract`, `configuration` |
 | `/product-specs/` | GET/POST/PATCH/DELETE | `product`, `component` — **yozish: engineer, buyurtmachi** (tayyor model tarkibi) |
 | `/stocks/` | GET | `product`, `warehouse` |
 | `/movements/` | GET | `product`, `warehouse`, `type`, `reason` |
@@ -182,13 +201,13 @@ Holatlar: `new` → `in_progress` (take) → `done` (complete). Raqam: `ZVK-0000
 
 | Metod | Manzil | Izoh |
 |---|---|---|
-| GET/POST | `/acts/` | yozish **sales** (admin) — engineer tayyorlagach sales rasmiylashtiradi |
+| GET/POST | `/acts/` | yozish **engineer** (admin) — §11.1: ACT tarkib egasida |
 | GET/POST | `/configurations/` | **yozish: engineer (admin)**; qatorlar ixtiyoriy |
-| PUT/PATCH/DELETE | `/configurations/{id}/` | faqat `draft` holatida — `ready`/`attached` 400 qaytaradi |
+| PUT/PATCH/DELETE | `/configurations/{id}/` | faqat `draft` holatida — `ready`/`sold` 400 qaytaradi |
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
-| POST | `/configurations/{id}/finalize/` | **sales bosqichi** (engineer 403); ACT majburiy, tanada berish mumkin: `{"act": 2, "client": 3}`; ombor tanlanmagan bo'lsa faol ombor o'zi olinadi; yakunda **draft shartnoma avtomatik ochiladi** (javobda `contract`) |
-| POST | `/configurations/{id}/attach/` | kirim buyurtmasiga biriktirish |
+| POST | `/configurations/{id}/finalize/` | §11.1: **engineer bosqichi** (sales 403); ACT majburiy, tanada berish mumkin: `{"act": 2, "client": 3}`; build rejimida **yig'ish** ham shu yerda (§10.1 — yetmasa bloklanmaydi, javobda `assembled`/`assembly_missing`); yakunda **draft shartnoma avtomatik ochiladi** (javobda `contract`) |
+| POST | `/configurations/{id}/assemble/` | §10.1: variantni **jismoniy yig'ish** — butlovchilar chiqadi, variant omborga kiradi; butlovchi yetmasa 400 (nomlar bilan). Finalize'da yig'ilmagan bo'lsa mol kelgach shu bosiladi (to'lov paytida ham avtomatik uriniladi) |
 | POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan to'ldirish hisobi (TLD) ochib buyurtmachi/sales/bugalterga xabar beradi; hammasi omborda bo'lsa 400; **ochiq TLD bor bo'lsa ham 400** (takror ochilmaydi) |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
 | GET/POST | `/configuration-items/` | qatorni alohida qo'shish — `configuration` majburiy, faqat `draft`; bazada yo'q tovar uchun `new_component_name` |
@@ -326,12 +345,6 @@ Konfiguratsiya javobida `removals[]` — yechib olingan qismlar tarixi.
 
 Sales shartnomani ochib tekshiradi, kerak bo'lsa tahrirlaydi va `submit` qiladi.
 
-**Biriktirish:**
-```json
-POST /api/configurations/12/attach/
-{"purchase": 4}
-```
-
 ---
 
 ## Kirim (Purchases)
@@ -403,7 +416,7 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | GET/POST | `/leads/` | admin, sales |
 | GET/POST | `/contracts/` | admin, sales; filtr: `status`, `client`, `currency`, `configuration` |
 | POST | `/contracts/{id}/submit/` | sales; bugalterga bildirishnoma tushadi |
-| POST | `/contracts/{id}/approve/` | bugalter → keyin admin; har bosqichda keyingi bosqich egasiga bildirishnoma (bugalter tasdig'ida adminga, admin tasdig'ida bugalter va sales'ga) |
+| POST | `/contracts/{id}/approve/` | bugalter (§11.2 — Didox qabuli, tanada `didox_number` yuborilsa saqlanadi, `signed_at` avtomatik to'ladi) → keyin admin; §11.3: summa chegaradan kichik (UZS) bo'lsa admin bosqichi o'tkazib yuboriladi (tarixda avtomatik yozuv); har bosqichda keyingi bosqich egasiga bildirishnoma |
 | POST | `/contracts/{id}/reject/` | bugalter / admin |
 | POST | `/contracts/{id}/confirm-payment/` | bugalter |
 | GET | `/contracts/{id}/timeline/` | hamma |

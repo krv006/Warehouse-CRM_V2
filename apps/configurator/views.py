@@ -7,7 +7,6 @@ from rest_framework.status import HTTP_400_BAD_REQUEST
 from apps.accounts.permissions import (
     ConfigurationRequestAccess,
     ConfiguratorAccess,
-    IsAdminOrSales,
 )
 from apps.configurator.models import (
     Act,
@@ -22,6 +21,7 @@ from apps.configurator.serializers import (
     ConfigurationRequestSerializer,
 )
 from apps.configurator.services import (
+    assemble_variant,
     build_configuration_workbook,
     complete_request,
     finalize_modification,
@@ -37,15 +37,16 @@ XLSX_CONTENT_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml
 
 
 class ActViewSet(BaseModelViewSet):
-    """ACT hujjatlari — sales bosqichida kiritiladi (admin ham mumkin).
+    """ACT hujjatlari — engineer kiritadi (admin ham mumkin) — §11.1.
 
-    Engineer konfiguratsiyani ACT'siz tayyorlab qaytaradi; sales tayyor
-    konfiguratsiyani olgach ACT kiritadi va yakunlab bugalterga yuboradi.
+    ACT tarkibni o'zgartirishga asos bo'ladigan texnik hujjat, uni tarkibni
+    o'zgartiradigan odam — engineer yuritadi. U ACT ni biriktirib finalize
+    qiladi va tayyor natijani salesga topshiradi.
     """
 
     queryset = Act.objects.select_related('created_by').all()
     serializer_class = ActSerializer
-    permission_classes = [IsAdminOrSales]
+    permission_classes = [ConfiguratorAccess]
     search_fields = ['number', 'title']
     filterset_fields = ['is_active']
 
@@ -70,12 +71,8 @@ class ConfigurationViewSet(BaseModelViewSet):
     filterset_fields = ['status', 'client', 'base_product', 'act']
     ordering_fields = ['created_at', 'number']
 
-    def get_permissions(self):
-        # Yakunlash (ACT bilan) — sales bosqichi: engineer tayyorlab beradi,
-        # sales ACT kiritib rasmiylashtiradi va bugalterga yuboradi.
-        if self.action == 'finalize':
-            return [IsAdminOrSales()]
-        return super().get_permissions()
+    # §11.1: finalize ham engineerda — ACT bilan yakunlash tarkib egasining
+    # ishi. ConfiguratorAccess (yozish: engineer, admin) buni o'zi qamraydi.
 
     def _check_draft(self, configuration):
         """Yakunlangan konfiguratsiya o'zgartirilmaydi — faqat chernovik (TZ 6.4)."""
@@ -151,7 +148,10 @@ class ConfigurationViewSet(BaseModelViewSet):
         })
 
     def finalize(self, request, pk=None):
-        """POST /configurations/{id}/finalize/ — ACT bilan yakunlash.
+        """POST /configurations/{id}/finalize/ — ACT bilan yakunlash (§11.1: engineer).
+
+        Engineer ACT ni biriktirib yakunlaydi va natijani salesga topshiradi
+        ("Yakunlash va salesga topshirish" — UI da bitta tugma).
 
         Tana (ixtiyoriy): {"act": id} — ACT shu yerning o'zida biriktiriladi,
         oldindan PATCH qilish shart emas; {"client": id} — shartnoma uchun mijoz
@@ -159,7 +159,7 @@ class ConfigurationViewSet(BaseModelViewSet):
 
         Yakunda avtomatik **draft shartnoma** ochiladi (mijoz aniq bo'lsa):
         qatori — tayyor variant, narxi konfiguratsiyadan, QQS bilan. Javobda
-        `contract` maydoni keladi.
+        `contract` maydoni keladi. Build rejimida yig'ish ham shu yerda (§10.1).
         """
         from apps.clients.models import Client
 
@@ -214,12 +214,26 @@ class ConfigurationViewSet(BaseModelViewSet):
                 variant, created = finalize_modification(
                     configuration, request.user, request.data.get('removals'),
                 )
+                assembled, assembly_missing = True, []
             else:
                 variant, created = resolve_variant(configuration)
+                configuration.variant = variant
+                # §10.1: jismoniy yig'ish — butlovchilar chiqadi, variant kiradi.
+                # Yetishmasa bloklanmaydi: mol TLD orqali kelgach /assemble/ yoki
+                # to'lov paytida avtomatik yig'iladi.
+                assembled, assembly_missing = assemble_variant(
+                    configuration, request.user, strict=False,
+                )
 
             configuration.variant = variant
             configuration.status = Configuration.Status.READY
             configuration.save()
+
+            # §11.4: chernovik emas — yumshoq bron bo'shaydi; shartnoma ochilsa
+            # uning qattiq broni o'z o'rnini egallaydi (bitta bron ko'chadi)
+            from apps.inventory.services import sync_configuration_reservations
+
+            sync_configuration_reservations(configuration)
 
             # Bugalterga yuborishdan oldin shartnoma tayyor tursin (chop etish shakli bilan)
             from apps.sales.services import create_contract_from_configuration
@@ -243,32 +257,29 @@ class ConfigurationViewSet(BaseModelViewSet):
             {'id': contract.id, 'number': contract.number, 'status': contract.status}
             if contract else None
         )
+        # Front ko'rsatadi: yig'ildimi yoki qaysi butlovchilar kutilmoqda
+        data['assembled'] = assembled
+        data['assembly_missing'] = assembly_missing
         return Response(data)
 
-    def attach(self, request, pk=None):
-        """POST /configurations/{id}/attach/ — kirim buyurtmasiga biriktirish."""
-        from apps.purchases.models import Purchase
+    def assemble(self, request, pk=None):
+        """POST /configurations/{id}/assemble/ — variantni jismoniy yig'ish (§10.1).
+
+        Finalize paytida butlovchi yetmagan bo'lsa, mol kelgach shu tugma
+        bosiladi: butlovchilar ombordan chiqadi, variant omborga kiradi.
+        """
+        from apps.configurator.services import assemble_variant
 
         configuration = self.get_object()
-        if configuration.status != Configuration.Status.READY:
-            return Response(
-                {'detail': 'Avval konfiguratsiyani yakunlang.'},
-                status=HTTP_400_BAD_REQUEST,
+        assembled, _ = assemble_variant(configuration, request.user, strict=True)
+        if assembled:
+            self.log_action(
+                ActivityLog.Action.UPDATE, configuration,
+                f"Yig'ildi: {configuration.variant.sku} omborga kirdi",
             )
-        purchase = Purchase.objects.filter(pk=request.data.get('purchase')).first()
-        if not purchase:
-            return Response(
-                {'purchase': 'Kirim buyurtmasi topilmadi.'},
-                status=HTTP_400_BAD_REQUEST,
-            )
-        configuration.purchase = purchase
-        configuration.status = Configuration.Status.ATTACHED
-        configuration.save()
-        self.log_action(
-            ActivityLog.Action.UPDATE, configuration,
-            f'Konfiguratsiya {purchase.number} buyurtmasiga biriktirildi',
-        )
-        return Response(self.get_serializer(configuration).data)
+        data = self.get_serializer(configuration).data
+        data['assembled'] = assembled
+        return Response(data)
 
     def request_procurement(self, request, pk=None):
         """POST /configurations/{id}/request-procurement/ — yetishmayotganlar buyurtmachiga.
@@ -312,20 +323,30 @@ class ConfigurationItemViewSet(BaseModelViewSet):
                 'detail': "Yakunlangan konfiguratsiya qatorlari o'zgartirilmaydi.",
             })
 
+    def _resync_reservations(self, configuration):
+        """§11.4: qator o'zgardi — yumshoq bron qatorlarga moslashadi."""
+        from apps.inventory.services import sync_configuration_reservations
+
+        sync_configuration_reservations(configuration)
+
     def perform_create(self, serializer):
         configuration = serializer.validated_data.get('configuration')
         if configuration is None:
             raise ValidationError({'configuration': "Konfiguratsiya ko'rsatilishi shart."})
         self._check_draft(configuration)
         super().perform_create(serializer)
+        self._resync_reservations(configuration)
 
     def perform_update(self, serializer):
         self._check_draft(serializer.instance.configuration)
         super().perform_update(serializer)
+        self._resync_reservations(serializer.instance.configuration)
 
     def perform_destroy(self, instance):
-        self._check_draft(instance.configuration)
+        configuration = instance.configuration
+        self._check_draft(configuration)
         super().perform_destroy(instance)
+        self._resync_reservations(configuration)
 
 
 class ConfigurationRequestViewSet(BaseModelViewSet):

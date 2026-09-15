@@ -17,6 +17,11 @@ EXPENSE_CODE_BY_TYPE = {
 @atomic
 def receive_purchase(purchase, user=None):
     """Kirimni qabul qiladi: ombor qoldigi va kassa chiqimi yoziladi."""
+    if purchase.replenishment_id:
+        raise ValidationError(
+            'Bu hujjat TLD hisobidan avtomatik ochilgan — kirim va to\'lov '
+            'TLD tomonida allaqachon yozilgan, qayta qabul qilinmaydi.',
+        )
     if purchase.status == Purchase.Status.RECEIVED:
         raise ValidationError('Bu kirim allaqachon qabul qilingan.')
     if purchase.status == Purchase.Status.CANCELLED:

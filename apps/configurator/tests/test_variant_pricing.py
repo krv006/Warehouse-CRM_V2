@@ -281,6 +281,7 @@ class ModifyModeTests(APITestCase):
     def test_finalize_moves_stock_and_returns_removed_part(self):
         from apps.core.models import Notification
 
+        bugalter = User.objects.create_user('bug', password='p', role=User.Role.BUGALTER)
         config_id = self._modify_config()
         response = self.client.post(f'/api/configurations/{config_id}/finalize/', {
             'removals': {str(self.ram4.id): '350000'},  # yechilgan RAM narxi o'zgartirildi
@@ -299,8 +300,10 @@ class ModifyModeTests(APITestCase):
         self.assertEqual(removal['component_name'], 'RAM 4 GB')
         self.assertEqual(Decimal(removal['unit_price']), Decimal('350000'))
 
-        # Bugalterga xabar: ACT bilan, yechib olinganlar ro'yxati
+        # Xabar faqat bugalterga: ACT bilan, yechib olinganlar ro'yxati
+        # (user'siz umumiy xabar hammaga ko'rinardi — §10.10 tuzatmasi)
         note = Notification.objects.get(entity='Configuration')
+        self.assertEqual(note.user, bugalter)
         self.assertIn('ACT-01', note.title)
         self.assertIn('RAM 4 GB', note.message)
 
@@ -342,15 +345,49 @@ class ModifyModeTests(APITestCase):
         self.assertEqual(response.data['warehouse'], self.warehouse.id)
         self.assertEqual(self._stock(self.base), Decimal('1'))
 
-    def test_build_mode_does_not_touch_stock(self):
-        from apps.inventory.models import StockMovement
+    def test_build_mode_assembles_variant(self):
+        """§10.1: build rejimida yig'ish qadami — butlovchi chiqadi, variant kiradi.
 
+        Avval hech qanday harakat yozilmas, variant qoldig'i 0 bo'lib
+        shartnoma to'lovi hech qachon o'tmas edi.
+        """
         response = self.client.post('/api/configurations/', {
             'base_product': self.base.id, 'warehouse': self.warehouse.id,
             'act': self.act.id,  # mode default: build
             'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 1}],
         }, format='json')
-        before = StockMovement.objects.count()
         response = self.client.post(f'/api/configurations/{response.data["id"]}/finalize/')
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(StockMovement.objects.count(), before)  # yig'ish rejasi — harakat yo'q
+        self.assertTrue(response.data['assembled'])
+
+        # RAM 8: 3 -> 2 (yig'ishga ketdi), variant omborda 1 dona — sotishga tayyor
+        self.assertEqual(self._stock(self.ram8), Decimal('2'))
+        variant = Product.objects.get(base_model=self.base)
+        self.assertEqual(self._stock(variant), Decimal('1'))
+
+    def test_build_mode_with_shortage_defers_assembly(self):
+        """Butlovchi yetmasa finalize bloklanmaydi — yig'ish keyinga qoladi."""
+        from apps.inventory.models import StockMovement
+        from apps.inventory.services import apply_movement
+
+        response = self.client.post('/api/configurations/', {
+            'base_product': self.base.id, 'warehouse': self.warehouse.id,
+            'act': self.act.id,
+            'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 10}],
+        }, format='json')
+        config_id = response.data['id']
+        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertFalse(response.data['assembled'])
+        self.assertIn('RAM 8 GB', response.data['assembly_missing'])
+
+        # Mol keldi — endi /assemble/ yig'adi
+        apply_movement(
+            product=self.ram8, warehouse=self.warehouse,
+            type=StockMovement.Type.IN, quantity=Decimal('10'),
+        )
+        response = self.client.post(f'/api/configurations/{config_id}/assemble/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(response.data['assembled'])
+        variant = Product.objects.get(base_model=self.base)
+        self.assertEqual(self._stock(variant), Decimal('1'))

@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **253 ta test, hammasi OK**.
+Hozirgi holat: **294 ta test, hammasi OK**.
 
 ---
 
@@ -55,6 +55,15 @@ Hozirgi holat: **253 ta test, hammasi OK**.
 | `apps/procurement/tests/test_replenishment_flow.py` | TZ 7: yetishmayotganlar ro'yxati, hisob shakllantirish, narxsiz yuborishning bloklanishi, buyurtmachi→bugalter→admin zanjiri, pul yetmasa qarzga o'tishi (1 400 000 / 500 000 / 900 000), qarz muddati kirimdan 60 kun, ombor qoldig'i, bojxona bosqichi, admin qatorni tahrirlashi |
 | `apps/configurator/tests/test_variant_pricing.py` | TZ 6.2: narx ombordan olinishi, narxsiz qatorning bloklanishi, variant yaratilishi, bir xil tarkibning qayta ishlatilishi, tayyor variant narxi |
 | `apps/configurator/tests/test_configuration_request.py` | Sales→Engineer zayavka oqimi: ZVK raqami, take/complete faqat engineerga, take'da konfiguratsiya avtomatik ochilishi, sales'ga notification, configuratsiz complete 400 |
+| `apps/inventory/tests/test_product_pricing.py` | §10.2: PATCH narx siyosati (bugalter 200, sales 403), identifikatsiya maydonlari read-only, POST 405 |
+| `apps/inventory/tests/test_reservations.py` | §11.4 bron: qattiq/yumshoq, qisman band, ikkinchi shartnoma faqat erkinni oladi, reject bo'shatadi, to'lov shipped qiladi, o'z broni o'zini to'smaydi, release faqat admin+sabab, muddat o'tishi va qayta bron |
+| `apps/sales/tests/test_contract_lock_and_sync.py` | §10.3: qator o'zgarishida total sinxron, submit'dan keyin qulf (admin istisno), rejected tahrir + qayta submit |
+| `apps/sales/tests/test_didox_and_threshold.py` | §11.2 Didox raqami/sanasi, payment qadami tarixda; §11.3 chegara: kichik — admin chetlab, katta/valyuta/0 — adminga |
+| `apps/sales/tests/test_chain_closure.py` | §10.8: Lead avtomatik bog'lanadi, ZVK arxiv, CFG sold |
+| `apps/procurement/tests/test_pay_freeze_and_kir.py` | §10.5 muzlatish, §10.9 kassa FK+yacheyka, §10.10 yo'naltirilgan xabar, §10.4 kassa sizmasligi, §4.3 avto-KIR va qayta receive taqiqi |
+| `apps/purchases/tests/test_status_guard.py` | §10.6: received→draft 400, PATCH bilan received 400, faqat oldinga |
+| `apps/core/tests/test_dashboard_roles.py` | §10.4: kassa bloki sales/buyurtmachi/engineerga null |
+| `apps/finance/tests/test_expense_direction.py` | §10.12.1: kirim yacheykasiga xarajat so'rovi 400 |
 | `apps/procurement/tests/test_receive_cost_price.py` | receive'da xarid narxi katalogga tushishi (cost_price/stock_price), 0 narx mavjud tannarxni buzmasligi, bog'langan konfiguratsiya qatori narx olib needs_price'dan chiqishi |
 | `apps/procurement/tests/test_pay_parsing.py` | pay: `debt_amount` satr bo'lsa ham 200 (prod'da 500 berardi), bo'sh satr — avtomatik shortfall, noto'g'ri format — 400 |
 | `apps/sales/tests/test_payment_parsing.py` | confirm-payment: `amount` satr — 200, noto'g'ri format — 400 (500 emas) |

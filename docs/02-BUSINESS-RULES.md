@@ -275,11 +275,34 @@ bo'lmasa sales qaytaradi va hisob bugalter/admin stolini band qilmaydi.
 Hammasi omborda bo'lsa TLD umuman ochilmaydi (`request-procurement` 400) —
 engineer `complete` qiladi, sales shartnoma bilan davom etadi.
 
+**Yig'ish qadami (§10.1):** `build` rejimida `finalize` endi jismoniy
+yig'ishni ham qiladi — butlovchilar ombordan chiqadi, variant 1 dona kirim
+bo'ladi (shu tufayli shartnoma to'lovi o'tadi). Butlovchi yetmasa finalize
+bloklanmaydi: yig'ish keyinga qoladi (`assembly_missing` ro'yxati), mol
+kelgach `POST /configurations/{id}/assemble/` yoki to'lov paytida avtomatik
+yig'iladi.
+
+**Bron (§11.4):** shartnoma tuzilishi bilan mahsulot **band** (qattiq bron),
+konfiguratsiya chernovigi esa **rejada** (yumshoq — to'smaydi, ogohlantiradi).
+Chiqim vaqti o'zgarmagan (to'lovda), bron shartnoma–to'lov oralig'idagi oynani
+yopadi: yetishmovchilik endi to'lovda emas, shartnoma tuzilayotganda ko'rinadi.
+Har amal o'z bronini o'ziga ochiq hisoblaydi. Muddati o'tgan bron
+`check_deadlines`da bo'shaydi. Yig'ilmagan variantda bron butlovchilarga tushadi.
+
 **Tannarx yangilanishi:** `receive` (TLD ham, KIR ham) har bir qator
 uchun mahsulot `cost_price`ini xarid narxi (QQS'siz `unit_price`) bilan
 yangilaydi — katalogda narxsiz mahsulot qolmaydi. TLD konfiguratsiyadan
 ochilgan bo'lsa, o'sha konfiguratsiyaning narxsiz qatorlari ham kirimdan
 keyin avtomatik narx oladi (`needs_price` o'chadi, finalize ochiladi).
+
+**§11 kelishilgan o'zgarishlar (endi kodda):** ACT va `finalize` —
+engineerda (§11.1, "Yakunlash va salesga topshirish"); bugalter tasdig'i ikkiga
+bo'lindi — "Didox qabuli" (`didox_number` saqlanadi) va "boshlang'ich to'lov"
+(tarixga `payment` qadami yoziladi) (§11.2); `admin_approval_threshold` dan
+kichik UZS shartnoma admin tasdig'isiz o'tadi, tarixda avtomatik yozuv qoladi,
+boshqa valyuta doim adminga (§11.3). Shartnoma va qatorlari tasdiqqa
+yuborilgach qulflanadi (faqat admin), qator o'zgarganda `total_amount`
+avtomatik qayta hisoblanadi (§10.3); rad etilgani tuzatilib qayta yuboriladi.
 
 **Bildirishnomalar:** har bir tasdiq navbatni keyingi bosqich egasiga
 o'tkazganda unga `/notifications/` orqali xabar tushadi: submit'da sales

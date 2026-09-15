@@ -35,6 +35,11 @@ class CashTransaction(TimeStampedModel):
         'finance.Loan', SET_NULL, related_name='cash_transactions',
         null=True, blank=True,
     )
+    # TLD to'lovi yetim qolmasin — tranzaksiyadan hujjatga o'tish uchun
+    replenishment = ForeignKey(
+        'procurement.Replenishment', SET_NULL, related_name='cash_transactions',
+        null=True, blank=True,
+    )
     expense_request = ForeignKey(
         'finance.ExpenseRequest', SET_NULL, related_name='cash_transactions',
         null=True, blank=True,

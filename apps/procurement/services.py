@@ -39,7 +39,13 @@ def low_stock_products(warehouse=None):
 
     Omborda hali umuman yozuvi yo'q mahsulot ham ro'yxatga tushadi — qoldig'i 0.
     Har bir mahsulotga `current_stock` qiymati biriktiriladi.
+
+    §11.4: shartnomalarga band qilingan (qattiq bron) mol sotilgan hisoblanadi —
+    erkin qoldiq bo'yicha tekshiriladi, band mol "bor" bo'lib ko'rinmaydi.
     """
+    from apps.inventory.services import reserved_quantity
+    from apps.inventory.models import StockReservation
+
     products = Product.objects.filter(is_active=True).prefetch_related('stocks')
     found = []
     for product in products:
@@ -50,6 +56,9 @@ def low_stock_products(warehouse=None):
                 stock.quantity for stock in product.stocks.all()
                 if stock.warehouse_id == warehouse.id
             )
+        quantity -= reserved_quantity(
+            product, warehouse, kind=StockReservation.Kind.HARD,
+        )
         if quantity <= product.reorder_level:
             product.current_stock = quantity
             found.append(product)
@@ -295,12 +304,17 @@ def pay(replenishment, user, *, debt_amount=None):
         })
 
     if cash_part:
+        # Yacheyka hujjat turiga qarab: chet valyuta — import, so'm — mahalliy
+        # ta'minot fakturasi. (Avval supplier bo'sh-bo'shmasligiga qarab tanlanib,
+        # deyarli hammasi "Boshqa xarajat"ga tushib ketardi.)
         record_transaction(
-            code='import' if replenishment.supplier else 'other',
+            code='contract_invoice' if replenishment.currency == 'UZS' else 'import',
             amount=cash_part,
             occurred_at=now(),
             description=f'{replenishment.number} — omborni to\'ldirish',
             currency=replenishment.currency,
+            exchange_rate=replenishment.exchange_rate,
+            replenishment=replenishment,
             user=user,
             approved_by=user,
         )
@@ -323,19 +337,24 @@ def pay(replenishment, user, *, debt_amount=None):
             occurred_at=now(),
             description=f'{replenishment.number} — qarzga o\'tqazildi',
             currency=replenishment.currency,
+            exchange_rate=replenishment.exchange_rate,
             loan=loan,
+            replenishment=replenishment,
             user=user,
         )
         replenishment.debt = loan
-        Notification.objects.create(
-            title=f'{replenishment.number}: {debt_amount} qarzga o\'tqazildi',
-            message=f'Muddat: {deadline}',
-            level=Notification.Level.WARNING,
-            entity='Replenishment',
-            object_id=str(replenishment.pk),
-            due_date=deadline,
-        )
+        # Qarz — pul ma'lumoti: faqat bugalter va adminga (hammaga emas)
+        from apps.accounts.models import User
 
+        for role in (User.Role.BUGALTER, User.Role.ADMIN):
+            _notify_role(
+                role, replenishment,
+                title=f'{replenishment.number}: {debt_amount} qarzga o\'tqazildi',
+                message=f'Muddat: {deadline}',
+            )
+
+    # To'lov paytidagi qarz muzlatiladi — keyin kassa o'zgarsa ham bu raqam turadi
+    replenishment.debt_amount = debt_amount
     replenishment.paid_amount = cash_part
     replenishment.status = Replenishment.Status.ORDERED
     replenishment.save()
@@ -376,6 +395,60 @@ def add_event(replenishment, user, *, stage, comment='', happened_at=None):
     return event
 
 
+def _open_purchase_document(replenishment, user):
+    """TLD receive'da KIR hujjatini avtomatik ochadi (§4.3 — TLD/KIR ulanishi).
+
+    Hujjat tayyor `received` holatda ochiladi: ombor kirimi va kassa chiqimi
+    TLD tomonida bo'lib bo'lgan, KIR faqat qog'oz izi (invoys, bojxona,
+    valyuta hujjatlari) uchun. Bugalterga fayllarni biriktirish eslatmasi boradi.
+    """
+    from django.utils.timezone import localdate as _localdate
+
+    from apps.accounts.models import User
+    from apps.purchases.models import Purchase, PurchaseItem
+
+    if replenishment.purchases.exists():
+        return replenishment.purchases.first()
+
+    purchase = Purchase.objects.create(
+        type=Purchase.Type.LOCAL if replenishment.currency == 'UZS' else Purchase.Type.IMPORT,
+        status=Purchase.Status.RECEIVED,
+        supplier=replenishment.supplier or "Ta'minotchi",
+        warehouse=replenishment.warehouse,
+        replenishment=replenishment,
+        currency=replenishment.currency,
+        exchange_rate=replenishment.exchange_rate,
+        received_at=_localdate(),
+        note=(
+            f'{replenishment.number} hisobidan avtomatik ochildi — '
+            'invoys va bojxona hujjatlari shu yerga biriktiriladi. '
+            "Ombor kirimi va to'lov TLD tomonida yozilgan."
+        ),
+        created_by=user,
+    )
+    for item in replenishment.items.select_related('product'):
+        PurchaseItem.objects.create(
+            purchase=purchase,
+            product=item.product,
+            quantity=item.quantity,
+            unit_price=item.unit_price,
+            note=f'{replenishment.number} qatoridan',
+        )
+    for bugalter in User.objects.filter(role=User.Role.BUGALTER, is_active=True):
+        Notification.objects.create(
+            user=bugalter,
+            title=f'{purchase.number}: hujjatlarni biriktiring',
+            message=(
+                f'{replenishment.number} omborga kirim qilindi — invoys va '
+                'bojxona hujjatlarini shu KIR hujjatiga yuklang.'
+            ),
+            level=Notification.Level.INFO,
+            entity='Purchase',
+            object_id=str(purchase.pk),
+        )
+    return purchase
+
+
 @atomic
 def receive(replenishment, user):
     """Mahsulot omborga kirim qilinadi; qarz muddati shu kundan hisoblanadi (TZ 7.2)."""
@@ -408,6 +481,30 @@ def receive(replenishment, user):
     if replenishment.configuration_id:
         for config_item in replenishment.configuration.items.filter(unit_price=0):
             config_item.save()
+
+        # §11.4: kelgan mol egasiz qolmaydi — darhol o'sha konfiguratsiyaga
+        # (chernovik bo'lsa yumshoq, shartnomasi bo'lsa qattiq) bron qilinadi
+        from apps.inventory.services import (
+            sync_configuration_reservations,
+            sync_contract_reservations,
+        )
+
+        configuration = replenishment.configuration
+        sync_configuration_reservations(configuration)
+        contract = (
+            configuration.contracts
+            .exclude(status__in=['rejected', 'cancelled'])
+            .order_by('-id')
+            .first()
+        )
+        if contract:
+            sync_contract_reservations(contract)
+
+    # §4.3: TLD receive o'zi KIR hujjatini ochadi — invoys/bojxona fayllari
+    # shu hujjatga biriktiriladi. Ombor harakati va kassa chiqimi TLD da
+    # allaqachon yozilgan, shuning uchun bu KIR hech qachon receive qilinmaydi
+    # (tayyor `received` holatda ochiladi) va ikkinchi kirim/chiqim bo'lmaydi.
+    _open_purchase_document(replenishment, user)
 
     today = localdate()
     replenishment.delivered_at = today

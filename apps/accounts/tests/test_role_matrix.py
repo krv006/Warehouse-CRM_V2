@@ -37,7 +37,8 @@ WRITE_MATRIX = {
     '/api/contracts/': {'admin', 'sales'},
     '/api/configurations/': {'admin', 'engineer'},
     '/api/product-specs/': {'admin', 'engineer', 'buyurtmachi'},
-    '/api/acts/': {'admin', 'sales'},
+    # §11.1: ACT engineerga o'tdi — tarkibga asos hujjatni tarkib egasi yuritadi
+    '/api/acts/': {'admin', 'engineer'},
     '/api/cash-transactions/': {'admin', 'bugalter'},
     '/api/loans/': {'admin', 'bugalter'},
     '/api/purchases/': {'admin', 'bugalter'},
@@ -87,12 +88,13 @@ class RoleMatrixTests(APITestCase):
             with self.subTest(url=url):
                 self.assertEqual(self.client.get(url).status_code, 403)
 
-    def test_catalog_is_read_only_for_everyone(self):
-        """TZ da alohida "mahsulot qo'shish" yo'q — katalog faqat o'qish uchun.
+    def test_catalog_has_no_create_endpoint(self):
+        """TZ da alohida "mahsulot qo'shish" yo'q — katalogga POST 405.
 
         Yangi mahsulot Buyurtmachi to'ldirish buyurtmasiga qator qo'shganda
         paydo bo'ladi (TZ 7), ombor qoldig'i esa Kirim/Chiqim orqali o'zgaradi.
-        (Istisno: /product-specs/ — tayyor model tarkibini engineer yozadi.)
+        (Istisno: /product-specs/ — tarkib; §10.2: /products/{id}/ ga PATCH —
+        narx siyosati, admin/bugalter.)
         """
         for role, user in self.users.items():
             self.client.force_authenticate(user)
@@ -100,8 +102,10 @@ class RoleMatrixTests(APITestCase):
                         '/api/warehouses/']:
                 with self.subTest(role=role, url=url):
                     self.assertEqual(self.client.get(url).status_code, 200)
-                    self.assertEqual(
-                        self.client.post(url, {}, format='json').status_code, 405,
+                    # 405 — marshrutda POST yo'q; 403 — rol yozolmaydi (products)
+                    self.assertIn(
+                        self.client.post(url, {}, format='json').status_code,
+                        (403, 405),
                         f"{url} yozish uchun ochiq bo'lmasligi kerak",
                     )
 

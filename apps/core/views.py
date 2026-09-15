@@ -23,7 +23,12 @@ from apps.sales.models import Contract, Lead
 
 
 class DashboardView(APIView):
-    """Admin uchun umumiy hisobot: kassa, kirim, chiqim, sotuv va muddatlar."""
+    """Umumiy hisobot: kassa, kirim, chiqim, sotuv va muddatlar.
+
+    `kassa` bloki (qoldiq, kirim/chiqim yig'indilari, yacheykalar) faqat
+    admin va bugalterga beriladi — TZ 8.2 bo'yicha kassa boshqa rollarga
+    yopiq, front yashirgani bilan API dan sizib chiqmasligi kerak.
+    """
 
     @extend_schema(responses=OpenApiTypes.OBJECT)
     def get(self, request):
@@ -31,6 +36,7 @@ class DashboardView(APIView):
         expense = CashTransaction.objects.filter(direction=Direction.OUT)
         income_total = income.aggregate(t=Sum('amount'))['t'] or 0
         expense_total = expense.aggregate(t=Sum('amount'))['t'] or 0
+        can_see_cash = request.user.is_admin or request.user.is_bugalter
 
         active_contracts = (
             Contract.objects
@@ -77,7 +83,7 @@ class DashboardView(APIView):
                     expense.values('category__code', 'category__name')
                     .annotate(total=Sum('amount')).order_by('-total')
                 ),
-            },
+            } if can_see_cash else None,
             'kirim': {
                 'by_type': list(
                     Purchase.objects.values('type').annotate(count=Count('id')).order_by()

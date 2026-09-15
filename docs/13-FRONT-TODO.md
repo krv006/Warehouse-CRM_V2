@@ -454,6 +454,80 @@ konfiguratsiya sahifasida buni aniqlab bo'lmasdi. Endi backend flag beradi.
 Ro'yxat sahifasida ham xuddi shu maydonlar bor — kartochkalarga kichik
 badge chiqarsangiz engineer nimalar buyurtmachida turganini bir qarashda ko'radi.
 
+## 13. AUDIT bosqichi — §10 tuzatishlari va §11 o'zgarishlari 🔴 KATTA
+
+Backend BIZNES-LOGIKA auditi bo'yicha to'liq yangilandi. Front uchun bo'lim-
+bo'lim:
+
+### 13.1. §11.1 — ACT va Yakunlash endi ENGINEERDA
+
+- `permissions.ts`: SALES'dan `acts.view/manage`, `configurations.finalize`
+  olinadi; ENGINEER'ga qo'shiladi. Menyu bandi ruxsat bilan o'zi ko'chadi.
+- `finalize-dialog` engineer sahifasiga ko'chadi; `complete` + `finalize` ni
+  **bitta tugma** qiling: "Yakunlash va salesga topshirish".
+- `sales-queue` 2-qadam olib tashlanadi; `engineer-queue`ga qo'shiladi.
+- Finalize javobida yangi: `assembled` (yig'ildimi) va `assembly_missing[]`
+  (qaysi butlovchi kutilmoqda). `assembled=false` bo'lsa konfiguratsiyada
+  "Yig'ish" tugmasi: `POST /configurations/{id}/assemble/` (butlovchi yetmasa
+  400 nomlar bilan — narxsiz).
+
+### 13.2. §11.2 — Didox bo'linishi
+
+- `pending_bugalter` tasdiq oynasi: `didox_number` maydoni + "Didoxdan qabul
+  qilib, tanishib chiqdim" matni. Tana: `{"didox_number": "...", "comment": "..."}`.
+- `CONTRACT_STEPS`: `Bugalter` → "Bugalter — Didox", `To'lov kutilmoqda` →
+  "Bugalter — to'lov". Tasdiq tarixida yangi `payment` qadami keladi
+  (`step_display` tayyor).
+- Shartnomada yangi maydonlar: `didox_number`, `didox_accepted_at`;
+  chop etish javobida ham `didox_number` bor.
+
+### 13.3. §11.3 — Admin chegarasi
+
+- Sozlamalar → Rekvizitlar: `admin_approval_threshold` maydoni (0 — chegara
+  yo'q). Yozib qo'ying: taqqoslash **QQS bilan** va faqat **UZS**.
+- Kichik shartnomada bugalter tasdig'idan keyin status to'g'ridan-to'g'ri
+  `approved` keladi — bosqich chizig'i shunga tayyor bo'lsin; tarixda
+  `decided_by=null` bo'lgan avtomatik admin yozuvi bor ("Chegara ... past").
+
+### 13.4. §11.4 — BRON
+
+- Mahsulot javobida: `total_stock` · `reserved_hard` (Band) · `reserved_soft`
+  (Rejada) · `sellable_stock` (Erkin) · `plannable_stock` (Rejadan keyin).
+  Ombor jadvalida qoldiq ustunini shu 4 ga bo'ling.
+- Konfiguratsiya qatorida `available` endi **rejadan keyingi** xavfsiz raqam;
+  xom qoldiq — `stock_total`. Izoh chiqaring: "omborda 5 · sizga xavfsiz 1".
+- Yangi sahifa/bo'lim: `GET /reservations/` (filtr: product, kind, status);
+  mahsulot kartasida "Bron" bo'limi. Qo'lda bo'shatish — faqat admin:
+  `POST /reservations/{id}/release/` `{"note": "sabab"}` (majburiy).
+- Sozlamalar → Rekvizitlar: `contract_reservation_days` (7),
+  `configuration_reservation_days` (14) maydonlari.
+- Muddati o'tganda egasiga bildirishnoma tushadi — qo'ng'iroqcha ko'rsatadi.
+
+### 13.5. Mayda, lekin muhim
+
+- **Katalog PATCH ochildi** (§10.2): mahsulot kartasida admin/bugalter uchun
+  `sale_price`, `cost_price`, `reorder_level`, `is_active` tahriri.
+  "Minimal daraja" ustunini qaytarsangiz bo'ladi — endi tahrirlanadi.
+- **Shartnoma qulfi** (§10.3): `draft`/`rejected` dan keyin qator tahririni
+  yashiring — backend 403 beradi (admin istisno). `rejected` shartnoma endi
+  tahrirlanadi va qayta `submit` bo'ladi. Qator o'zgarganda `total_amount`
+  backendda o'zi yangilanadi — `syncContractTotal()` kerak emas.
+- **KIR**: status faqat oldinga (`received`/`cancelled` — terminal, backend
+  400); TLD `receive`da avto-KIR ochiladi — TLD javobidagi `purchase`
+  maydonidan havola qiling, bugalterga "hujjat biriktiring" xabari boradi.
+  Bunday KIRda "Qabul qilish" tugmasi bo'lmasin (400: TLD orqali kelgan).
+- **Kassa sizmasin** (§10.4): TLD javobida `cash_available`/`shortfall`
+  admin/bugalterdan boshqaga `null`; `/dashboard/` `kassa` bloki ham `null` —
+  null-check qo'ying.
+- **Tranzaksiya → hujjat** (§10.9): endi `replenishment` FK va
+  `replenishment_number` keladi — `documentLink()` matn parsing o'rniga
+  shundan foydalansin.
+- **Zanjir yopilishi** (§10.8): CFG `sold`, ZVK `archived` — navbat
+  so'rovlarini soddalashtiring (`useConfigurationsWithoutContract` kerak
+  emas: `ready` = shartnomasiz, `sold` = yopilgan); Lead avtomatik
+  `contract` bosqichiga o'tadi — kanban shunga tayyor bo'lsin.
+- `attach` endpointi va `attached` holati o'chirildi (§10.7).
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

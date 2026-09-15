@@ -29,7 +29,43 @@ class Command(BaseCommand):
         created += self._check_loans()
         created += self._check_imports()
         created += self._check_leads()
+        created += self._expire_reservations()
         self.stdout.write(self.style.SUCCESS(f'{created} ta eslatma yaratildi'))
+
+    def _expire_reservations(self):
+        """§11.4: muddati o'tgan bronlar bo'shaydi, hujjat egasiga xabar boradi.
+
+        Chernovik omborni abadiy band qilib turmasin: muddat CompanyProfile'da
+        (admin belgilaydi), 0 bo'lsa bron muddatsiz.
+        """
+        from apps.inventory.models import StockReservation
+
+        created = 0
+        expired = StockReservation.objects.filter(
+            status=StockReservation.Status.ACTIVE,
+            expires_at__isnull=False,
+            expires_at__lt=localdate(),
+        ).select_related('contract__created_by', 'configuration__created_by', 'product')
+        for reservation in expired:
+            owner = reservation.contract or reservation.configuration
+            reservation.status = StockReservation.Status.EXPIRED
+            reservation.release_note = 'Muddati o\'tdi — avtomatik bo\'shatildi'
+            reservation.save()
+            recipient = owner.created_by if owner else None
+            if recipient:
+                Notification.objects.create(
+                    user=recipient,
+                    title=f'{owner.number} broni muddati tugadi',
+                    message=(
+                        f'{reservation.product.name} x{reservation.quantity} yana erkin. '
+                        'Hujjatni yuborsangiz/yangilasangiz qayta bron qilinadi.'
+                    ),
+                    level=Notification.Level.WARNING,
+                    entity='StockReservation',
+                    object_id=str(reservation.pk),
+                )
+                created += 1
+        return created
 
     def _notify(self, *, title, message, color, entity, object_id, due_date, user=None):
         level = LEVEL_BY_COLOR.get(color)

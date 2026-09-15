@@ -1,4 +1,4 @@
-from rest_framework.serializers import ModelSerializer, ReadOnlyField
+from rest_framework.serializers import ModelSerializer, ReadOnlyField, ValidationError
 
 from apps.finance.models import CashCategory, CashTransaction, ExpenseRequest, Loan
 
@@ -19,6 +19,7 @@ class CashTransactionSerializer(ModelSerializer):
     category_name = ReadOnlyField(source='category.name')
     direction_display = ReadOnlyField(source='get_direction_display')
     amount_uzs = ReadOnlyField()
+    replenishment_number = ReadOnlyField(source='replenishment.number')
 
     class Meta:
         model = CashTransaction
@@ -26,6 +27,7 @@ class CashTransactionSerializer(ModelSerializer):
             'id', 'direction', 'direction_display', 'category', 'category_name',
             'amount', 'currency', 'exchange_rate', 'amount_uzs', 'occurred_at',
             'description', 'contract', 'purchase', 'loan', 'expense_request',
+            'replenishment', 'replenishment_number',
             'created_by', 'approved_by', 'created_at',
         ]
         read_only_fields = ['direction', 'created_by', 'approved_by']
@@ -54,6 +56,21 @@ class ExpenseRequestSerializer(ModelSerializer):
     category_name = ReadOnlyField(source='category.name')
     status_display = ReadOnlyField(source='get_status_display')
     requested_by_name = ReadOnlyField(source='requested_by.username')
+
+    def validate_category(self, category):
+        """Xarajat so'rovi faqat chiqim yacheykasiga yoziladi.
+
+        Kirim yacheykasi tanlansa, tasdiqda kassaga chiqim o'rniga KIRIM
+        yozilib kassa buzilardi (§10.12.1).
+        """
+        from apps.core.choices import Direction
+
+        if category.direction != Direction.OUT:
+            raise ValidationError(
+                "Xarajat so'rovi uchun chiqim yacheykasi tanlanadi — "
+                f"'{category.name}' kirim yacheykasi.",
+            )
+        return category
 
     class Meta:
         model = ExpenseRequest

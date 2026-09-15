@@ -94,6 +94,78 @@ def resolve_variant(configuration):
     return variant, True
 
 
+def assemble_variant(configuration, user, *, strict=True):
+    """Build rejimida jismoniy yig'ish (§10.1): butlovchilar chiqadi, variant kiradi.
+
+    Avval bu qadam umuman yo'q edi: variant katalogda yaratilardi-yu, ombor
+    qoldig'i 0 bo'lib qolar, shartnoma to'lovi hech qachon o'tmas edi.
+
+    Variant omborda allaqachon bor bo'lsa (>= 1) yig'ilmaydi — sotuv tayyor
+    qoldiqdan ketadi. Butlovchi yetmasa: strict=True — 400 (nomlar bilan,
+    narxsiz — engineer pul ko'rmaydi), strict=False — (False, nomlar) qaytadi
+    va jarayon davom etadi (mol TLD orqali kelgach yig'iladi).
+    """
+    from django.db.transaction import atomic
+    from rest_framework.exceptions import ValidationError
+
+    from apps.inventory.models import StockMovement
+    from apps.inventory.services import (
+        apply_movement,
+        available_quantity,
+        main_warehouse,
+        sellable_quantity,
+    )
+
+    variant = configuration.variant
+    if variant is None:
+        if strict:
+            raise ValidationError({'detail': 'Avval konfiguratsiyani yakunlang.'})
+        return False, []
+
+    warehouse = configuration.warehouse or main_warehouse()
+    if available_quantity(variant, warehouse) >= 1:
+        return False, []
+
+    # §11.4: boshqa shartnomalarga band qilingan butlovchi yig'ishga olinmaydi;
+    # shu konfiguratsiyaning o'z shartnomasi band qilgani esa ochiq
+    own_contract = (
+        configuration.contracts
+        .exclude(status__in=['rejected', 'cancelled'])
+        .order_by('-id')
+        .first()
+    )
+    missing = [
+        item.component.name
+        for item in configuration.items.select_related('component')
+        if sellable_quantity(
+            item.component, warehouse, for_contract=own_contract,
+        ) < item.quantity
+    ]
+    if missing:
+        if strict:
+            raise ValidationError({
+                'detail': "Yig'ish uchun butlovchilar omborda yetarli emas.",
+                'items': missing,
+            })
+        return False, missing
+
+    with atomic():
+        for item in configuration.items.select_related('component'):
+            apply_movement(
+                product=item.component, warehouse=warehouse,
+                type=StockMovement.Type.OUT, quantity=item.quantity,
+                reason=StockMovement.Reason.CONFIGURATION,
+                reference=configuration.number, user=user,
+            )
+        apply_movement(
+            product=variant, warehouse=warehouse,
+            type=StockMovement.Type.IN, quantity=1,
+            reason=StockMovement.Reason.CONFIGURATION,
+            reference=configuration.number, user=user,
+        )
+    return True, []
+
+
 def finalize_modification(configuration, user, removal_overrides=None):
     """Tayyor mahsulotni o'zgartirishni yakunlaydi (modify rejimi, TZ 6.2).
 
@@ -194,18 +266,23 @@ def finalize_modification(configuration, user, removal_overrides=None):
             reference=configuration.number, user=user,
         )
 
-        # TZ: yechib olinganini ACT qilib bugalterga jo'natamiz
+        # TZ: yechib olinganini ACT qilib bugalterga jo'natamiz — faqat unga
+        # (user'siz xabar hammaga ko'rinardi, ACT tafsiloti esa pul ma'lumoti)
+        from apps.accounts.models import User
+
         act_number = configuration.act.number if configuration.act else '-'
-        Notification.objects.create(
-            title=f'{configuration.number}: tarkib o\'zgartirildi (ACT {act_number})',
-            message=(
-                'Yechib olindi va omborga qaytdi: ' + '; '.join(removed_lines)
-                if removed_lines else 'Tarkibga faqat qo\'shimcha kiritildi.'
-            ),
-            level=Notification.Level.INFO,
-            entity='Configuration',
-            object_id=str(configuration.pk),
-        )
+        for bugalter in User.objects.filter(role=User.Role.BUGALTER, is_active=True):
+            Notification.objects.create(
+                user=bugalter,
+                title=f'{configuration.number}: tarkib o\'zgartirildi (ACT {act_number})',
+                message=(
+                    'Yechib olindi va omborga qaytdi: ' + '; '.join(removed_lines)
+                    if removed_lines else 'Tarkibga faqat qo\'shimcha kiritildi.'
+                ),
+                level=Notification.Level.INFO,
+                entity='Configuration',
+                object_id=str(configuration.pk),
+            )
 
     return variant, created
 
@@ -265,6 +342,11 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
             created_by=user,
         )
         copy_factory_spec(configuration)
+
+        # §11.4: chernovik butlovchilarni "Rejada" deb belgilaydi (yumshoq bron)
+        from apps.inventory.services import sync_configuration_reservations
+
+        sync_configuration_reservations(configuration)
 
         request_obj.status = ConfigurationRequest.Status.IN_PROGRESS
         request_obj.taken_by = user

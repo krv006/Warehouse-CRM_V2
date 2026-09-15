@@ -14,6 +14,7 @@ from apps.inventory.views import (
     ProductSpecViewSet,
     StockViewSet,
     StockMovementViewSet,
+    StockReservationViewSet,
 )
 
 urlpatterns = [
@@ -21,7 +22,11 @@ urlpatterns = [
     path('warehouses/<int:pk>/', WarehouseViewSet.as_view(READ_DETAIL), name='warehouse-detail'),
 
     path('products/', ProductViewSet.as_view(READ_LIST), name='product-list'),
-    path('products/<int:pk>/', ProductViewSet.as_view(READ_DETAIL), name='product-detail'),
+    # PATCH — narx siyosati (sale_price, reorder_level, is_active): admin/bugalter
+    path('products/<int:pk>/', ProductViewSet.as_view({
+        'get': 'retrieve',
+        'patch': 'partial_update',
+    }), name='product-detail'),
 
     # Tarkib (ichidagi configlar): o'qish hammaga, yozish engineer (admin)
     path('product-specs/', ProductSpecViewSet.as_view(LIST), name='productspec-list'),
@@ -32,4 +37,11 @@ urlpatterns = [
 
     path('movements/', StockMovementViewSet.as_view(READ_LIST), name='stockmovement-list'),
     path('movements/<int:pk>/', StockMovementViewSet.as_view(READ_DETAIL), name='stockmovement-detail'),
+
+    # §11.4: bronlar — jarayonlar avtomatik yozadi, qo'lda faqat release (admin)
+    path('reservations/', StockReservationViewSet.as_view(READ_LIST), name='stockreservation-list'),
+    path('reservations/<int:pk>/', StockReservationViewSet.as_view(READ_DETAIL), name='stockreservation-detail'),
+    path('reservations/<int:pk>/release/', StockReservationViewSet.as_view({
+        'post': 'release',
+    }), name='stockreservation-release'),
 ]

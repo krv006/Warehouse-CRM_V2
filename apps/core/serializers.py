@@ -11,7 +11,9 @@ class CompanyProfileSerializer(ModelSerializer):
         fields = [
             'id', 'name', 'inn', 'phone', 'email', 'address',
             'bank_name', 'mfo', 'account_number', 'director_name',
-            'contract_terms', 'updated_at',
+            'contract_terms', 'admin_approval_threshold',
+            'contract_reservation_days', 'configuration_reservation_days',
+            'updated_at',
         ]
         read_only_fields = ['id', 'updated_at']
 

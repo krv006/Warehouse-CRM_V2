@@ -24,7 +24,8 @@ class SeedDemoTests(APITestCase):
         self.assertEqual(Product.objects.filter(base_model__isnull=True).count(), 6)
         self.assertEqual(Contract.objects.count(), 5)
         self.assertEqual(Lead.objects.count(), 5)
-        self.assertEqual(Purchase.objects.count(), 5)
+        # 5 ta qo'lda + 1 ta TLD receive'da avtomatik ochilgan KIR (§4.3)
+        self.assertEqual(Purchase.objects.count(), 6)
         self.assertEqual(Replenishment.objects.count(), 3)
         self.assertEqual(PurchaseDocument.objects.count(), 2)
 
@@ -105,7 +106,7 @@ class SeedDemoTests(APITestCase):
     def test_second_run_does_not_duplicate(self):
         call_command('seed_demo', stdout=StringIO())
         self.assertEqual(Contract.objects.count(), 5)
-        self.assertEqual(Purchase.objects.count(), 5)
+        self.assertEqual(Purchase.objects.count(), 6)
 
     def test_dashboard_is_rich_after_seed(self):
         from apps.accounts.models import User

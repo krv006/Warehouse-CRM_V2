@@ -655,6 +655,54 @@ chiqimida hisoblangan) — tannarx siyosati: oxirgi xarid narxi.
 
 ---
 
+## 8.20 BIZNES-LOGIKA auditi: §10 xatolari va §11 kelishuvlari kodda 🚀
+
+Audit hujjati (BIZNES-LOGIKA.md) bo'yicha bitta katta bosqich — uch commit.
+
+### 1-qism — §10 xatolari
+
+| § | Nima tuzatildi |
+|---|---|
+| §10.1 | **Yig'ish qadami**: `finalize` (build) butlovchilarni chiqarib variantni omborga kiritadi; yetmasa bloklamaydi — yangi `POST /configurations/{id}/assemble/` yoki to'lov oldidan avtomatik. Sotuv endi qulflanmaydi |
+| §10.2 | `PATCH /products/{id}/` ochildi (admin/bugalter, yangi `ProductPricingAccess`): `sale_price`, `cost_price`, `reorder_level`, `is_active`. Prays-list bor endi |
+| §10.3 | Qator o'zgarganda `total_amount` avtomatik qayta yig'iladi; shartnoma va qatorlari tasdiqdan keyin **qulf** (faqat admin); `rejected` tahrirlanadi va qayta submit bo'ladi; `/contract-items/` da `contract` maydoni tuzatildi (avval 500 edi) |
+| §10.4 | `cash_available`/`shortfall` faqat admin/bugalterga (boshqalarga `null`); `/dashboard/` `kassa` bloki ham |
+| §10.5 | To'lovda qarz **muzlatiladi** (`debt_amount`) — kassa keyin o'zgarsa ham raqam turadi; qarz yopilganda sanoq to'xtaydi |
+| §10.6 | KIR holat qo'riqchisi: faqat oldinga, `received`/`cancelled` — terminal, `received`ga faqat `receive` olib boradi |
+| §10.7 | O'lik `attach` endpointi, `Configuration.purchase` FK va `attached` holati olib tashlandi |
+| §10.8 | Zanjir yopiladi: to'lovda CFG → **`sold`**, shartnoma ochilganda ZVK → **`archived`**, mijozning ochiq Lead'i shartnomaga bog'lanib `contract` bosqichiga o'tadi |
+| §10.9 | `CashTransaction.replenishment` FK — TLD to'lovi endi yetim emas; yacheyka hujjat turidan: UZS → `contract_invoice`, valyuta → `import` |
+| §10.10 | `user=null` xabarlar yo'q qilindi: qarz xabari bugalter+adminga, ACT xabari bugalterga |
+| §10.12.1 | Xarajat so'rovi faqat **chiqim** yacheykasiga (kirim tanlansa 400) |
+| §10.12.3 | `signed_at` bugalter qabulida avtomatik to'ladi |
+| §4.3 | **TLD → KIR ulanishi**: TLD `receive` KIR hujjatini avtomatik ochadi (`received`, kassasiz/harakatsiz — hammasi TLD tomonida yozilgan), bugalter invoys/bojxonani shu KIRga biriktiradi; `Purchase.replenishment` FK, TLD ga `exchange_rate` |
+
+### 2-qism — §11.1 / §11.2 / §11.3
+
+| § | Nima |
+|---|---|
+| §11.1 | **ACT va `finalize` engineerga o'tdi** — "Yakunlash va salesga topshirish" bitta qo'lda; sales ACT'ga 403 |
+| §11.2 | Bugalter tasdig'i ikkiga bo'lindi: **Didox qabuli** (`didox_number`, `didox_accepted_at` — approve tanasida) va **boshlang'ich to'lov** (`confirm-payment` endi tarixga `payment` qadamini yozadi) |
+| §11.3 | `CompanyProfile.admin_approval_threshold`: shu summadan kichik UZS shartnoma bugalter tasdig'i bilan to'g'ridan-to'g'ri `approved`; tarixda avtomatik admin yozuvi (decided_by bo'sh, sabab bilan); boshqa valyuta doim adminga; 0 — chegara yo'q |
+
+### 3-qism — §11.4 BRON (yangi model `StockReservation`)
+
+`Jami = Band + Rejada + Erkin`. Shartnoma tuzilganda mol **band** (qattiq),
+konfiguratsiya chernovigida **rejada** (yumshoq — to'smaydi). To'lovda bron
+chiqimga aylanadi; reject — bo'shaydi; muddati o'tsa `check_deadlines`
+bo'shatib egasiga xabar beradi (muddatlar admin sozlamasida). Yetishmasa
+hujjat to'silmaydi — bor qismi band bo'ladi. Yig'ilmagan variantda bron
+butlovchilarga tushadi (§10.1 bilan bitta paket). Har amal o'z bronini o'ziga
+ochiq hisoblaydi — to'lov o'z-o'zini bloklamaydi. Yangi endpointlar:
+`GET /reservations/`, `POST /reservations/{id}/release/` (admin, sabab
+majburiy, auditga tushadi). Mahsulot javobida: `reserved_hard`,
+`reserved_soft`, `sellable_stock`, `plannable_stock`; konfiguratsiya qatori
+`available` endi "rejadan keyin", xomi — `stock_total`.
+
+Front vazifalari: [13-FRONT-TODO.md](13-FRONT-TODO.md) §13.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -683,8 +731,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **95** |
+| REST endpoint | 70 | **98** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
-| Modellar | 23 | **31** |
-| Testlar | 66 | **253** |
+| Modellar | 23 | **32** |
+| Testlar | 66 | **294** |
 | Rollar | 3 | **5** |

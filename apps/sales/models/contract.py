@@ -5,6 +5,7 @@ from django.db.models import (
     SET_NULL,
     CharField,
     DateField,
+    DateTimeField,
     DecimalField,
     ForeignKey,
     PositiveIntegerField,
@@ -59,6 +60,9 @@ class Contract(TimeStampedModel):
     term_days = PositiveIntegerField(default=90)
     signed_at = DateField(null=True, blank=True)
     start_date = DateField(null=True, blank=True)
+    # §11.2: bugalterning 1-bosqichi — rasmiy shartnomani Didoxdan qabul qilish
+    didox_number = CharField('Didox raqami', max_length=64, blank=True)
+    didox_accepted_at = DateTimeField(null=True, blank=True)
     note = TextField(blank=True)
     created_by = ForeignKey(
         'accounts.User', SET_NULL, related_name='contracts',

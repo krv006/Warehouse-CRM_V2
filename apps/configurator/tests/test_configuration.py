@@ -7,7 +7,6 @@ from apps.accounts.models import User
 from apps.configurator.models import Act, Configuration, ConfigurationItem
 from apps.inventory.models import Product, StockMovement, Warehouse
 from apps.inventory.services import apply_movement
-from apps.purchases.models import Purchase
 
 
 class ConfigurationTests(APITestCase):
@@ -58,8 +57,8 @@ class ConfigurationTests(APITestCase):
         self.assertEqual(self.configuration.total_price, Decimal('6000000'))
 
     def test_finalize_requires_act(self):
-        # Yakunlash sales bosqichi (engineer emas)
-        self.client.force_authenticate(self.sales)
+        # §11.1: yakunlash engineer bosqichi — ACT ham unda
+        self.client.force_authenticate(self.engineer)
         response = self.client.post(f'/api/configurations/{self.configuration.id}/finalize/')
         self.assertEqual(response.status_code, 400)
 
@@ -73,33 +72,19 @@ class ConfigurationTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['status'], Configuration.Status.READY)
 
-    def test_attach_to_purchase(self):
-        act = Act.objects.create(number='ACT-002', title='ACT', issued_at=date.today())
-        self.configuration.act = act
-        self.configuration.status = Configuration.Status.READY
-        self.configuration.save()
-        purchase = Purchase.objects.create(
-            supplier='Etuf', warehouse=self.warehouse, type=Purchase.Type.LOCAL,
-        )
-        response = self.client.post(
-            f'/api/configurations/{self.configuration.id}/attach/',
-            {'purchase': purchase.id},
-        )
-        self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data['status'], Configuration.Status.ATTACHED)
-
     def test_export_excel(self):
         response = self.client.get(f'/api/configurations/{self.configuration.id}/export-excel/')
         self.assertEqual(response.status_code, 200)
         self.assertIn('spreadsheetml', response['Content-Type'])
         self.assertIn(self.configuration.number, response['Content-Disposition'])
 
-    def test_act_belongs_to_sales_stage(self):
-        """ACT ni sales (va admin) kiritadi — engineer emas, uning ishi configurator."""
+    def test_act_belongs_to_engineer_stage(self):
+        """§11.1: ACT ni engineer (va admin) kiritadi — sales emas."""
         payload = {'number': 'ACT-003', 'title': 'Yangi', 'issued_at': str(date.today())}
+        self.client.force_authenticate(self.sales)
         self.assertEqual(self.client.post('/api/acts/', payload).status_code, 403)
 
-        self.client.force_authenticate(self.sales)
+        self.client.force_authenticate(self.engineer)
         self.assertEqual(self.client.post('/api/acts/', payload).status_code, 201)
 
         self.client.force_authenticate(self.admin)

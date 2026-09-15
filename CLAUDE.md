@@ -104,14 +104,15 @@ bloklangan, `warehouse` maydonlari hamma joyda ixtiyoriy
 |---|---|
 | `admin` | Hamma narsani ko'radi, shartnomani oxirgi tasdiqlaydi, bugalterning xarajatiga ruxsat beradi |
 | `bugalter` | Hujjat va pul kirdi-chiqdisi, shartnomaning 1-tasdig'i, pul kelganini tasdiqlash. Client qo'sha olmaydi |
-| `sales` | Zakaz shakllantiradi, client qo'shadi, sotuv narxini ko'radi; engineer tayyorlagan konfiguratsiyaga **ACT kiritib yakunlaydi** va bugalterga yuboradi |
+| `sales` | Zakaz shakllantiradi, client qo'shadi, sotuv narxini ko'radi; engineer topshirgan tayyor shartnomani to'ldirib bugalterga yuboradi |
 | `buyurtmachi` | Omborni to'ldiradi: ta'minotchi narxi, logistika, yetkazib berish kuzatuvi, qarz |
-| `engineer` | Configurator ishlari to'liq unda; sales'dan `ZVK-` zayavka oladi (`/configuration-requests/`), konfiguratsiyani tayyorlab qaytaradi |
+| `engineer` | Configurator ishlari to'liq unda; sales'dan `ZVK-` zayavka oladi (`/configuration-requests/`), konfiguratsiyani tayyorlab **ACT bilan yakunlaydi** (§11.1) va salesga topshiradi |
 
 Permission klasslari: `apps/accounts/permissions.py` (`IsAdmin`, `IsAdminOrBugalter`,
-`IsAdminOrSales`, `CanManageClients`, `ProductSpecAccess`, `FinanceAccess`,
-`PurchaseAccess`, `ProcurementAccess`, `ProcurementSharedAccess`) — hammasi `RoleAccess`
-asosida: `read_roles` / `write_roles`, admin doim o'tadi.
+`IsAdminOrSales`, `CanManageClients`, `ProductSpecAccess`, `ProductPricingAccess`,
+`FinanceAccess`, `PurchaseAccess`, `ProcurementAccess`, `ProcurementSharedAccess`,
+`ProcurementApprovalAccess`, `ConfiguratorAccess`, `ConfigurationRequestAccess`) —
+hammasi `RoleAccess` asosida: `read_roles` / `write_roles`, admin doim o'tadi.
 
 ### 2.2 Client — `apps/clients`
 
@@ -140,11 +141,12 @@ Bitta model, ikki tur: `individual` (F.I.SH, passport, JSHSHIR — unique) va
 - `Lead` — og'zaki kelishuv jarayoni (`new → negotiation → verbal → contract / lost`).
 - `Contract` holatlari:
   `draft → pending_bugalter → pending_admin → approved → active → completed`
-  (`rejected`, `cancelled`).
-  - `POST /contracts/{id}/submit/` — sales yuboradi
-  - `POST /contracts/{id}/approve/` — avval bugalter, keyin admin
-  - `POST /contracts/{id}/confirm-payment/` — bugalter; shu kundan **muddat sanog'i** boshlanadi
+  (`rejected` — tahrirlanib qayta submit bo'ladi, `cancelled`).
+  - `POST /contracts/{id}/submit/` — sales yuboradi; shundan keyin shartnoma va qatorlari **qulflanadi** (faqat admin o'zgartiradi), qator o'zgarganda `total_amount` avtomatik qayta yig'iladi
+  - `POST /contracts/{id}/approve/` — avval bugalter (**Didox qabuli**, §11.2 — tanada `didox_number`), keyin admin; `CompanyProfile.admin_approval_threshold` dan kichik UZS summada admin bosqichi o'tkazib yuboriladi (§11.3, tarixda avtomatik yozuv)
+  - `POST /contracts/{id}/confirm-payment/` — bugalter; shu kundan **muddat sanog'i** boshlanadi; tarixga `payment` qadami yoziladi; konfiguratsiya `sold` bo'ladi
   - `GET /contracts/{id}/timeline/` — line chart nuqtalari va rang
+- Shartnoma tuzilganda mahsulot **bron** qilinadi (§11.4, `StockReservation`): qattiq bron sotuvni to'sadi, konfiguratsiya chernovigi yumshoq bron (ogohlantiradi); to'lovda bron chiqimga aylanadi, muddati o'tganini `check_deadlines` bo'shatadi; mijozning ochiq `Lead`i shartnomaga avtomatik bog'lanadi
 - Oldindan to'lov: summa **1 mlrd dan kam bo'lsa 30%**, ko'p bo'lsa **15%**; qo'lda o'zgartirsa bo'ladi.
 - Rang qoidasi (`apps/core/utils.py`): yashil → sariq (oxirgi 1/3) → **oxirgi 10 kun qizil**.
 - Qator narxi (`unit_price`, `subtotal`) faqat sales va adminga ko'rinadi.
@@ -155,8 +157,8 @@ O'qish hammaga; **yozish faqat engineer** (admin). Sales matnli zayavka yuboradi
 `Configuration` + `ConfigurationItem`: har bir qator uchun `available` / `shortage` / `source`
 (`stock` yoki `purchase`) hisoblanadi.
 - `GET /configurations/{id}/stock-check/`
-- `POST /configurations/{id}/finalize/` — **ACT majburiy**; ACT va yakunlash — **sales bosqichi** (engineer ACT'siz tayyorlab `complete` qiladi), tanada `{"act": id, "client": id}` qabul qilinadi; yakunda **draft shartnoma avtomatik ochiladi** (mijoz — tanadagi yoki ZVK'dagi), chop etish shakli: `GET /contracts/{id}/print/`
-- `POST /configurations/{id}/attach/` — tayyor konfiguratsiyani kirim buyurtmasiga biriktiradi
+- `POST /configurations/{id}/finalize/` — **ACT majburiy**; §11.1: ACT ham, yakunlash ham **engineer bosqichi** ("Yakunlash va salesga topshirish"), tanada `{"act": id, "client": id}` qabul qilinadi; build rejimida **yig'ish** ham shu yerda (§10.1: butlovchilar chiqadi, variant kiradi; yetmasa bloklamaydi — javobda `assembled`/`assembly_missing`); yakunda **draft shartnoma avtomatik ochiladi** (mijoz — tanadagi yoki ZVK'dagi), chop etish shakli: `GET /contracts/{id}/print/`
+- `POST /configurations/{id}/assemble/` — keyinroq yig'ish (mol kelgach); to'lov oldidan ham avtomatik uriniladi
 - `GET /configurations/{id}/export-excel/` — chernovik Excel (openpyxl)
 - Narx ombordan avtomatik olinadi; narxsiz qator bo'lsa `finalize` bloklanadi
 - Bir xil tarkib `signature` orqali tanib olinadi va ombordagi tayyor variant narxi qo'llanadi
@@ -166,8 +168,11 @@ O'qish hammaga; **yozish faqat engineer** (admin). Sales matnli zayavka yuboradi
 `Replenishment` + item / approval / event. Jarayon: yetishmayotganlar ro'yxati →
 `from-low-stock` → `submit` → (mijoz buyurtmasidan ochilgan bo'lsa **sales**
 `approve` — mijoz roziligi) → bugalter `approve` → admin `approve` → bugalter `pay`
-(pul yetmasa `shortfall` qarzga: `Loan.source=supplier`, muddat kirimdan 60 kun) →
-`events` (bojxona va h.k.) → `receive` (ombor qoldig'i oshadi).
+(pul yetmasa `shortfall` qarzga: `Loan.source=supplier`, muddat kirimdan 60 kun;
+qarz summasi to'lov paytida muzlatiladi, kassa chiqimi `replenishment` FK bilan
+bog'lanadi) → `events` (bojxona va h.k.) → `receive` (ombor qoldig'i oshadi,
+tannarx yangilanadi, **KIR hujjati avtomatik ochiladi** — §4.3: invoys/bojxona
+fayllari shu KIRga biriktiriladi, ikkinchi kirim/chiqim yozilmaydi).
 
 ### 2.7 Audit va eslatmalar — `apps/core`
 

@@ -28,7 +28,8 @@ class Configuration(TimeStampedModel):
     class Status(TextChoices):
         DRAFT = 'draft', 'Chernovik'
         READY = 'ready', 'Tayyor'
-        ATTACHED = 'attached', 'Buyurtmaga biriktirilgan'
+        # Terminal holat: shartnoma faollashdi (pul keldi) — zanjir yopildi
+        SOLD = 'sold', 'Sotildi'
         CANCELLED = 'cancelled', 'Bekor qilingan'
 
     number = CharField(max_length=30, unique=True, blank=True)
@@ -43,10 +44,6 @@ class Configuration(TimeStampedModel):
     )
     act = ForeignKey(
         'configurator.Act', PROTECT, related_name='configurations',
-        null=True, blank=True,
-    )
-    purchase = ForeignKey(
-        'purchases.Purchase', SET_NULL, related_name='configurations',
         null=True, blank=True,
     )
     # Yakunlangach yaratiladigan (yoki topiladigan) tayyor variant — TZ 6.2

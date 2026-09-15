@@ -42,7 +42,8 @@ class AutoContractOnFinalizeTests(APITestCase):
         self.act = Act.objects.create(number='ACT-1', title='ACT', issued_at=date.today())
 
     def _finalize(self, **extra):
-        self.client.force_authenticate(self.sales)
+        # §11.1: yakunlash engineer bosqichi
+        self.client.force_authenticate(self.engineer)
         return self.client.post(
             f'/api/configurations/{self.configuration.id}/finalize/',
             {'act': self.act.id, **extra}, format='json',

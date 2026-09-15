@@ -1,7 +1,9 @@
 from rest_framework.serializers import (
     DateTimeField,
     ModelSerializer,
+    PrimaryKeyRelatedField,
     ReadOnlyField,
+    ValidationError,
 )
 
 from apps.sales.models import (
@@ -23,12 +25,23 @@ class ContractItemSerializer(ModelSerializer):
     vat_amount = ReadOnlyField()
     total_with_vat = ReadOnlyField()
 
+    contract = PrimaryKeyRelatedField(
+        queryset=Contract.objects.all(), required=False,
+    )
+
     class Meta:
         model = ContractItem
         fields = [
-            'id', 'product', 'product_name', 'quantity', 'unit_price',
+            'id', 'contract', 'product', 'product_name', 'quantity', 'unit_price',
             'subtotal', 'vat_percent', 'vat_amount', 'total_with_vat',
         ]
+
+    def validate(self, attrs):
+        # contract faqat alohida /contract-items/ orqali yaratishda majburiy;
+        # shartnoma ichida nested kelganda ota-serializer o'zi bog'laydi
+        if self.parent is None and self.instance is None and not attrs.get('contract'):
+            raise ValidationError({'contract': 'Shartnoma ko\'rsatilishi shart.'})
+        return attrs
 
     def to_representation(self, instance):
         """TZ: qator bo'yicha sotuv narxi faqat sales va adminga ko'rinadi."""
@@ -92,11 +105,16 @@ class ContractSerializer(ModelSerializer):
             'id', 'number', 'client', 'client_name', 'configuration', 'status',
             'status_display', 'currency', 'items_total', 'vat_total',
             'items_total_with_vat', 'total_amount', 'prepayment_percent',
-            'prepayment_amount', 'term_days', 'signed_at', 'start_date', 'note',
+            'prepayment_amount', 'term_days', 'signed_at', 'start_date',
+            'didox_number', 'didox_accepted_at', 'note',
             'items', 'approvals', 'payments', 'paid', 'balance', 'days_left', 'color',
             'created_by', 'created_at',
         ]
-        read_only_fields = ['number', 'created_by', 'status', 'start_date']
+        # Didox maydonlari faqat bugalter approve bosqichida yoziladi (§11.2)
+        read_only_fields = [
+            'number', 'created_by', 'status', 'start_date',
+            'didox_number', 'didox_accepted_at',
+        ]
 
     def _sync_total(self, contract):
         """Summa berilmagan bo'lsa qatorlardan olinadi — QQS bilan (mijoz to'laydigan real summa)."""
@@ -110,18 +128,26 @@ class ContractSerializer(ModelSerializer):
         items = validated_data.pop('items', [])
         contract = Contract.objects.create(**validated_data)
         for item in items:
+            item.pop('contract', None)
             ContractItem.objects.create(contract=contract, **item)
         return self._sync_total(contract)
 
     def update(self, instance, validated_data):
         items = validated_data.pop('items', None)
+        manual_total = 'total_amount' in validated_data
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.save()
         if items is not None:
             instance.items.all().delete()
             for item in items:
+                item.pop('contract', None)
                 ContractItem.objects.create(contract=instance, **item)
+            # Qatorlar o'zgardi — summa ham yangilanadi (qo'lda berilmagan bo'lsa),
+            # aks holda prepayment_amount va balance eski summadan hisoblanardi
+            if not manual_total:
+                instance.total_amount = instance.items_total_with_vat
+                instance.save(update_fields=['total_amount'])
         return instance
 
 

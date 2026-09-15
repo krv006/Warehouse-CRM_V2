@@ -4,6 +4,7 @@ from rest_framework.serializers import (
     ModelSerializer,
     PrimaryKeyRelatedField,
     ReadOnlyField,
+    SerializerMethodField,
     ValidationError,
 )
 
@@ -126,26 +127,50 @@ class ReplenishmentSerializer(ModelSerializer):
     vat_total = ReadOnlyField()
     items_total_with_vat = ReadOnlyField()
     total_amount = ReadOnlyField()
-    cash_available = ReadOnlyField()
-    shortfall = ReadOnlyField()
+    cash_available = SerializerMethodField()
+    shortfall = SerializerMethodField()
     debt_days_left = ReadOnlyField()
     debt_color = ReadOnlyField()
+    purchase = SerializerMethodField()
 
     class Meta:
         model = Replenishment
         fields = [
             'id', 'number', 'warehouse', 'warehouse_name', 'supplier',
             'configuration', 'configuration_number', 'status',
-            'status_display', 'currency', 'logistics_cost', 'other_cost',
+            'status_display', 'currency', 'exchange_rate',
+            'logistics_cost', 'other_cost',
             'items_total', 'vat_total', 'items_total_with_vat',
             'total_amount', 'cash_available', 'shortfall',
             'paid_amount', 'debt', 'debt_days_left', 'debt_color',
-            'expected_at', 'delivered_at', 'note', 'items', 'approvals', 'events',
+            'purchase', 'expected_at', 'delivered_at', 'note',
+            'items', 'approvals', 'events',
             'created_by', 'created_at',
         ]
         read_only_fields = [
             'number', 'status', 'created_by', 'paid_amount', 'debt', 'delivered_at',
         ]
+
+    def _is_finance_user(self):
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        return bool(
+            user and user.is_authenticated and (user.is_admin or user.is_bugalter)
+        )
+
+    def get_cash_available(self, obj):
+        """Kassa qoldig'i — faqat admin va bugalterga (TZ 8.2 sizmasin)."""
+        return obj.cash_available if self._is_finance_user() else None
+
+    def get_shortfall(self, obj):
+        return obj.shortfall if self._is_finance_user() else None
+
+    def get_purchase(self, obj):
+        """receive'da avtomatik ochilgan KIR hujjati — invoys/bojxona shu yerda."""
+        purchase = obj.purchases.first()
+        if not purchase:
+            return None
+        return {'id': purchase.id, 'number': purchase.number, 'status': purchase.status}
 
     def create(self, validated_data):
         if not validated_data.get('warehouse'):

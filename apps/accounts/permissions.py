@@ -95,6 +95,18 @@ class ProductSpecAccess(RoleAccess):
     message = 'Tarkibni engineer yoki buyurtmachi kiritadi.'
 
 
+class ProductPricingAccess(RoleAccess):
+    """Katalog narx siyosati: sotuv narxi, minimal qoldiq, faollik.
+
+    O'qish hammaga; yozish — bugalter (admin). Shu orqali tizimda haqiqiy
+    prays-list paydo bo'ladi: sale_price 0 bo'lsa mahsulot tannarxda sotilardi.
+    """
+
+    read_roles = None
+    write_roles = (BUGALTER,)
+    message = 'Katalog narxlarini admin yoki bugalter o\'zgartiradi.'
+
+
 class ConfigurationRequestAccess(RoleAccess):
     """Zayavka: sales yozadi, engineer bajaradi, hamma ko'radi."""
 

@@ -126,9 +126,9 @@ class FrontFixesTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200, response.data)
 
-    # --------------------------------- finalize: sales bosqichi, tanadagi ACT
-    def test_sales_finalizes_with_act_in_body(self):
-        """Engineer tayyorlaydi, sales ACT bilan yakunlaydi (yangi oqim)."""
+    # ---------------------- finalize: §11.1 — engineer bosqichi, tanadagi ACT
+    def test_engineer_finalizes_with_act_in_body(self):
+        """§11.1: engineer ACT bilan yakunlaydi va salesga topshiradi."""
         from datetime import date
 
         from apps.configurator.models import Act
@@ -138,7 +138,6 @@ class FrontFixesTests(APITestCase):
             label='SSD', quantity=1, unit_price=Decimal('1500000'),
         )
         act = Act.objects.create(number='ACT-9', title='ACT', issued_at=date.today())
-        self.client.force_authenticate(self.sales)
         response = self.client.post(
             f'/api/configurations/{self.configuration.id}/finalize/',
             {'act': act.id}, format='json',
@@ -149,7 +148,6 @@ class FrontFixesTests(APITestCase):
         self.assertEqual(self.configuration.status, Configuration.Status.READY)
 
     def test_finalize_with_unknown_act_is_400(self):
-        self.client.force_authenticate(self.sales)
         response = self.client.post(
             f'/api/configurations/{self.configuration.id}/finalize/',
             {'act': 99999}, format='json',
@@ -157,22 +155,28 @@ class FrontFixesTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('act', response.data)
 
-    def test_finalize_is_403_for_engineer(self):
-        """Engineer'ning ishi configurator tahriri; ACT va yakunlash — sales'da."""
+    def test_finalize_is_403_for_sales(self):
+        """§11.1: yakunlash endi engineerda — sales faqat shartnoma bilan ishlaydi."""
+        self.client.force_authenticate(self.sales)
         response = self.client.post(
             f'/api/configurations/{self.configuration.id}/finalize/',
             {'act': 1}, format='json',
         )
         self.assertEqual(response.status_code, 403)
 
-    def test_sales_can_create_act(self):
+    def test_engineer_creates_act_sales_cannot(self):
+        """§11.1: ACT engineerga o'tdi — sales endi 403 oladi."""
         from datetime import date
 
-        self.client.force_authenticate(self.sales)
-        response = self.client.post('/api/acts/', {
-            'number': 'ACT-77', 'title': 'Tarkib', 'issued_at': str(date.today()),
-        }, format='json')
+        payload = {'number': 'ACT-77', 'title': 'Tarkib', 'issued_at': str(date.today())}
+        response = self.client.post('/api/acts/', payload, format='json')
         self.assertEqual(response.status_code, 201, response.data)
+
+        self.client.force_authenticate(self.sales)
+        payload['number'] = 'ACT-78'
+        self.assertEqual(
+            self.client.post('/api/acts/', payload, format='json').status_code, 403,
+        )
 
     # ----------------------------------------------- 5: take auto-konfiguratsiya
     def test_take_opens_draft_with_factory_spec(self):

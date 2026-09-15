@@ -41,6 +41,12 @@ class Purchase(TimeStampedModel):
         'sales.Contract', SET_NULL, related_name='purchases',
         null=True, blank=True,
     )
+    # TLD receive'da avtomatik ochilgan hujjat — kirim bitta yo'ldan yoziladi:
+    # ombor harakati va kassa chiqimi TLD da, bu hujjat esa invoys/bojxona uchun
+    replenishment = ForeignKey(
+        'procurement.Replenishment', SET_NULL, related_name='purchases',
+        null=True, blank=True,
+    )
     currency = CharField(max_length=3, choices=Currency.choices, default=Currency.UZS)
     exchange_rate = DecimalField(max_digits=18, decimal_places=4, default=1)
 

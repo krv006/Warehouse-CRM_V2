@@ -43,10 +43,45 @@ class ContractViewSet(BaseModelViewSet):
     filterset_fields = ['status', 'client', 'currency', 'configuration']
     ordering_fields = ['created_at', 'number', 'total_amount']
 
+    EDITABLE_STATUSES = {Contract.Status.DRAFT, Contract.Status.REJECTED}
+
     def get_permissions(self):
         if self.action in BUGALTER_ACTIONS:
             return [IsAdminOrBugalter()]
         return super().get_permissions()
+
+    def _check_editable(self, contract):
+        """Tasdiqqa yuborilgan shartnoma o'zgarmaydi (faqat admin) — §11.3 asosi."""
+        from rest_framework.exceptions import PermissionDenied
+
+        user = self._current_user()
+        if user and user.is_admin:
+            return
+        if contract.status not in self.EDITABLE_STATUSES:
+            raise PermissionDenied(
+                'Shartnoma tasdiqqa yuborilgan — endi faqat admin o\'zgartira oladi.',
+            )
+
+    def perform_create(self, serializer):
+        super().perform_create(serializer)
+        # Mijozning ochiq kelishuvi shartnomaga bog'lanadi — quvur yopiladi
+        from apps.inventory.services import sync_contract_reservations
+        from apps.sales.services import link_lead_to_contract
+
+        link_lead_to_contract(serializer.instance)
+        # §11.4: shartnoma tuzilishi bilan mahsulot band qilinadi
+        sync_contract_reservations(serializer.instance)
+
+    def perform_update(self, serializer):
+        self._check_editable(serializer.instance)
+        super().perform_update(serializer)
+        from apps.inventory.services import sync_contract_reservations
+
+        sync_contract_reservations(serializer.instance)
+
+    def perform_destroy(self, instance):
+        self._check_editable(instance)
+        super().perform_destroy(instance)
 
     def submit(self, request, pk=None):
         """POST /contracts/{id}/submit/ — sales bugalterga yuboradi."""
@@ -55,9 +90,14 @@ class ContractViewSet(BaseModelViewSet):
         return Response(self.get_serializer(contract).data)
 
     def approve(self, request, pk=None):
-        """POST /contracts/{id}/approve/ — avval bugalter, keyin admin."""
+        """POST /contracts/{id}/approve/ — avval bugalter (Didox qabuli), keyin admin.
+
+        Bugalter bosqichida tanada `didox_number` yuborilsa saqlanadi (§11.2);
+        summa chegaradan kichik bo'lsa admin bosqichi o'tkazib yuboriladi (§11.3).
+        """
         contract = approve_contract(
             self.get_object(), request.user, request.data.get('comment', ''),
+            didox_number=str(request.data.get('didox_number', '') or ''),
         )
         self.log_action(ActivityLog.Action.APPROVE, contract, contract.get_status_display())
         return Response(self.get_serializer(contract).data)
@@ -110,6 +150,7 @@ class ContractViewSet(BaseModelViewSet):
         return Response({
             'number': contract.number,
             'status': contract.status,
+            'didox_number': contract.didox_number,
             'signed_at': contract.signed_at,
             'start_date': contract.start_date,
             'term_days': contract.term_days,
@@ -194,10 +235,57 @@ class ContractViewSet(BaseModelViewSet):
 
 
 class ContractItemViewSet(BaseModelViewSet):
+    """Shartnoma qatorlari.
+
+    Tasdiqqa yuborilgan shartnoma qatorlari o'zgarmaydi (faqat admin) —
+    aks holda kichik summa bilan tasdiq olib, keyin qatorlarni oshirish
+    mumkin bo'lardi. Har o'zgarishda shartnoma summasi qayta hisoblanadi.
+    """
+
     queryset = ContractItem.objects.select_related('contract', 'product').all()
     serializer_class = ContractItemSerializer
     permission_classes = [IsAdminOrSales]
     filterset_fields = ['contract', 'product']
+
+    EDITABLE_STATUSES = {Contract.Status.DRAFT, Contract.Status.REJECTED}
+
+    def _check_editable(self, contract):
+        from rest_framework.exceptions import PermissionDenied
+
+        user = self._current_user()
+        if user and user.is_admin:
+            return
+        if contract.status not in self.EDITABLE_STATUSES:
+            raise PermissionDenied(
+                'Shartnoma tasdiqqa yuborilgan — qatorlarni faqat admin o\'zgartiradi.',
+            )
+
+    def _resync_total(self, contract):
+        """Qator o'zgardi — summa qayta yig'iladi (QQS bilan), bron moslashadi."""
+        from apps.inventory.services import sync_contract_reservations
+
+        contract.refresh_from_db()
+        contract.total_amount = contract.items_total_with_vat
+        contract.save(update_fields=['total_amount'])
+        sync_contract_reservations(contract)
+
+    def perform_create(self, serializer):
+        contract = serializer.validated_data.get('contract')
+        if contract is not None:
+            self._check_editable(contract)
+        super().perform_create(serializer)
+        self._resync_total(serializer.instance.contract)
+
+    def perform_update(self, serializer):
+        self._check_editable(serializer.instance.contract)
+        super().perform_update(serializer)
+        self._resync_total(serializer.instance.contract)
+
+    def perform_destroy(self, instance):
+        contract = instance.contract
+        self._check_editable(contract)
+        super().perform_destroy(instance)
+        self._resync_total(contract)
 
 
 class ContractPaymentViewSet(BaseModelViewSet):

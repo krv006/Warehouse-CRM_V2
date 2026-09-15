@@ -41,7 +41,8 @@ def get_category(code):
 
 def record_transaction(*, code, amount, occurred_at, description='', currency=None,
                        exchange_rate=1, contract=None, purchase=None, loan=None,
-                       expense_request=None, user=None, approved_by=None):
+                       expense_request=None, replenishment=None, user=None,
+                       approved_by=None):
     """Kassaga kirim yoki chiqim yozuvini qo'shadi."""
     category = get_category(code)
     fields = {
@@ -54,6 +55,7 @@ def record_transaction(*, code, amount, occurred_at, description='', currency=No
         'purchase': purchase,
         'loan': loan,
         'expense_request': expense_request,
+        'replenishment': replenishment,
         'created_by': user,
         'approved_by': approved_by,
     }

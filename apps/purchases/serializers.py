@@ -2,6 +2,7 @@ from rest_framework.serializers import (
     ModelSerializer,
     PrimaryKeyRelatedField,
     ReadOnlyField,
+    ValidationError,
 )
 
 from apps.inventory.models import Warehouse
@@ -39,6 +40,18 @@ class PurchaseDocumentSerializer(ModelSerializer):
 class PurchaseSerializer(ModelSerializer):
     """Biznesda bitta ombor — `warehouse` yuborilmasa yagona ombor olinadi."""
 
+    # Holat mashinasi: faqat oldinga; received va cancelled — terminal.
+    # `received` ga faqat receive() olib boradi (ombor + kassa yozuvi bilan).
+    STATUS_FLOW = {
+        Purchase.Status.DRAFT: {
+            Purchase.Status.ORDERED, Purchase.Status.IN_TRANSIT, Purchase.Status.CANCELLED,
+        },
+        Purchase.Status.ORDERED: {Purchase.Status.IN_TRANSIT, Purchase.Status.CANCELLED},
+        Purchase.Status.IN_TRANSIT: {Purchase.Status.CANCELLED},
+        Purchase.Status.RECEIVED: set(),
+        Purchase.Status.CANCELLED: set(),
+    }
+
     warehouse = PrimaryKeyRelatedField(
         queryset=Warehouse.objects.all(), required=False,
     )
@@ -56,13 +69,34 @@ class PurchaseSerializer(ModelSerializer):
         model = Purchase
         fields = [
             'id', 'number', 'type', 'type_display', 'status', 'status_display',
-            'supplier', 'warehouse', 'warehouse_name', 'contract', 'currency',
+            'supplier', 'warehouse', 'warehouse_name', 'contract',
+            'replenishment', 'currency',
             'exchange_rate', 'lead_days', 'ordered_at', 'expected_at', 'received_at',
             'customs_duty', 'tax_amount', 'invoice_number', 'note', 'items', 'documents',
             'items_total', 'total_amount', 'days_left', 'color',
             'created_by', 'created_at',
         ]
-        read_only_fields = ['number', 'created_by', 'received_at']
+        read_only_fields = ['number', 'created_by', 'received_at', 'replenishment']
+
+    def validate_status(self, status):
+        """§10.6: holat faqat oldinga yuradi, `received` dan chiqib bo'lmaydi.
+
+        Aks holda received -> draft -> receive() bilan ombor va kassaga
+        ikkinchi marta yozdirish mumkin edi.
+        """
+        if self.instance is None or status == self.instance.status:
+            return status
+        current = self.instance.status
+        if status == Purchase.Status.RECEIVED:
+            raise ValidationError(
+                "Qabul qilish faqat receive amali orqali — u ombor va kassaga yozadi.",
+            )
+        if status not in self.STATUS_FLOW.get(current, set()):
+            raise ValidationError(
+                f"'{self.instance.get_status_display()}' holatidan "
+                f"'{Purchase.Status(status).label}' ga o'tib bo'lmaydi.",
+            )
+        return status
 
     def create(self, validated_data):
         items = validated_data.pop('items', [])

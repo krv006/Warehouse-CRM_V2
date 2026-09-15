@@ -4,7 +4,30 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 
 from apps.core.models import Notification
 from apps.finance.services import record_transaction
-from apps.sales.models import Contract, ContractApproval, ContractItem, ContractPayment
+from apps.sales.models import Contract, ContractApproval, ContractItem, ContractPayment, Lead
+
+
+def link_lead_to_contract(contract):
+    """Mijozning ochiq kelishuvini shartnomaga bog'laydi (§10.8).
+
+    Kelishuv quvuri avtomatik yopiladi: shartnoma tuzilgach lead
+    `contract` bosqichiga o'tadi va konversiya hisobotida ko'rinadi.
+    """
+    if not contract.client_id:
+        return None
+    lead = (
+        Lead.objects
+        .filter(client=contract.client, contract__isnull=True)
+        .exclude(stage__in=[Lead.Stage.CONTRACT, Lead.Stage.LOST])
+        .order_by('-created_at')
+        .first()
+    )
+    if lead is None:
+        return None
+    lead.contract = contract
+    lead.stage = Lead.Stage.CONTRACT
+    lead.save(update_fields=['contract', 'stage'])
+    return lead
 
 
 @atomic
@@ -47,6 +70,21 @@ def create_contract_from_configuration(configuration, user, client=None):
     contract.total_amount = contract.items_total_with_vat
     contract.prepayment_percent = None
     contract.save()
+
+    # §11.4: konfiguratsiyaning yumshoq broni shartnomaning qattiq broniga
+    # aylanadi — endi bu mol sotilgan hisoblanadi
+    from apps.inventory.services import sync_contract_reservations
+
+    sync_contract_reservations(contract)
+
+    # §10.8: zanjir yopilib boradi — kelishuv shartnomaga bog'lanadi,
+    # bajarilgan zayavka arxivga o'tadi (sales navbatini band qilmaydi)
+    link_lead_to_contract(contract)
+    from apps.configurator.models import ConfigurationRequest
+
+    configuration.requests.filter(
+        status=ConfigurationRequest.Status.DONE,
+    ).update(status=ConfigurationRequest.Status.ARCHIVED)
     return contract
 
 
@@ -83,12 +121,17 @@ def _require_role(user, *, bugalter=False, admin=False, sales=False):
 def submit_contract(contract, user):
     """Sales shartnomani bugalter tasdig'iga yuboradi."""
     _require_role(user, sales=True)
-    if contract.status != Contract.Status.DRAFT:
+    # Rad etilgan shartnoma tuzatilib qayta yuboriladi (TLD dagi kabi)
+    if contract.status not in {Contract.Status.DRAFT, Contract.Status.REJECTED}:
         raise ValidationError('Faqat qoralama shartnoma yuboriladi.')
     if not contract.items.exists():
         raise ValidationError('Shartnoma qatorlari kiritilmagan.')
     contract.status = Contract.Status.PENDING_BUGALTER
     contract.save()
+    # §11.4: muddat o'tib bron bo'shagan bo'lsa, yuborishda qayta band qilinadi
+    from apps.inventory.services import sync_contract_reservations
+
+    sync_contract_reservations(contract)
     from apps.accounts.models import User
 
     _notify_role(
@@ -102,13 +145,44 @@ def submit_contract(contract, user):
     return contract
 
 
+def _admin_threshold_skip(contract):
+    """§11.3: chegaradan kichik UZS shartnoma admin tasdig'isiz o'tadimi.
+
+    Chegara `CompanyProfile.admin_approval_threshold` (QQS bilan solishtiriladi,
+    0 — chegara yo'q). Boshqa valyutadagi shartnoma doim adminga boradi —
+    shartnomada kurs yo'q, chegara esa so'mda.
+    """
+    from apps.core.models import CompanyProfile
+
+    threshold = CompanyProfile.load().admin_approval_threshold
+    return bool(
+        threshold and contract.currency == 'UZS' and contract.total_amount < threshold
+    )
+
+
 @atomic
-def approve_contract(contract, user, comment=''):
-    """Bugalter -> admin zanjiri bo'yicha tasdiqlash."""
+def approve_contract(contract, user, comment='', didox_number=''):
+    """Bugalter (Didox qabuli) -> admin zanjiri bo'yicha tasdiqlash.
+
+    §11.2: bugalter bosqichi — "Didoxdan qabul qildim va tanishdim":
+    `didox_number` shu yerda saqlanadi. §11.3: summa chegaradan kichik bo'lsa
+    admin bosqichi o'tkazib yuboriladi (tarixda avtomatik yozuv qoladi).
+    """
+    admin_skipped = False
     if contract.status == Contract.Status.PENDING_BUGALTER:
         _require_role(user, bugalter=True)
         step = ContractApproval.Step.BUGALTER
-        contract.status = Contract.Status.PENDING_ADMIN
+        if didox_number:
+            contract.didox_number = didox_number
+            contract.didox_accepted_at = now()
+        # Chop etish shaklida sana bo'sh qolmasin — qabul kuni imzo sanasi
+        if not contract.signed_at:
+            contract.signed_at = localdate()
+        admin_skipped = _admin_threshold_skip(contract)
+        contract.status = (
+            Contract.Status.APPROVED if admin_skipped
+            else Contract.Status.PENDING_ADMIN
+        )
     elif contract.status == Contract.Status.PENDING_ADMIN:
         _require_role(user, admin=True)
         step = ContractApproval.Step.ADMIN
@@ -124,6 +198,22 @@ def approve_contract(contract, user, comment=''):
         comment=comment,
         decided_by=user,
     )
+    if admin_skipped:
+        # Tarix jim qolmasin: nega admin ko'rmagani yozib qo'yiladi
+        from apps.core.models import CompanyProfile
+
+        threshold = CompanyProfile.load().admin_approval_threshold
+        ContractApproval.objects.create(
+            contract=contract,
+            step=ContractApproval.Step.ADMIN,
+            decision=ContractApproval.Decision.APPROVED,
+            comment=(
+                f'Summa {contract.total_amount} {contract.currency} — '
+                f'chegara {threshold} dan past, admin tasdig\'i talab qilinmadi.'
+            ),
+            decided_by=None,
+        )
+
     from apps.accounts.models import User
 
     if contract.status == Contract.Status.PENDING_ADMIN:
@@ -136,20 +226,32 @@ def approve_contract(contract, user, comment=''):
             ),
         )
     elif contract.status == Contract.Status.APPROVED:
-        _notify_role(
-            User.Role.BUGALTER, contract,
-            title=f'{contract.number}: admin tasdiqladi — pul kutilmoqda',
-            message=(
+        if admin_skipped:
+            pay_message = (
+                f"Summa chegaradan past — admin tasdig'i talab qilinmadi. "
                 f"Oldindan to'lov {contract.prepayment_percent}% — "
                 f'{contract.prepayment_amount} {contract.currency}. '
                 'Pul kelgach confirm-payment qiling.'
-            ),
-        )
+            )
+            creator_message = (
+                'Bugalter tasdiqladi (summa chegaradan past — admin shart emas) '
+                '— mijozdan to\'lov kutilmoqda.'
+            )
+            title = f'{contract.number}: tasdiqlandi — pul kutilmoqda'
+        else:
+            pay_message = (
+                f"Oldindan to'lov {contract.prepayment_percent}% — "
+                f'{contract.prepayment_amount} {contract.currency}. '
+                'Pul kelgach confirm-payment qiling.'
+            )
+            creator_message = 'Bugalter va admin tasdiqladi — mijozdan to\'lov kutilmoqda.'
+            title = f'{contract.number}: admin tasdiqladi — pul kutilmoqda'
+        _notify_role(User.Role.BUGALTER, contract, title=title, message=pay_message)
         if contract.created_by:
             Notification.objects.create(
                 user=contract.created_by,
                 title=f'{contract.number}: shartnoma tasdiqlandi',
-                message='Bugalter va admin tasdiqladi — mijozdan to\'lov kutilmoqda.',
+                message=creator_message,
                 level=Notification.Level.INFO,
                 entity='Contract',
                 object_id=str(contract.pk),
@@ -187,6 +289,11 @@ def reject_contract(contract, user, comment=''):
             entity='Contract',
             object_id=str(contract.pk),
         )
+    # §11.4: rad etilgan shartnoma molni ushlab turmaydi — bron bo'shaydi
+    # (sales tuzatib qayta yuborsa, submit'da qayta band qilinadi)
+    from apps.inventory.services import sync_contract_reservations
+
+    sync_contract_reservations(contract)
     return contract
 
 
@@ -198,18 +305,20 @@ def _ship_contract_items(contract, user):
     harakat yozilmaydi.
     """
     from apps.inventory.models import StockMovement, Warehouse
-    from apps.inventory.services import apply_movement, available_quantity
+    from apps.inventory.services import apply_movement, sellable_quantity
 
     # Biznesda bitta ombor — chiqim doim yagona ombordan
     warehouse = Warehouse.objects.filter(is_active=True).order_by('id').first()
     if warehouse is None:
         return
 
+    # §11.4 eng nozik joy: erkin qoldiq + SHU shartnomaning o'z broni —
+    # aks holda shartnoma o'zi band qilgan molga o'zi yetisha olmay qolardi
     shortages = [
         f'{item.product.name} (kerak: {item.quantity}, '
-        f'omborda: {available_quantity(item.product, warehouse)})'
+        f'sotuvga ochiq: {sellable_quantity(item.product, warehouse, for_contract=contract)})'
         for item in contract.items.select_related('product')
-        if available_quantity(item.product, warehouse) < item.quantity
+        if sellable_quantity(item.product, warehouse, for_contract=contract) < item.quantity
     ]
     if shortages:
         raise ValidationError({
@@ -246,7 +355,18 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
         is_prepayment = first_payment
 
     if first_payment:
+        # §10.1: konfiguratsiyadan kelgan variant hali yig'ilmagan bo'lsa,
+        # to'lov oldidan yig'ib olinadi (butlovchilar chiqib, variant kiradi) —
+        # yetmasa quyidagi ship tekshiruvi aniq nomlar bilan 400 beradi
+        if contract.configuration_id:
+            from apps.configurator.services import assemble_variant
+
+            assemble_variant(contract.configuration, user, strict=False)
         _ship_contract_items(contract, user)
+        # §11.4: bron chiqimga aylandi
+        from apps.inventory.services import mark_reservations_shipped
+
+        mark_reservations_shipped(contract)
 
     payment = ContractPayment.objects.create(
         contract=contract,
@@ -256,6 +376,15 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
         is_prepayment=is_prepayment,
         created_by=user,
         approved_by=user,
+    )
+    # §11.2: bugalterning 2-bosqichi ham tarixga tushadi — "to'lovni qabul qildim"
+    # (Step.PAYMENT modelda azaldan bor edi, lekin hech qayerda yozilmasdi)
+    ContractApproval.objects.create(
+        contract=contract,
+        step=ContractApproval.Step.PAYMENT,
+        decision=ContractApproval.Decision.APPROVED,
+        comment=f"To'lov qabul qilindi: {amount} {contract.currency}",
+        decided_by=user,
     )
     record_transaction(
         code='sale',
@@ -272,6 +401,14 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
         # localdate: yarim tunda UTC sana bilan mahalliy sana farq qiladi
         contract.start_date = localdate(paid_at)
         contract.status = Contract.Status.ACTIVE
+        # §10.8: konfiguratsiya terminal holatga o'tadi — zanjir yopildi
+        if contract.configuration_id:
+            from apps.configurator.models import Configuration
+
+            Configuration.objects.filter(
+                pk=contract.configuration_id,
+                status=Configuration.Status.READY,
+            ).update(status=Configuration.Status.SOLD)
     if contract.balance <= 0:
         contract.status = Contract.Status.COMPLETED
     contract.save()
