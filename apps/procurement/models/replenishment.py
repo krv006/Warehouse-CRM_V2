@@ -49,6 +49,12 @@ class Replenishment(StatusTrackedModel):
         'configurator.Configuration', SET_NULL, related_name='replenishments',
         null=True, blank=True,
     )
+    # TOPSHIRIQ-2 #2: shartnomadan ochilgan hisob — kelgan mol aynan shu
+    # shartnomaga band qilinadi (configuration bilan yonma-yon, ikkalasi ixtiyoriy)
+    contract = ForeignKey(
+        'sales.Contract', SET_NULL, related_name='replenishments',
+        null=True, blank=True,
+    )
     # Zayavka egasi (sales) — mijoz roziligi bosqichi va bildirishnomalar
     # aynan shu odamga boradi; hisob ochilganda zanjirdan bir marta topiladi
     # (Replenishment -> configuration -> requests -> created_by)

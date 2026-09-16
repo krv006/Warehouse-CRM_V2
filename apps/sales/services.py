@@ -1,3 +1,4 @@
+from django.db.models import Sum
 from django.db.transaction import atomic
 from django.utils.timezone import localdate, now
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -372,19 +373,9 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
     if is_prepayment is None:
         is_prepayment = first_payment
 
-    if first_payment:
-        # §10.1: konfiguratsiyadan kelgan variant hali yig'ilmagan bo'lsa,
-        # to'lov oldidan yig'ib olinadi (butlovchilar chiqib, variant kiradi) —
-        # yetmasa quyidagi ship tekshiruvi aniq nomlar bilan 400 beradi
-        if contract.configuration_id:
-            from apps.configurator.services import assemble_variant
-
-            assemble_variant(contract.configuration, user, strict=False)
-        _ship_contract_items(contract, user)
-        # §11.4: bron chiqimga aylandi
-        from apps.inventory.services import mark_reservations_shipped
-
-        mark_reservations_shipped(contract)
+    # TOPSHIRIQ-2 #2: to'lovda mol CHIQMAYDI — chiqim alohida `ship` hodisasi.
+    # Shu tufayli "90 kun ichida yetkazamiz" haqiqiy ma'no oladi va omborda
+    # hali to'lmagan shartnoma to'lovda qotib qolmaydi (bron ushlab turadi).
 
     payment = ContractPayment.objects.create(
         contract=contract,
@@ -427,7 +418,130 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
                 pk=contract.configuration_id,
                 status=Configuration.Status.READY,
             ).update(status=Configuration.Status.SOLD)
-    if contract.balance <= 0:
+    # #2-Q5: balans nolga tushsa ham YETKAZILMAGUNCHA yopilmaydi
+    if contract.balance <= 0 and contract.delivered_at:
         contract.status = Contract.Status.COMPLETED
     contract.save()
     return payment
+
+
+@atomic
+def ship_contract(contract, user):
+    """Yetkazib berish (#2): mol AYNAN shu yerda ombordan chiqadi.
+
+    Kim: buyurtmachi yoki bugalter (admin) — mol bilan ishlaydigan odam.
+    Shartlari: boshlang'ich to'lov qabul qilingan (`active`), hali
+    yetkazilmagan, mol yetarli (o'z broni o'ziga ochiq). Bir marta, to'liq —
+    qisman yetkazish hozircha yo'q. Balans yopiq bo'lsa shu yerda `completed`.
+    """
+    if not user or not user.is_authenticated:
+        raise PermissionDenied('Avtorizatsiya talab qilinadi.')
+    if not (user.is_admin or user.is_supplier or user.is_bugalter):
+        raise PermissionDenied('Yetkazishni buyurtmachi yoki bugalter belgilaydi.')
+    if contract.delivered_at:
+        raise ValidationError({'detail': 'Bu shartnoma allaqachon yetkazilgan.'})
+    if contract.status not in {Contract.Status.ACTIVE, Contract.Status.COMPLETED}:
+        raise ValidationError({
+            'detail': "Avval boshlang'ich to'lov qabul qilinsin — yetkazish faol shartnomada.",
+        })
+
+    _ship_contract_items(contract, user)
+    # §11.4: bron chiqimga aylandi
+    from apps.inventory.services import mark_reservations_shipped
+
+    mark_reservations_shipped(contract)
+
+    contract.delivered_at = localdate()
+    if contract.balance <= 0:
+        contract.status = Contract.Status.COMPLETED
+    contract.save()
+
+    if contract.created_by:
+        Notification.objects.create(
+            user=contract.created_by,
+            title=f'{contract.number}: yetkazildi',
+            message='Mol mijozga chiqim qilindi — mijozga xabar berishingiz mumkin.',
+            level=Notification.Level.INFO,
+            entity='Contract',
+            object_id=str(contract.pk),
+        )
+    return contract
+
+
+@atomic
+def send_contract_missing_to_procurement(contract, user):
+    """Shartnomadan buyurtmachiga (#2): band qilinmagan qismidan TLD ochadi.
+
+    `kerak − band qilingan` bo'yicha yetishmayotgan qatorlar chernovik TLD
+    bo'ladi: `contract` FK bog'lanadi, `owner_sales` — shartnoma egasi;
+    bitta ochiq TLD qoidasi amal qiladi. Kim bosadi: sales (egasi) — u
+    mijozga muddat aytadi.
+    """
+    from apps.accounts.models import User
+    from apps.inventory.models import StockReservation
+    from apps.inventory.services import main_warehouse
+    from apps.procurement.models import Replenishment, ReplenishmentItem
+
+    _require_role(user, sales=True)
+
+    existing = next(
+        (rep for rep in contract.replenishments.all() if rep.is_open), None,
+    )
+    if existing:
+        raise ValidationError({
+            'detail': (
+                f'{contract.number} uchun {existing.number} hisobi allaqachon '
+                f'ochilgan ({existing.get_status_display()}).'
+            ),
+            'replenishment': existing.pk,
+        })
+
+    warehouse = main_warehouse()
+    missing = []
+    for item in contract.items.select_related('product'):
+        reserved = (
+            StockReservation.objects.filter(
+                contract=contract, product=item.product,
+                status=StockReservation.Status.ACTIVE,
+                kind=StockReservation.Kind.HARD,
+            ).aggregate(t=Sum('quantity'))['t'] or 0
+        )
+        shortage = item.quantity - reserved
+        if shortage > 0:
+            missing.append((item.product, shortage))
+    if not missing:
+        raise ValidationError({
+            'detail': 'Barcha mahsulot band qilingan — buyurtmachiga yuborish shart emas.',
+        })
+
+    replenishment = Replenishment.objects.create(
+        warehouse=warehouse,
+        contract=contract,
+        owner_sales=contract.created_by,
+        note=f'{contract.number} shartnomasi uchun yetishmayotgan mahsulotlar',
+        created_by=user,
+    )
+    for product, quantity in missing:
+        ReplenishmentItem.objects.create(
+            replenishment=replenishment,
+            product=product,
+            quantity=quantity,
+            unit_price=product.cost_price or 0,
+            note=f'{contract.number} shartnomasi uchun',
+        )
+
+    names = ', '.join(product.name for product, _ in missing)
+    messages = {
+        User.Role.SUPPLIER: 'kirim qilish kerak — shartnoma shu kirimni kutadi.',
+        User.Role.BUGALTER: 'tekshirib chiqing — buyurtmachi yuborgach tasdiq sizdan boshlanadi.',
+    }
+    for recipient in User.objects.filter(role__in=messages.keys(), is_active=True):
+        Notification.objects.create(
+            user=recipient,
+            title=f"{contract.number}: omborda yo'q mahsulotlar ({replenishment.number})",
+            message=f'{names} — {messages[recipient.role]}',
+            level=Notification.Level.WARNING,
+            entity='Replenishment',
+            object_id=str(replenishment.pk),
+        )
+    return replenishment

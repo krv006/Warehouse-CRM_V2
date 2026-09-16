@@ -56,7 +56,7 @@ class ReplenishmentViewSet(BaseModelViewSet):
     permission_classes = [ProcurementAccess]
     search_fields = ['number', 'supplier']
     filterset_fields = [
-        'status', 'warehouse', 'currency', 'configuration',
+        'status', 'warehouse', 'currency', 'configuration', 'contract',
         'created_by', 'owner_sales',
     ]
     ordering_fields = ['created_at', 'number', 'created_by']

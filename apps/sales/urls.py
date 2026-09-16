@@ -32,6 +32,13 @@ urlpatterns = [
     path('contracts/<int:pk>/confirm-payment/', ContractViewSet.as_view({
         'post': 'confirm_payment',
     }), name='contract-confirm-payment'),
+    # #2: yetkazish alohida hodisa — mol shu yerda chiqadi (buyurtmachi/bugalter)
+    path('contracts/<int:pk>/ship/', ContractViewSet.as_view({
+        'post': 'ship',
+    }), name='contract-ship'),
+    path('contracts/<int:pk>/request-procurement/', ContractViewSet.as_view({
+        'post': 'request_procurement',
+    }), name='contract-request-procurement'),
     path('contracts/<int:pk>/timeline/', ContractViewSet.as_view({
         'get': 'timeline',
     }), name='contract-timeline'),

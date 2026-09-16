@@ -370,6 +370,10 @@ mijoz roziligi bosqichi va bildirishnomalar shu odamga; hisob ochilganda
 zanjirdan bir marta to'ldiriladi. `Notification.user` — endi **majburiy**
 (CASCADE): egasiz "e'lon taxtasi" yozuv mavjud emas.
 
+`Contract.delivered_at` (#2) — yetkazilgan sana (`ship`); muddat endi
+to'lovdan yetkazishgacha. `Replenishment.contract` FK (#2) — shartnomadan
+ochilgan hisob, kelgan mol shu shartnomaga band qilinadi.
+
 `Configuration.quantity` / `ConfigurationRequest.quantity` (#3) —
 partiya; tarkib qatorlari bitta dona uchun, ombor/shartnoma hisobi
 partiyaga ko'paytiriladi. `ConfigurationItem.total_needed` — qator ×

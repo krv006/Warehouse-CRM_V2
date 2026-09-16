@@ -62,7 +62,8 @@ class ContractFlowTests(APITestCase):
         self.assertEqual(response.status_code, 201, response.data)
         self.assertFalse(response.data['is_prepayment'])
         contract.refresh_from_db()
-        self.assertEqual(contract.status, Contract.Status.COMPLETED)
+        # #2-Q5: balans nol bo'lsa ham YETKAZILMAGUNCHA yopilmaydi
+        self.assertEqual(contract.status, Contract.Status.ACTIVE)
         self.assertEqual(contract.paid, Decimal('500000000'))
         self.assertEqual(contract.balance, Decimal('0'))
 
@@ -200,7 +201,7 @@ class ContractFlowTests(APITestCase):
 
 
 class ContractShipmentTests(APITestCase):
-    """TZ 3.1, 9: sotuv tasdiqlanganda mahsulot ombordan chiqim qilinadi."""
+    """#2: chiqim to'lovdan ajratildi — mol `ship` hodisasida chiqadi."""
 
     def setUp(self):
         from apps.inventory.models import StockMovement, Warehouse
@@ -208,6 +209,9 @@ class ContractShipmentTests(APITestCase):
 
         self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
         self.bugalter = User.objects.create_user('bug', password='p', role=User.Role.BUGALTER)
+        self.buyurtmachi = User.objects.create_user(
+            'buy', password='p', role=User.Role.SUPPLIER,
+        )
         self.client_obj = Client.objects.create(
             type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
             passport='AA1112224', jshshir='11112222333345', phone='+998900000002',
@@ -233,7 +237,8 @@ class ContractShipmentTests(APITestCase):
         )
         return contract
 
-    def test_first_payment_ships_goods_from_stock(self):
+    def test_payment_does_not_ship_goods(self):
+        """#2: to'lovda mol chiqmaydi — sanoq boshlanadi, mol bron'da turadi."""
         from apps.inventory.models import StockMovement
         from apps.inventory.services import available_quantity
 
@@ -242,27 +247,120 @@ class ContractShipmentTests(APITestCase):
         response = self.client.post(f'/api/contracts/{contract.id}/confirm-payment/')
         self.assertEqual(response.status_code, 200, response.data)
 
-        # Qoldiq 3 -> 1, harakat sabab 'sale' bilan yozilgan
+        # Qoldiq joyida — chiqim yo'q
+        self.assertEqual(available_quantity(self.product, self.warehouse), Decimal('3'))
+        self.assertFalse(
+            StockMovement.objects.filter(reason=StockMovement.Reason.SALE).exists()
+        )
+        contract.refresh_from_db()
+        self.assertEqual(contract.status, Contract.Status.ACTIVE)
+        self.assertIsNone(contract.delivered_at)
+
+    def test_ship_moves_goods_and_completes_when_paid(self):
+        """Yetkazish: mol chiqadi, delivered_at yoziladi, balans yopiq — completed."""
+        from apps.inventory.models import StockMovement
+        from apps.inventory.services import available_quantity, sync_contract_reservations
+
+        contract = self._approved_contract(2)
+        sync_contract_reservations(contract)
+        self.client.force_authenticate(self.bugalter)
+        self.client.post(f'/api/contracts/{contract.id}/confirm-payment/', {
+            'amount': str(contract.total_amount),
+        }, format='json')
+
+        # Sales yetkaza olmaydi — mol bilan buyurtmachi/bugalter ishlaydi
+        self.client.force_authenticate(self.sales)
+        self.assertEqual(
+            self.client.post(f'/api/contracts/{contract.id}/ship/').status_code, 403,
+        )
+
+        self.client.force_authenticate(self.buyurtmachi)
+        response = self.client.post(f'/api/contracts/{contract.id}/ship/')
+        self.assertEqual(response.status_code, 200, response.data)
+
         self.assertEqual(available_quantity(self.product, self.warehouse), Decimal('1'))
         movement = StockMovement.objects.get(reason=StockMovement.Reason.SALE)
         self.assertEqual(movement.reference, contract.number)
+        contract.refresh_from_db()
+        self.assertIsNotNone(contract.delivered_at)
+        self.assertEqual(contract.status, Contract.Status.COMPLETED)
 
-        # Ikkinchi to'lov qayta chiqim qilmaydi
-        self.client.post(f'/api/contracts/{contract.id}/confirm-payment/', {'amount': '1000'})
-        self.assertEqual(available_quantity(self.product, self.warehouse), Decimal('1'))
+        # Ikkinchi marta yetkazib bo'lmaydi (buyurtmachi navbatidan ham chiqadi — 404;
+        # bugalter uchun esa aniq 400)
+        response = self.client.post(f'/api/contracts/{contract.id}/ship/')
+        self.assertEqual(response.status_code, 404)
+        self.client.force_authenticate(self.bugalter)
+        response = self.client.post(f'/api/contracts/{contract.id}/ship/')
+        self.assertEqual(response.status_code, 400)
 
-    def test_payment_blocked_when_stock_insufficient(self):
+    def test_ship_blocked_when_stock_insufficient_but_payment_works(self):
+        """#2: omborda yetmasa TO'LOV qotmaydi — faqat yetkazish kutadi."""
         from apps.finance.models import CashTransaction
         from apps.inventory.services import available_quantity
 
         contract = self._approved_contract(5)  # omborda faqat 3 ta
         self.client.force_authenticate(self.bugalter)
         response = self.client.post(f'/api/contracts/{contract.id}/confirm-payment/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(CashTransaction.objects.exists())
+
+        response = self.client.post(f'/api/contracts/{contract.id}/ship/')
         self.assertEqual(response.status_code, 400)
         self.assertIn('HP 880', str(response.data['items']))
-
-        # Hech narsa yozilmagan: qoldiq joyida, to'lov ham, kassa ham yo'q
         self.assertEqual(available_quantity(self.product, self.warehouse), Decimal('3'))
-        self.assertFalse(CashTransaction.objects.exists())
+
+    def test_ship_before_payment_is_400(self):
+        contract = self._approved_contract(1)
+        self.client.force_authenticate(self.bugalter)
+        response = self.client.post(f'/api/contracts/{contract.id}/ship/')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("to'lov", response.data['detail'])
+
+    def test_contract_request_procurement_chain(self):
+        """#2 B-holati: katalogda bor, omborda yetmaydi — shartnomadan TLD.
+
+        TLD shartnomaga bog'lanadi, owner_sales — shartnoma egasi, submit'da
+        sales bosqichiga boradi; receive kelgan molni shu shartnomaga band
+        qiladi va ship ochiladi.
+        """
+        from apps.inventory.services import sync_contract_reservations
+        from apps.procurement.models import Replenishment
+
+        contract = self._approved_contract(5)  # omborda faqat 3 ta
+        sync_contract_reservations(contract)
+        self.client.force_authenticate(self.bugalter)
+        self.client.post(f'/api/contracts/{contract.id}/confirm-payment/')
+
+        # Sales (egasi) band qilinmaganini buyurtmachiga yuboradi
+        self.client.force_authenticate(self.sales)
+        response = self.client.post(f'/api/contracts/{contract.id}/request-procurement/')
+        self.assertEqual(response.status_code, 201, response.data)
+        replenishment = Replenishment.objects.get()
+        self.assertEqual(replenishment.contract, contract)
+        self.assertEqual(replenishment.owner_sales, self.sales)
+        item = replenishment.items.get()
+        self.assertEqual(item.quantity, Decimal('2'))  # 5 kerak, 3 band
+
+        # Bitta ochiq TLD qoidasi
+        response = self.client.post(f'/api/contracts/{contract.id}/request-procurement/')
+        self.assertEqual(response.status_code, 400)
+
+        # Buyurtmachi narx kiritib yuboradi — shartnoma hisobi ham sales'ga boradi
+        item.unit_price = Decimal('20000000')
+        item.save()
+        self.client.force_authenticate(self.buyurtmachi)
+        response = self.client.post(f'/api/replenishments/{replenishment.id}/submit/')
+        self.assertEqual(response.data['status'], Replenishment.Status.PENDING_SALES)
+
+        # Qisqartirib: to'g'ri receive'gacha olib boramiz
+        Replenishment.objects.filter(pk=replenishment.pk).update(
+            status=Replenishment.Status.ORDERED,
+        )
+        response = self.client.post(f'/api/replenishments/{replenishment.id}/receive/')
+        self.assertEqual(response.status_code, 200, response.data)
+
+        # Kelgan mol shu shartnomaga band bo'ldi — endi yetkazish o'tadi
+        response = self.client.post(f'/api/contracts/{contract.id}/ship/')
+        self.assertEqual(response.status_code, 200, response.data)
         contract.refresh_from_db()
-        self.assertEqual(contract.status, Contract.Status.APPROVED)
+        self.assertIsNotNone(contract.delivered_at)

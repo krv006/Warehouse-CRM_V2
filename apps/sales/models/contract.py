@@ -60,6 +60,9 @@ class Contract(StatusTrackedModel):
     term_days = PositiveIntegerField(default=90)
     signed_at = DateField(null=True, blank=True)
     start_date = DateField(null=True, blank=True)
+    # TOPSHIRIQ-2 #2: yetkazib berish — alohida hodisa (`ship`), to'lov emas.
+    # 90 kunlik muddat endi haqiqiy narsani o'lchaydi: to'lovdan yetkazishgacha
+    delivered_at = DateField(null=True, blank=True)
     # §11.2: bugalterning 1-bosqichi — rasmiy shartnomani Didoxdan qabul qilish
     didox_number = CharField('Didox raqami', max_length=64, blank=True)
     didox_accepted_at = DateTimeField(null=True, blank=True)

@@ -69,6 +69,10 @@ def _contract_sources(user):
             Contract.Status.REJECTED: ('fix_and_resubmit', 'danger'),
             Contract.Status.APPROVED: ('awaiting_client_payment', 'warning'),
         }
+    elif user.is_supplier:
+        # #2: yetkazish navbati — faol, hali yetkazilmagan shartnomalar
+        qs = qs.filter(delivered_at__isnull=True)
+        reasons = {Contract.Status.ACTIVE: ('ship_contract', 'warning')}
     else:
         return None
     return {
@@ -284,6 +288,9 @@ def _admin_stale_items(cutoff_hour, working_days):
     def contract_holder(obj):
         if obj.status in (Contract.Status.DRAFT, Contract.Status.REJECTED):
             return 'sales', obj.created_by.display_name if obj.created_by else None
+        if obj.status == Contract.Status.ACTIVE:
+            # #2: faol shartnoma yetkazishni kutmoqda — buyurtmachida
+            return 'buyurtmachi', _role_holder(User.Role.SUPPLIER)
         return 'bugalter', bugalter_name
 
     def replenishment_holder(obj):
@@ -312,10 +319,14 @@ def _admin_stale_items(cutoff_hour, working_days):
     scopes = [
         (
             'contracts', 'Contract',
-            Contract.objects.filter(status__in=[
-                Contract.Status.DRAFT, Contract.Status.REJECTED,
-                Contract.Status.PENDING_BUGALTER, Contract.Status.APPROVED,
-            ]).select_related('created_by'),
+            Contract.objects.filter(
+                Q(status__in=[
+                    Contract.Status.DRAFT, Contract.Status.REJECTED,
+                    Contract.Status.PENDING_BUGALTER, Contract.Status.APPROVED,
+                ])
+                # #2: faol-yetkazilmagan ham SLA qamrovida (buyurtmachida turadi)
+                | Q(status=Contract.Status.ACTIVE, delivered_at__isnull=True),
+            ).select_related('created_by'),
             contract_holder,
             lambda obj: (obj.number, obj.total_amount, obj.currency),
         ),

@@ -101,35 +101,42 @@ class ReservationBasicsTests(APITestCase):
         self.assertEqual(reservation.status, StockReservation.Status.RELEASED)
         self.assertEqual(sellable_quantity(self.ssd, self.warehouse), Decimal('5'))
 
-    def test_payment_marks_reservation_shipped(self):
-        contract_id = self._make_contract(quantity=2)
+    def _pay(self, contract_id):
         self.client.post(f'/api/contracts/{contract_id}/submit/')
         self.client.force_authenticate(self.bugalter)
         self.client.post(f'/api/contracts/{contract_id}/approve/')
         self.client.force_authenticate(self.admin)
         self.client.post(f'/api/contracts/{contract_id}/approve/')
         self.client.force_authenticate(self.bugalter)
-        response = self.client.post(f'/api/contracts/{contract_id}/confirm-payment/')
+        return self.client.post(f'/api/contracts/{contract_id}/confirm-payment/')
+
+    def test_payment_keeps_reservation_ship_marks_it(self):
+        """#2: to'lov bronni ushlab turadi, chiqim `ship`da bo'ladi."""
+        contract_id = self._make_contract(quantity=2)
+        response = self._pay(contract_id)
         self.assertEqual(response.status_code, 200, response.data)
 
         reservation = StockReservation.objects.get(contract_id=contract_id)
+        # To'lovdan keyin bron hali FAOL — mol yetkazishni kutmoqda
+        self.assertEqual(reservation.status, StockReservation.Status.ACTIVE)
+        self.assertEqual(sellable_quantity(self.ssd, self.warehouse), Decimal('3'))
+
+        response = self.client.post(f'/api/contracts/{contract_id}/ship/')
+        self.assertEqual(response.status_code, 200, response.data)
+        reservation.refresh_from_db()
         self.assertEqual(reservation.status, StockReservation.Status.SHIPPED)
         # Qoldiq chiqimda kamaydi: 5 - 2 = 3, bron yo'q
         self.assertEqual(sellable_quantity(self.ssd, self.warehouse), Decimal('3'))
 
-    def test_own_reservation_does_not_block_own_payment(self):
+    def test_own_reservation_does_not_block_own_ship(self):
         """Eng nozik joy: shartnoma o'z bronini o'ziga ochiq deb hisoblaydi."""
         contract_id = self._make_contract(quantity=5)  # butun qoldiqni band qiladi
-        self.client.post(f'/api/contracts/{contract_id}/submit/')
-        self.client.force_authenticate(self.bugalter)
-        self.client.post(f'/api/contracts/{contract_id}/approve/')
-        self.client.force_authenticate(self.admin)
-        self.client.post(f'/api/contracts/{contract_id}/approve/')
-        self.client.force_authenticate(self.bugalter)
-        response = self.client.post(f'/api/contracts/{contract_id}/confirm-payment/')
+        response = self._pay(contract_id)
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(
-            Contract.objects.get(pk=contract_id).status, Contract.Status.ACTIVE,
+        response = self.client.post(f'/api/contracts/{contract_id}/ship/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIsNotNone(
+            Contract.objects.get(pk=contract_id).delivered_at,
         )
 
     def test_manual_release_requires_admin_and_note(self):

@@ -957,6 +957,43 @@ yetmaydi"ning bosh sababi).
 
 ---
 
+## 8.30 Chiqim to'lovdan ajratildi: `ship` + shartnomadan ta'minot 🚚
+
+TOPSHIRIQ-2 #2. Mol to'lov paytida chiqar edi — "90 kun ichida
+yetkazamiz" ishlamas, omborda yetmagan shartnoma to'lovda qotib qolar,
+undan chiqadigan yo'l yo'q edi (B-holat).
+
+**1-qadam — chiqim endi alohida hodisa:**
+
+- `confirm-payment` faqat pulni oladi: sanoq boshlanadi, `active`,
+  mol **chiqmaydi** — bron ushlab turadi. Balans nolga tushsa ham
+  **yetkazilmaguncha** `completed` bo'lmaydi (Q5).
+- Yangi `POST /contracts/{id}/ship/` — **buyurtmachi/bugalter** (admin):
+  mol shu yerda chiqadi, `delivered_at` yoziladi (holat mashinasi
+  tegilmadi — Q2), bron `shipped`, balans yopiq bo'lsa `completed`;
+  egasiga (sales) "yetkazildi" xabari. Bir marta, to'liq — qisman
+  yetkazish yo'q (Q4). 90 kunlik muddat endi to'lovdan yetkazishgacha
+  o'lchaydi; `check_deadlines` yetkazilganiga eslatmaydi.
+- Buyurtmachi endi faol-yetkazilmagan shartnomalarni ko'radi (yetkazish
+  navbati — my-work'da `ship_contract`); SLA qamroviga `active`
+  yetkazilmagan shartnoma qo'shildi (buyurtmachida turadi).
+
+**2-qadam — shartnomadan buyurtmachiga:**
+
+- `Replenishment.contract` FK (configuration bilan yonma-yon);
+- yangi `POST /contracts/{id}/request-procurement/` — **sales (egasi)**:
+  `kerak − band qilingan`dan chernovik TLD, `owner_sales` — shartnoma
+  egasi, bitta ochiq TLD qoidasi;
+- TLD `submit`da shartnomadan ochilgani ham **sales bosqichiga** boradi;
+- `receive()` kelgan molni **shu shartnomaga** band qiladi va egasiga
+  "mol keldi — yetkazish mumkin" deb yozadi.
+
+A-holat (katalogda umuman yo'q mahsulot) tegilmadi — u ZVK → engineer
+yo'li bilan to'g'ri ishlaydi; shartnoma qatoriga "yangi mahsulot nomi"
+yozish ataylab qo'shilmadi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -985,8 +1022,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **102** |
+| REST endpoint | 70 | **104** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **33** |
-| Testlar | 66 | **357** |
+| Testlar | 66 | **360** |
 | Rollar | 3 | **5** |

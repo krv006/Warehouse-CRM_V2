@@ -649,6 +649,22 @@ migratsiya logida qancha kamaygani yozib qo'yiladi.
 - Yetishmovchilik/`assembly_missing` avvalgidek ishlaydi — raqamlar endi
   partiya bo'yicha.
 
+## 22. Yetkazish (`ship`) va shartnomadan ta'minot (TOPSHIRIQ-2 #2) 🔴
+
+- Shartnoma kartasida **"Yetkazish"** tugmasi: `active` + mol to'liq band
+  bo'lganda faol (`POST /contracts/{id}/ship/` — buyurtmachi/bugalter;
+  sales'ga chizilmasin). Bosqichlar chizig'iga **"Yetkazildi"** qadami
+  (`delivered_at`).
+- To'lovdan keyin shartnoma endi `completed` bo'lmaydi — balans nol
+  bo'lsa ham yetkazilmaguncha `active`; yopilish `ship`da.
+- Yetishmovchilik ogohlantirishi yoniga **"Buyurtmachiga yuborish"**
+  tugmasi (`POST /contracts/{id}/request-procurement/`, sales) —
+  konfiguratsiya kartasidagi bilan bir xil; TLD javobida `contract`/
+  `contract_number` keladi, `?contract=` filtri bor.
+- Buyurtmachi navbatida yangi qator: `ship_contract` ("Yetkazing")
+  — matni `work-reason.ts`ga; buyurtmachi endi faol-yetkazilmagan
+  shartnomalarni ochib ko'ra oladi (narxlar unga baribir ko'rinmaydi).
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

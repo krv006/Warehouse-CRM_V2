@@ -21,11 +21,15 @@ from apps.sales.services import (
     approve_contract,
     confirm_payment,
     reject_contract,
+    send_contract_missing_to_procurement,
+    ship_contract,
     submit_contract,
 )
 
 # Bu amallarni bugalter (va admin) bajaradi, sales emas
 BUGALTER_ACTIONS = {'approve', 'reject', 'confirm_payment'}
+# #2: yetkazishni mol bilan ishlaydigan odam bosadi — buyurtmachi/bugalter
+SHIP_ACTIONS = {'ship'}
 
 
 class ContractViewSet(BaseModelViewSet):
@@ -58,11 +62,20 @@ class ContractViewSet(BaseModelViewSet):
             return qs
         if user.is_sales:
             return qs.filter(created_by=user)
+        if user.is_supplier:
+            # #2: buyurtmachi yetkazish navbatini ko'radi — faol, yetkazilmagan
+            return qs.filter(
+                status=Contract.Status.ACTIVE, delivered_at__isnull=True,
+            )
         return qs.none()
 
     def get_permissions(self):
         if self.action in BUGALTER_ACTIONS:
             return [IsAdminOrBugalter()]
+        if self.action in SHIP_ACTIONS:
+            from apps.accounts.permissions import ProcurementSharedAccess
+
+            return [ProcurementSharedAccess()]
         return super().get_permissions()
 
     def _check_editable(self, contract):
@@ -143,6 +156,28 @@ class ContractViewSet(BaseModelViewSet):
             ActivityLog.Action.APPROVE, contract, f"To'lov tasdiqlandi: {payment.amount}",
         )
         return Response(self.get_serializer(contract).data)
+
+    def ship(self, request, pk=None):
+        """POST /contracts/{id}/ship/ — yetkazib berish (#2): mol shu yerda chiqadi."""
+        contract = ship_contract(self.get_object(), request.user)
+        self.log_action(
+            ActivityLog.Action.UPDATE, contract,
+            f'Yetkazildi: {contract.delivered_at}',
+        )
+        return Response(self.get_serializer(contract).data)
+
+    def request_procurement(self, request, pk=None):
+        """POST /contracts/{id}/request-procurement/ — band qilinmagani buyurtmachiga (#2)."""
+        from apps.procurement.serializers import ReplenishmentSerializer
+
+        replenishment = send_contract_missing_to_procurement(
+            self.get_object(), request.user,
+        )
+        self.log_action(
+            ActivityLog.Action.CREATE, replenishment,
+            'Shartnomadan: yetishmayotganlar buyurtmachiga yuborildi',
+        )
+        return Response(ReplenishmentSerializer(replenishment).data, status=201)
 
     def print_form(self, request, pk=None):
         """GET /contracts/{id}/print/ — chop etish shakli uchun barcha ma'lumot.

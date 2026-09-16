@@ -110,8 +110,9 @@ class Command(BaseCommand):
         # §4.2: shartnoma muddati — egasi (sales) + bugalter + admin;
         # engineer/buyurtmachiga shartnoma summasi tegishli emas
         pool = self._role_users(User.Role.BUGALTER, User.Role.ADMIN)
+        # #2: muddat to'lovdan YETKAZISHGACHA — yetkazilganiga eslatma shart emas
         contracts = Contract.objects.filter(
-            status=Contract.Status.ACTIVE,
+            status=Contract.Status.ACTIVE, delivered_at__isnull=True,
         ).select_related('created_by')
         for contract in contracts:
             progress = contract.progress

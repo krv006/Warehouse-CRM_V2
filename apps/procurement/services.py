@@ -125,7 +125,7 @@ def submit(replenishment, user):
             'detail': 'Narxi kiritilmagan pozitsiyalar bor.',
         })
 
-    if replenishment.configuration_id:
+    if replenishment.configuration_id or replenishment.contract_id:
         replenishment.status = Replenishment.Status.PENDING_SALES
         _notify_sales_for_client_approval(replenishment)
     else:
@@ -168,9 +168,10 @@ def _notify_sales_for_client_approval(replenishment):
     """
     from apps.accounts.models import User
 
-    config_number = replenishment.configuration.number
+    source = replenishment.configuration or replenishment.contract
+    source_number = source.number if source else replenishment.number
     message = (
-        f'{config_number} bo\'yicha yetishmayotgan mahsulotlarga narxlar '
+        f'{source_number} bo\'yicha yetishmayotgan mahsulotlarga narxlar '
         'kiritildi. Mijoz bilan kelishib tasdiqlang — shundan keyin '
         'hisob bugalterga o\'tadi.'
     )
@@ -592,6 +593,26 @@ def receive(replenishment, user):
                 level=Notification.Level.INFO,
                 entity='Configuration',
                 object_id=str(configuration.pk),
+            )
+
+    # TOPSHIRIQ-2 #2: shartnomadan ochilgan hisob — kelgan mol darhol o'sha
+    # shartnomaga band qilinadi va egasi (sales) xabar oladi
+    if replenishment.contract_id:
+        from apps.inventory.services import sync_contract_reservations
+
+        contract = replenishment.contract
+        sync_contract_reservations(contract)
+        if contract.created_by:
+            Notification.objects.create(
+                user=contract.created_by,
+                title=f'{contract.number}: mol keldi — yetkazish mumkin',
+                message=(
+                    f'{replenishment.number} omborga kirim qilindi va '
+                    'shartnomaga band qilindi. Buyurtmachi yetkazishni belgilaydi.'
+                ),
+                level=Notification.Level.INFO,
+                entity='Contract',
+                object_id=str(contract.pk),
             )
 
     # §4.3: TLD receive o'zi KIR hujjatini ochadi — invoys/bojxona fayllari

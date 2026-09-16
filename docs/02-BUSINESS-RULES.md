@@ -281,6 +281,13 @@ bo'lmasa sales qaytaradi va hisob bugalter/admin stolini band qilmaydi.
 Hammasi omborda bo'lsa TLD umuman ochilmaydi (`request-procurement` 400) —
 engineer `complete` qiladi, sales shartnoma bilan davom etadi.
 
+**Yetkazish (#2):** chiqim to'lovdan ajratildi. To'lov — pul + sanoq;
+mol `POST /contracts/{id}/ship/` da chiqadi (buyurtmachi/bugalter), bron
+shu paytgacha ushlab turadi. Balans nol bo'lsa ham yetkazilmaguncha
+`completed` emas. Omborda yetmasa: sales `POST /contracts/{id}/
+request-procurement/` bilan band qilinmagan qismini buyurtmachiga
+yuboradi — kelgan mol aynan shu shartnomaga band qilinadi.
+
 **Partiya (#3):** `Configuration.quantity` — mijoz nechta so'ragani
 (zayavkadan ko'chadi). Tarkib bitta dona uchun yuritiladi; yetishmovchilik,
 bron, yig'ish va shartnoma partiyaga ko'paytiriladi. Qisman yig'ish yo'q —
