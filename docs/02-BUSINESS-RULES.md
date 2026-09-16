@@ -307,8 +307,9 @@ avtomatik qayta hisoblanadi (§10.3); rad etilgani tuzatilib qayta yuboriladi.
 **Hujjat egaligi (EGALIK §3):** sales va engineer ko'p, shuning uchun
 ularda egalik filtri bor: sales faqat o'z shartnomasi/kelishuvi/zayavkasini
 (va o'z zayavkasidan tug'ilgan konfiguratsiyani), engineer o'z
-konfiguratsiyasi + hali olinmagan `new` zayavkalarni ko'radi; TLD da sales
-faqat o'z `pending_sales` hisobini ko'radi. Bugalter/admin zanjirda —
+konfiguratsiyasi + hali olinmagan `new` zayavkalarni ko'radi; TLD da sales o'z hisobini
+butun yo'l davomida ko'radi (amal esa faqat `pending_sales`da), egasizini —
+faqat `pending_sales`da. Bugalter/admin zanjirda —
 hammasini ko'radi; buyurtmachi bitta bo'lim — TLD ni to'liq ko'radi.
 Yozish — faqat egasi va admin. Admin to'liq zaxira: ta'tildagi sales o'rniga
 ko'radi, tahrirlaydi va yubora oladi. Avtomatik shartnoma egasi — zayavkani

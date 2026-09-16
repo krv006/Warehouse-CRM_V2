@@ -587,8 +587,9 @@ filtrlamaydi, u o'zi qisqargan bo'lib keladi. Ikki joy o'zgaradi:
    yo'q"** (sales tizimda umuman shartnoma yo'q deb o'ylamasin). Kelishuv,
    zayavka, konfiguratsiyada ham shunday.
 
-Diqqat: sales endi TLD ro'yxatida faqat o'z `pending_sales` hisobini
-ko'radi (draft/boshqa bosqichlar 404) — sales'ning TLD sahifasi shunga
+Diqqat: sales endi TLD ro'yxatida O'Z hisobini butun yo'l davomida ko'radi
+(`canOpenReplenishment` da sales qatori `true` bo'ladi); boshqa sales'niki
+va egasiz qoralamalar 404 — sales'ning TLD sahifasi shunga
 moslansin. Buyurtmachi TLD kartasidagi konfiguratsiya havolasi buyurtmachiga
 404 beradi (konfiguratsiya unga ochiq emas) — havolani faqat ko'ra oladigan
 rollarga chizing. `reassign` (egasini almashtirish) hozircha yo'q — ta'tilda

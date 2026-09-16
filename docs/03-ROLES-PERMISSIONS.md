@@ -79,7 +79,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | Eslatmalar | ✅ o'ziniki |
 | Kassa, qarzlar, xarajat so'rovlari | ⛔ **403** |
 | Kirim (purchases) | ⛔ **403** |
-| To'ldirish (buyurtmachi bo'limi) | 👁 **o'qiydi**; mijoz buyurtmasidan ochilgan hisobni mijoz bilan kelishib **tasdiqlaydi/qaytaradi** (`pending_sales` bosqichi) |
+| To'ldirish (buyurtmachi bo'limi) | 👁 O'Z hisobini (`owner_sales`) **butun yo'l davomida** ko'radi; mijoz bilan kelishib **tasdiqlaydi/qaytaradi** (amal faqat `pending_sales`da) |
 | Foydalanuvchilar, Audit | ⛔ **403** |
 
 ## Shartnoma zanjiridagi rol tekshiruvi

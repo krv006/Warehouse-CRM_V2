@@ -163,10 +163,31 @@ class ReplenishmentVisibilityTests(APITestCase):
         listing = self.client.get('/api/replenishments/').data
         self.assertEqual(listing['count'], 1)
         self.assertEqual(listing['results'][0]['id'], self.pending_own.id)
-        # Qoralama ham, boshqaning pendingi ham 404
+        # Egasiz qoralama ham, boshqaning pendingi ham 404
         self.assertEqual(
             self.client.get(f'/api/replenishments/{self.draft.id}/').status_code, 404,
         )
+        self.assertEqual(
+            self.client.get(f'/api/replenishments/{self.pending_other.id}/').status_code,
+            404,
+        )
+
+    def test_sales_keeps_seeing_own_after_approve(self):
+        """TOPSHIRIQ #1: tasdiqlagach hisob sales ko'zidan yo'qolmasin.
+
+        Sales mijozga "molingiz kelyapti" deydi — keyin kuzata olishi kerak.
+        """
+        self.pending_own.status = Replenishment.Status.PENDING_BUGALTER
+        self.pending_own.save()
+        self.client.force_authenticate(self.sales)
+        response = self.client.get(f'/api/replenishments/{self.pending_own.id}/')
+        self.assertEqual(response.status_code, 200)
+        # Lekin amal qila olmaydi — faqat kuzatadi (bugalter bosqichi)
+        response = self.client.post(f'/api/replenishments/{self.pending_own.id}/approve/')
+        self.assertEqual(response.status_code, 403)
+        # Boshqa sales'niki baribir yopiq — egalik saqlanadi
+        self.pending_other.status = Replenishment.Status.PENDING_BUGALTER
+        self.pending_other.save()
         self.assertEqual(
             self.client.get(f'/api/replenishments/{self.pending_other.id}/').status_code,
             404,

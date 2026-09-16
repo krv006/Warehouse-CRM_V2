@@ -801,6 +801,22 @@ keyingi bosqichga yozib qo'yildi.
 
 ---
 
+## 8.24 Sales o'z hisobini butun yo'l davomida ko'radi 🐛→✅
+
+TOPSHIRIQLAR #1 (jonli muammo): sales TLD ni tasdiqlashi bilan status
+`pending_bugalter` bo'lib, hisob uning ko'zidan yo'qolar edi —
+konfiguratsiya kartasidagi TLD nishoni 404 berardi, mijozga "qachon
+keladi?" degan savolga javob topib bo'lmasdi.
+
+Endi: sales **o'z** hisobini (`owner_sales=user`) boshidan oxirigacha
+ko'radi; boshqa sales'nikini avvalgidek ko'rmaydi — egalik saqlangan.
+Egasiz hisob faqat `pending_sales` bosqichida ko'rinadi (oddiy ombor
+to'ldirishlari sales'ga tegishli emas). Amal huquqi o'zgarmagan:
+approve/reject baribir faqat `pending_sales` da ishlaydi — qolgan
+bosqichlarda sales faqat kuzatadi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -832,5 +848,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **100** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **32** |
-| Testlar | 66 | **323** |
+| Testlar | 66 | **324** |
 | Rollar | 3 | **5** |

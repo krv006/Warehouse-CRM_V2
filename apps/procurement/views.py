@@ -62,9 +62,12 @@ class ReplenishmentViewSet(BaseModelViewSet):
     ordering_fields = ['created_at', 'number', 'created_by']
 
     def get_queryset(self):
-        """EGALIK §3.2: ta'minot — bitta bo'lim, buyurtmachi/bugalter/admin
-        hammasini ko'radi; sales faqat mijoz roziligi bosqichidagi O'Z hisobini
-        (egasiz eskilarini ham — xabar yo'qolmasin)."""
+        """EGALIK §3.2 + TOPSHIRIQ #1: sales O'Z hisobini butun yo'l davomida
+        ko'radi (tasdiqlagach ham — mijozga "qachon keladi?"ga javob berishi
+        kerak); boshqa sales'nikini ko'rmaydi — egalik saqlanadi. Egasiz hisob
+        faqat mijoz roziligi bosqichida ko'rinadi (oddiy ombor to'ldirishlari
+        sales'ga tegishli emas). Amal huquqi o'zgarmagan: approve/reject
+        baribir faqat pending_sales'da ishlaydi — qolganida faqat kuzatadi."""
         from django.db.models import Q
 
         qs = super().get_queryset()
@@ -73,8 +76,9 @@ class ReplenishmentViewSet(BaseModelViewSet):
             return qs
         if user.is_sales:
             return qs.filter(
-                Q(owner_sales=user) | Q(owner_sales__isnull=True),
-                status=Replenishment.Status.PENDING_SALES,
+                Q(owner_sales=user)
+                | Q(owner_sales__isnull=True,
+                    status=Replenishment.Status.PENDING_SALES),
             )
         return qs.none()
 
@@ -216,10 +220,11 @@ class ReplenishmentItemViewSet(BaseModelViewSet):
         qs = super().get_queryset()
         user = self.request.user
         if user.is_sales:
+            # TOPSHIRIQ #1: o'z hisobining qatorlari butun yo'l davomida ochiq
             return qs.filter(
                 Q(replenishment__owner_sales=user)
-                | Q(replenishment__owner_sales__isnull=True),
-                replenishment__status=Replenishment.Status.PENDING_SALES,
+                | Q(replenishment__owner_sales__isnull=True,
+                    replenishment__status=Replenishment.Status.PENDING_SALES),
             )
         return qs
 
