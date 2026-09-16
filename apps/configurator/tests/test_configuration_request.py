@@ -34,7 +34,10 @@ class ConfigurationRequestFlowTests(APITestCase):
         self.assertEqual(request_obj.created_by, self.sales)
         self.assertEqual(request_obj.status, ConfigurationRequest.Status.NEW)
 
-    def test_engineer_takes_and_completes(self):
+    def test_engineer_takes_then_sales_review_closes_request(self):
+        """#4: complete o'rniga submit -> sales approve; zayavka shunda DONE."""
+        from apps.configurator.models import ConfigurationItem
+
         request_id = self._request()
 
         self.client.force_authenticate(self.engineer)
@@ -50,28 +53,30 @@ class ConfigurationRequestFlowTests(APITestCase):
         self.assertEqual(configuration.base_product, self.base)
         self.assertEqual(configuration.status, Configuration.Status.DRAFT)
 
-        response = self.client.post(
-            f'/api/configuration-requests/{request_id}/complete/',
-            {'configuration': configuration.id}, format='json',
+        # Engineer yig'ib sales ko'rigiga yuboradi
+        ConfigurationItem.objects.create(
+            configuration=configuration,
+            component=Product.objects.create(sku='SSD-2TB', name='SSD 2 TB'),
+            label='SSD', quantity=1,
         )
+        response = self.client.post(f'/api/configurations/{configuration.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data['status'], ConfigurationRequest.Status.DONE)
-        self.assertEqual(response.data['configuration'], configuration.id)
+        # Zayavka egasiga "ko'rib chiqing" xabari
+        note = Notification.objects.get(entity='Configuration', user=self.sales)
+        self.assertIn("ko'rib chiqing", note.title)
 
-        # Sales'ga xabar boradi — u eski jarayonni (shartnoma) boshlaydi
-        note = Notification.objects.get(entity='ConfigurationRequest', user=self.sales)
-        self.assertIn('tayyor', note.title)
+        # Sales tasdiqlaydi — zayavka DONE bo'ladi
+        self.client.force_authenticate(self.sales)
+        response = self.client.post(f'/api/configurations/{configuration.id}/approve/')
+        self.assertEqual(response.status_code, 200, response.data)
+        request_obj = ConfigurationRequest.objects.get(pk=request_id)
+        self.assertEqual(request_obj.status, ConfigurationRequest.Status.DONE)
 
-    def test_sales_cannot_take_or_complete(self):
+    def test_sales_cannot_take(self):
         request_id = self._request()
         self.client.force_authenticate(self.sales)
         self.assertEqual(
             self.client.post(f'/api/configuration-requests/{request_id}/take/').status_code, 403,
-        )
-        self.assertEqual(
-            self.client.post(
-                f'/api/configuration-requests/{request_id}/complete/', {}, format='json',
-            ).status_code, 403,
         )
 
     def test_bugalter_reads_but_cannot_write(self):
@@ -83,11 +88,32 @@ class ConfigurationRequestFlowTests(APITestCase):
                              format='json').status_code, 403,
         )
 
-    def test_complete_requires_configuration(self):
+    def test_reject_returns_to_engineer_with_comment(self):
+        """#4: sales izoh bilan qaytaradi — engineer nimani o'zgartirishni biladi."""
+        from apps.configurator.models import ConfigurationApproval, ConfigurationItem
+
         request_id = self._request()
         self.client.force_authenticate(self.engineer)
-        response = self.client.post(
-            f'/api/configuration-requests/{request_id}/complete/', {}, format='json',
+        take = self.client.post(f'/api/configuration-requests/{request_id}/take/')
+        configuration_id = take.data['configuration']
+        ConfigurationItem.objects.create(
+            configuration_id=configuration_id,
+            component=Product.objects.create(sku='SSD-2TB', name='SSD 2 TB'),
+            label='SSD', quantity=1,
         )
-        self.assertEqual(response.status_code, 400)
-        self.assertIn('configuration', response.data)
+        self.client.post(f'/api/configurations/{configuration_id}/submit/')
+
+        self.client.force_authenticate(self.sales)
+        response = self.client.post(
+            f'/api/configurations/{configuration_id}/reject/',
+            {'comment': 'Mijoz RAM 32 xohlaydi'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['status'], Configuration.Status.DRAFT)
+
+        approval = ConfigurationApproval.objects.get(configuration_id=configuration_id)
+        self.assertEqual(approval.decision, ConfigurationApproval.Decision.REJECTED)
+        self.assertEqual(approval.comment, 'Mijoz RAM 32 xohlaydi')
+        # Engineer xabar oladi va chernovikni tahrirlay oladi (qulf ochiq)
+        note = Notification.objects.get(entity='Configuration', user=self.engineer)
+        self.assertIn('qaytarildi', note.title)

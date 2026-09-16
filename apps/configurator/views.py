@@ -22,13 +22,14 @@ from apps.configurator.serializers import (
     ConfigurationRequestSerializer,
 )
 from apps.configurator.services import (
-    assemble_variant,
+    act_suggestion_text,
+    approve_configuration,
+    assemble_configuration,
     build_configuration_workbook,
-    complete_request,
-    finalize_modification,
     notify_engineers_about_request,
-    resolve_variant,
+    reject_configuration,
     send_missing_to_procurement,
+    submit_configuration,
     take_request,
 )
 from apps.core.mixins import BaseModelViewSet
@@ -89,8 +90,14 @@ class ConfigurationViewSet(BaseModelViewSet):
             return qs.filter(requests__created_by=user).distinct()
         return qs.none()
 
-    # §11.1: finalize ham engineerda — ACT bilan yakunlash tarkib egasining
-    # ishi. ConfiguratorAccess (yozish: engineer, admin) buni o'zi qamraydi.
+    # §11.1: finalize engineerda (ConfiguratorAccess); #4: texnik tasdiq
+    # (approve/reject) esa sales bosqichi
+    def get_permissions(self):
+        if self.action in ('approve', 'reject'):
+            from apps.accounts.permissions import IsAdminOrSales
+
+            return [IsAdminOrSales()]
+        return super().get_permissions()
 
     def _check_draft(self, configuration):
         """Yakunlangan konfiguratsiya o'zgartirilmaydi — faqat chernovik (TZ 6.4)."""
@@ -165,19 +172,68 @@ class ConfigurationViewSet(BaseModelViewSet):
             ],
         })
 
+    def submit(self, request, pk=None):
+        """POST /configurations/{id}/submit/ — texnik yechim sales ko'rigiga (#4)."""
+        configuration = submit_configuration(self.get_object(), request.user)
+        self.log_action(
+            ActivityLog.Action.UPDATE, configuration,
+            'Texnik yechim sales ko\'rigiga yuborildi',
+        )
+        return Response(self.get_serializer(configuration).data)
+
+    def approve(self, request, pk=None):
+        """POST /configurations/{id}/approve/ — sales texnik yechimni tasdiqlaydi."""
+        configuration = approve_configuration(
+            self.get_object(), request.user, request.data.get('comment', ''),
+        )
+        self.log_action(
+            ActivityLog.Action.APPROVE, configuration, 'Texnik yechim tasdiqlandi',
+        )
+        return Response(self.get_serializer(configuration).data)
+
+    def reject(self, request, pk=None):
+        """POST /configurations/{id}/reject/ — sales izoh bilan qaytaradi."""
+        configuration = reject_configuration(
+            self.get_object(), request.user, request.data.get('comment', ''),
+        )
+        self.log_action(
+            ActivityLog.Action.REJECT, configuration, request.data.get('comment', ''),
+        )
+        return Response(self.get_serializer(configuration).data)
+
+    def assemble(self, request, pk=None):
+        """POST /configurations/{id}/assemble/ — yig'ish, alohida qadam (#4).
+
+        Faqat sales tasdiqlagan (`approved`) yechim yig'iladi. build:
+        butlovchilar chiqadi, variant kiradi; modify: tayyor mahsulot fizik
+        o'zgartiriladi (tana: {"removals": {...}}). Butlovchi yetmasa 400 —
+        mol TLD orqali kelgach qayta bosiladi. Javobda `act_suggestion` —
+        ACT uchun bajarilgan ishdan tayyor matn (#4D).
+        """
+        configuration = self.get_object()
+        assembled, missing = assemble_configuration(
+            configuration, request.user,
+            removals=request.data.get('removals'), strict=True,
+        )
+        if assembled:
+            self.log_action(
+                ActivityLog.Action.UPDATE, configuration,
+                f"Yig'ildi: {configuration.variant.sku} omborga kirdi",
+            )
+        data = self.get_serializer(configuration).data
+        data['assembled'] = assembled
+        data['assembly_missing'] = missing
+        data['act_suggestion'] = act_suggestion_text(configuration)
+        return Response(data)
+
     def finalize(self, request, pk=None):
-        """POST /configurations/{id}/finalize/ — ACT bilan yakunlash (§11.1: engineer).
+        """POST /configurations/{id}/finalize/ — yakunlash (#4: endi faqat bitta ish).
 
-        Engineer ACT ni biriktirib yakunlaydi va natijani salesga topshiradi
-        ("Yakunlash va salesga topshirish" — UI da bitta tugma).
-
-        Tana (ixtiyoriy): {"act": id} — ACT shu yerning o'zida biriktiriladi,
-        oldindan PATCH qilish shart emas; {"client": id} — shartnoma uchun mijoz
-        (berilmasa zayavkadagi mijoz olinadi).
-
-        Yakunda avtomatik **draft shartnoma** ochiladi (mijoz aniq bo'lsa):
-        qatori — tayyor variant, narxi konfiguratsiyadan, QQS bilan. Javobda
-        `contract` maydoni keladi. Build rejimida yig'ish ham shu yerda (§10.1).
+        Shartlari: texnik yechim **tasdiqlangan**, mahsulot **yig'ilgan**,
+        **ACT** biriktirilgan (tanada {"act": id} berish mumkin). Yakunda
+        `ready` bo'ladi va **draft shartnoma avtomatik ochiladi** — mahsulot
+        haqiqatan tayyor bo'lgandagina. {"client": id} — shartnoma mijozi
+        (berilmasa zayavkadagi).
         """
         from apps.clients.models import Client
 
@@ -189,9 +245,17 @@ class ConfigurationViewSet(BaseModelViewSet):
                 return Response(
                     {'client': 'Mijoz topilmadi.'}, status=HTTP_400_BAD_REQUEST,
                 )
-        if configuration.status != Configuration.Status.DRAFT:
+        if configuration.status != Configuration.Status.APPROVED:
             return Response(
-                {'detail': 'Faqat chernovik holatidagi konfiguratsiya yakunlanadi.'},
+                {'detail': (
+                    'Avval texnik yechim tasdiqlansin: engineer submit -> '
+                    'sales approve — shundan keyin yakunlanadi.'
+                )},
+                status=HTTP_400_BAD_REQUEST,
+            )
+        if not configuration.assembled_at:
+            return Response(
+                {'detail': "Avval mahsulot yig'ilsin (assemble) — yakunlash tayyor mahsulot bilan bo'ladi."},
                 status=HTTP_400_BAD_REQUEST,
             )
         if request.data.get('act'):
@@ -207,11 +271,6 @@ class ConfigurationViewSet(BaseModelViewSet):
                 {'detail': 'Yakunlash uchun ACT biriktirilishi shart.'},
                 status=HTTP_400_BAD_REQUEST,
             )
-        if not configuration.items.exists():
-            return Response(
-                {'detail': 'Konfiguratsiya qatorlari kiritilmagan.'},
-                status=HTTP_400_BAD_REQUEST,
-            )
 
         # TZ 6.2: narxi aniqlanmagan butlovchi bo'lsa, jarayon yakunlanmaydi
         no_price = configuration.items_without_price
@@ -224,36 +283,16 @@ class ConfigurationViewSet(BaseModelViewSet):
                 status=HTTP_400_BAD_REQUEST,
             )
 
-        # Bitta tranzaksiya: variant yaratish, ombor harakatlari va statusning
-        # o'zgarishi yo to'liq bajariladi, yo umuman yo'q (yarim holat qolmaydi)
         with atomic():
-            if configuration.mode == Configuration.Mode.MODIFY:
-                # Tayyor mahsulot fizik o'zgartiriladi: ombor harakatlari + bugalterga xabar
-                variant, created = finalize_modification(
-                    configuration, request.user, request.data.get('removals'),
-                )
-                assembled, assembly_missing = True, []
-            else:
-                variant, created = resolve_variant(configuration)
-                configuration.variant = variant
-                # §10.1: jismoniy yig'ish — butlovchilar chiqadi, variant kiradi.
-                # Yetishmasa bloklanmaydi: mol TLD orqali kelgach /assemble/ yoki
-                # to'lov paytida avtomatik yig'iladi.
-                assembled, assembly_missing = assemble_variant(
-                    configuration, request.user, strict=False,
-                )
-
-            configuration.variant = variant
             configuration.status = Configuration.Status.READY
             configuration.save()
 
-            # §11.4: chernovik emas — yumshoq bron bo'shaydi; shartnoma ochilsa
-            # uning qattiq broni o'z o'rnini egallaydi (bitta bron ko'chadi)
+            # §11.4: yumshoq bron bo'shaydi; shartnoma ochilsa uning qattiq
+            # broni o'z o'rnini egallaydi (bitta bron ko'chadi)
             from apps.inventory.services import sync_configuration_reservations
 
             sync_configuration_reservations(configuration)
 
-            # Bugalterga yuborishdan oldin shartnoma tayyor tursin (chop etish shakli bilan)
             from apps.sales.services import create_contract_from_configuration
 
             contract = create_contract_from_configuration(
@@ -261,8 +300,8 @@ class ConfigurationViewSet(BaseModelViewSet):
             )
         self.log_action(
             ActivityLog.Action.UPDATE, configuration,
-            f'Yakunlandi ({configuration.get_mode_display()}), variant: {variant.sku} '
-            + ('(yangi)' if created else '(ombordan)')
+            f'Yakunlandi ({configuration.get_mode_display()}), variant: '
+            f'{configuration.variant.sku}'
             + (f', shartnoma: {contract.number}' if contract else ''),
         )
         if contract:
@@ -275,28 +314,6 @@ class ConfigurationViewSet(BaseModelViewSet):
             {'id': contract.id, 'number': contract.number, 'status': contract.status}
             if contract else None
         )
-        # Front ko'rsatadi: yig'ildimi yoki qaysi butlovchilar kutilmoqda
-        data['assembled'] = assembled
-        data['assembly_missing'] = assembly_missing
-        return Response(data)
-
-    def assemble(self, request, pk=None):
-        """POST /configurations/{id}/assemble/ — variantni jismoniy yig'ish (§10.1).
-
-        Finalize paytida butlovchi yetmagan bo'lsa, mol kelgach shu tugma
-        bosiladi: butlovchilar ombordan chiqadi, variant omborga kiradi.
-        """
-        from apps.configurator.services import assemble_variant
-
-        configuration = self.get_object()
-        assembled, _ = assemble_variant(configuration, request.user, strict=True)
-        if assembled:
-            self.log_action(
-                ActivityLog.Action.UPDATE, configuration,
-                f"Yig'ildi: {configuration.variant.sku} omborga kirdi",
-            )
-        data = self.get_serializer(configuration).data
-        data['assembled'] = assembled
         return Response(data)
 
     def request_procurement(self, request, pk=None):
@@ -449,14 +466,6 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
         )
         return Response(self.get_serializer(request_obj).data)
 
-    def complete(self, request, pk=None):
-        """POST /configuration-requests/{id}/complete/ — konfiguratsiya biriktiriladi."""
-        configuration = Configuration.objects.filter(
-            pk=request.data.get('configuration'),
-        ).first()
-        request_obj = complete_request(self.get_object(), request.user, configuration)
-        self.log_action(
-            ActivityLog.Action.UPDATE, request_obj,
-            f'Konfiguratsiya tayyor: {configuration.number}',
-        )
-        return Response(self.get_serializer(request_obj).data)
+    # `complete` olib tashlandi (#4): engineer endi konfiguratsiyani
+    # `submit` bilan sales ko'rigiga yuboradi, zayavka holati esa sales
+    # tasdig'ida (`approve`) DONE bo'ladi — tasdiqsiz "tayyor" yo'q.

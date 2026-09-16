@@ -11,8 +11,7 @@ bor" degani emas. Amal kutilmaydigan bo'lim umuman sanalmaydi.
 
 from datetime import timedelta
 
-from django.db.models import DecimalField, OuterRef, Q, Subquery, Sum, Value
-from django.db.models.functions import Coalesce
+from django.db.models import Q
 from django.utils.timezone import localdate
 
 from apps.core.utils import RED_ZONE_DAYS, sla_deadline, working_days_since
@@ -131,36 +130,46 @@ def _request_source(user):
 
 def _configuration_source(user):
     from apps.configurator.models import Configuration
-    from apps.inventory.models import Stock
 
-    if not user.is_engineer:
-        return None
-    zero = Value(0, output_field=DecimalField(max_digits=18, decimal_places=2))
-    variant_stock = (
-        Stock.objects.filter(product=OuterRef('variant'))
-        .values('product').annotate(t=Sum('quantity')).values('t')
-    )
-    qs = (
-        Configuration.objects.filter(created_by=user)
-        .annotate(variant_stock=Coalesce(Subquery(variant_stock), zero))
-        .filter(
-            Q(status=Configuration.Status.DRAFT)
-            # yig'ilmagan ready: variant hali omborga kirmagan (§10.1)
-            | Q(status=Configuration.Status.READY, variant__isnull=False,
-                variant_stock__lt=1)
+    if user.is_engineer:
+        # #4: chernovik — yig'iladi; tasdiqlangan — yig'ish/yakunlash navbati
+        qs = Configuration.objects.filter(
+            created_by=user,
+            status__in=[Configuration.Status.DRAFT, Configuration.Status.APPROVED],
         )
-    )
-    return {
-        'section': 'configurations',
-        'entity': 'Configuration',
-        'queryset': qs,
-        'row': lambda obj: (
-            'CFG', obj.number,
-            ('configure', 'info') if obj.status == Configuration.Status.DRAFT
-            else ('assemble', 'warning'),
-            None, None,
-        ),
-    }
+
+        def engineer_row(obj):
+            if obj.status == Configuration.Status.DRAFT:
+                return 'CFG', obj.number, ('configure', 'info'), None, None
+            if obj.assembled_at:
+                return 'CFG', obj.number, ('finalize_ready', 'warning'), None, None
+            return 'CFG', obj.number, ('assemble', 'warning'), None, None
+
+        return {
+            'section': 'configurations',
+            'entity': 'Configuration',
+            'queryset': qs,
+            'row': engineer_row,
+        }
+    if user.is_sales:
+        # #4: sales ko'rigidagi konfiguratsiyalar — mijozga ko'rsatib tasdiqlash
+        qs = (
+            Configuration.objects
+            .filter(
+                status=Configuration.Status.PENDING_SALES,
+                requests__created_by=user,
+            )
+            .distinct()
+        )
+        return {
+            'section': 'configurations',
+            'entity': 'Configuration',
+            'queryset': qs,
+            'row': lambda obj: (
+                'CFG', obj.number, ('configuration_review', 'warning'), None, None,
+            ),
+        }
+    return None
 
 
 def _replenishment_source(user):
@@ -293,6 +302,11 @@ def _admin_stale_items(cutoff_hour, working_days):
         return 'engineer', None  # hovuz — hali hech kim olmagan
 
     def configuration_holder(obj):
+        if obj.status == Configuration.Status.PENDING_SALES:
+            owner = next(
+                (r.created_by for r in obj.requests.all() if r.created_by_id), None,
+            )
+            return 'sales', owner.display_name if owner else None
         return 'engineer', obj.created_by.display_name if obj.created_by else None
 
     scopes = [
@@ -327,9 +341,11 @@ def _admin_stale_items(cutoff_hour, working_days):
         ),
         (
             'configurations', 'Configuration',
-            Configuration.objects.filter(
-                status=Configuration.Status.DRAFT,
-            ).select_related('created_by'),
+            Configuration.objects.filter(status__in=[
+                Configuration.Status.DRAFT,
+                Configuration.Status.PENDING_SALES,
+                Configuration.Status.APPROVED,
+            ]).select_related('created_by').prefetch_related('requests__created_by'),
             configuration_holder,
             lambda obj: (obj.number, None, None),
         ),

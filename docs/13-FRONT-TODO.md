@@ -623,6 +623,23 @@ Raqamlar to'g'rilanadi, ko'rinish o'sha-o'sha. Deploy'dan keyin kassa
 qoldig'i KAMAYADI (fantom pul yo'qoladi) — bu kutilgan natija, xato emas;
 migratsiya logida qancha kamaygani yozib qo'yiladi.
 
+## 20. Konfiguratsiya tasdiq zanjiri (TOPSHIRIQ-2 #4) 🔴 KATTA
+
+- Konfiguratsiya kartasiga **bosqichlar chizig'i** (shartnomadagi kabi):
+  Chernovik → Sales ko'rigi → Tasdiqlandi → Yig'ildi → Tayyor. Tarix —
+  `approvals[]` (izohlari bilan).
+- Tugmalar: engineer'da **"Salesga yuborish"** (`submit`), keyin alohida
+  **"Yig'ish"** (`assemble`, modify'da `removals` shu yerda) va
+  **"Yakunlash"** (`finalize`) — eski "Yakunlash va salesga topshirish"
+  bitta tugmasi YO'Q. Sales'da `approve` / `reject` (izoh maydoni bilan).
+- `assemble` javobidagi `act_suggestion` — ACT formasiga tayyor matn
+  sifatida qo'yib bering (engineer tahrirlaydi).
+- Navbatlar: sales'ga `configuration_review` ("Konfiguratsiyani ko'rib
+  chiqing"), engineer'ga `assemble` ("Mol keldi — yig'ing") va
+  `finalize_ready` sabablari uchun matnlar (`work-reason.ts`).
+- `request-procurement` endi faqat `approved`da ishlaydi — tugmani shu
+  holatda ko'rsating; `complete` endpointi o'chirildi.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

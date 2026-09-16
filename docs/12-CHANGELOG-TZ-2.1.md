@@ -895,6 +895,45 @@ fantom pul yo'qoladi, haqiqiy raqam qoladi (migratsiya logida summa bor).
 
 ---
 
+## 8.28 Konfiguratsiyada texnik tasdiq — finalize to'rt ishdan bittaga qisqardi 🔁
+
+TOPSHIRIQ-2 #4. Avval sales mijozga hech narsa ko'rsata olmasdi: "tayyor"
+xabari kelganda konfiguratsiya allaqachon yakunlangan, ombor harakatlari
+yozilgan va shartnoma ochilgan bo'lardi; ta'minot esa tasdiqlanmagan
+yechimga ishlab ketardi.
+
+**Yangi holat mashinasi:**
+
+```
+draft ──engineer submit──► pending_sales ──sales approve──► approved
+  ▲                              │
+  └────────sales reject──────────┘  (izoh bilan — ConfigurationApproval'da)
+approved ──assemble──► (yig'ildi) ──finalize──► ready + SHT avtomatik
+```
+
+- Yangi model **`ConfigurationApproval`** — texnik tasdiq tarixi (33-model).
+- Yangi endpointlar: `POST /configurations/{id}/submit|approve|reject/`
+  (submit — engineer; approve/reject — sales, admin). Zayavka ergashadi:
+  approve'da `done`, reject'da engineer xabar oladi va chernovik ochiladi.
+- **`finalize` endi bitta ish qiladi**: `approved` + **yig'ilgan**
+  (`assembled_at`) + ACT bo'lsa `ready` qiladi va shartnoma ochadi —
+  mahsulot haqiqatan tayyor bo'lgandagina. Variant yaratish va ombor
+  harakatlari **`assemble`ga ko'chdi** (modify rejimi ham: `removals`
+  endi assemble tanasida; `act_suggestion` — bajarilgan ishdan tayyor matn).
+- **Ta'minot tasdiqdan keyingina**: `request-procurement` `approved`
+  bo'lmagan konfiguratsiyada 400 — mijoz rad etsa mol behuda olinmaydi.
+- **Engineer kirimdan xabardor** (#4C): TLD `receive` konfiguratsiya
+  egasiga "mol keldi — yig'ish mumkin" deb yozadi.
+- `complete` endpointi olib tashlandi — uning o'rnini submit/approve oldi
+  (tasdiqsiz "tayyor" yo'q). §11.1 dagi "bitta tugma" birlashtirishi
+  qaytarildi — sales ko'rish oynasi tiklandi.
+- Yumshoq bron endi draft+pending_sales+approved davomida turadi.
+- my-work: sales'ga `configuration_review`, engineerга `assemble` /
+  `finalize_ready` sabablari; SLA qamroviga pending_sales (sales) va
+  approved (engineer) qo'shildi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -923,8 +962,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **100** |
+| REST endpoint | 70 | **102** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
-| Modellar | 23 | **32** |
-| Testlar | 66 | **345** |
+| Modellar | 23 | **33** |
+| Testlar | 66 | **350** |
 | Rollar | 3 | **5** |

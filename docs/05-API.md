@@ -164,6 +164,7 @@ Engineer configuratorda tayyorlab, konfiguratsiyani zayavkaga biriktiradi
 | GET | `/configuration-requests/` | hamma; filtr: `status`, `client`, `taken_by`, `configuration` |
 | POST | `/configuration-requests/` | sales (admin) — engineerlarga notification tushadi |
 | GET/PUT/PATCH/DELETE | `/configuration-requests/{id}/` | sales, engineer, admin |
+| ~~complete~~ | — olib tashlandi (#4): endi engineer konfiguratsiyani `submit` qiladi, zayavka sales `approve`sida `done` bo'ladi |
 | POST | `/configuration-requests/{id}/take/` | **engineer** — ishga oladi, chernovik konfiguratsiya avtomatik ochiladi |
 | POST | `/configuration-requests/{id}/complete/` | **engineer** — konfiguratsiyani biriktiradi |
 
@@ -231,9 +232,12 @@ keyin kelgani keyingi ish kuni oxirigacha (`/company/` da `sla_cutoff_hour`,
 | PUT/PATCH/DELETE | `/configurations/{id}/` | faqat `draft` holatida — `ready`/`sold` 400 qaytaradi |
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
-| POST | `/configurations/{id}/finalize/` | §11.1: **engineer bosqichi** (sales 403); ACT majburiy, tanada berish mumkin: `{"act": 2, "client": 3}`; build rejimida **yig'ish** ham shu yerda (§10.1 — yetmasa bloklanmaydi, javobda `assembled`/`assembly_missing`); yakunda **draft shartnoma avtomatik ochiladi** (javobda `contract`) |
-| POST | `/configurations/{id}/assemble/` | §10.1: variantni **jismoniy yig'ish** — butlovchilar chiqadi, variant omborga kiradi; butlovchi yetmasa 400 (nomlar bilan). Finalize'da yig'ilmagan bo'lsa mol kelgach shu bosiladi (to'lov paytida ham avtomatik uriniladi) |
-| POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan to'ldirish hisobi (TLD) ochib buyurtmachi/sales/bugalterga xabar beradi; hammasi omborda bo'lsa 400; **ochiq TLD bor bo'lsa ham 400** (takror ochilmaydi) |
+| POST | `/configurations/{id}/submit/` | #4: engineer texnik yechimni **sales ko'rigiga** yuboradi (`pending_sales`); zayavka egasiga xabar |
+| POST | `/configurations/{id}/approve/` | #4: **sales** (admin) texnik yechimni tasdiqlaydi (`approved`), zayavka `done`; tarix — `approvals[]` |
+| POST | `/configurations/{id}/reject/` | #4: sales izoh bilan qaytaradi (`draft`ga) — engineer xabar oladi, izoh tarixda |
+| POST | `/configurations/{id}/finalize/` | #4: endi **bitta ish** — shartlari: `approved` + yig'ilgan (`assembled_at`) + ACT (tanada `{"act": 2, "client": 3}`); `ready` bo'ladi va **draft shartnoma avtomatik ochiladi** (javobda `contract`) — mahsulot haqiqatan tayyor bo'lgandagina |
+| POST | `/configurations/{id}/assemble/` | #4/§10.1: yig'ish — faqat `approved` yechim; build: butlovchilar chiqadi, variant kiradi; modify: tayyor mahsulot fizik o'zgartiriladi (tana: `{"removals": {...}}`); yetmasa 400 (nomlar bilan) — mol TLD orqali kelgach qayta bosiladi; javobda `act_suggestion` (#4D) |
+| POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan TLD ochadi; #4: faqat `approved` konfiguratsiyada (aks holda 400); hammasi omborda bo'lsa 400; ochiq TLD bor bo'lsa ham 400 |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
 | GET/POST | `/configuration-items/` | qatorni alohida qo'shish — `configuration` majburiy, faqat `draft`; bazada yo'q tovar uchun `new_component_name` |
 | GET/PUT/PATCH/DELETE | `/configuration-items/{id}/` | filtr: `configuration`, `component`; faqat `draft` da o'zgaradi |

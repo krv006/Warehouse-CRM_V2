@@ -72,12 +72,15 @@ class ChainClosureTests(APITestCase):
         )
         act = Act.objects.create(number='ACT-1', title='ACT', issued_at=date.today())
 
-        # §11.1: yakunlashni engineer qiladi
+        # #4 zanjiri: engineer submit -> sales approve -> assemble -> finalize
+        url = f'/api/configurations/{configuration.id}'
         self.client.force_authenticate(self.engineer)
-        response = self.client.post(
-            f'/api/configurations/{configuration.id}/finalize/',
-            {'act': act.id}, format='json',
-        )
+        self.client.post(f'{url}/submit/')
+        self.client.force_authenticate(self.sales)  # zayavka egasi tasdiqlaydi
+        self.client.post(f'{url}/approve/')
+        self.client.force_authenticate(self.engineer)
+        self.client.post(f'{url}/assemble/')
+        response = self.client.post(f'{url}/finalize/', {'act': act.id}, format='json')
         self.assertEqual(response.status_code, 200, response.data)
         contract_id = response.data['contract']['id']
 

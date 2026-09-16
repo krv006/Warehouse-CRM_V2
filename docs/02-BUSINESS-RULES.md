@@ -281,6 +281,14 @@ bo'lmasa sales qaytaradi va hisob bugalter/admin stolini band qilmaydi.
 Hammasi omborda bo'lsa TLD umuman ochilmaydi (`request-procurement` 400) —
 engineer `complete` qiladi, sales shartnoma bilan davom etadi.
 
+**Texnik tasdiq (#4):** engineer yig'ib bo'lgach `submit` — konfiguratsiya
+sales ko'rigiga o'tadi; sales mijozga ko'rsatib `approve` (zayavka `done`)
+yoki izoh bilan `reject` (chernovikka qaytadi, engineer xabar oladi).
+Ta'minot va yig'ish faqat `approved`dan keyin; `finalize` endi bitta ish —
+`approved` + yig'ilgan + ACT bo'lsa `ready` qiladi va shartnoma ochadi.
+Ikki xil tasdiq bor: **texnik** (shu tarkib to'g'rimi — konfiguratsiyada)
+va **narx** (mijoz summaga rozimi — TLD `pending_sales`).
+
 **Yig'ish qadami (§10.1):** `build` rejimida `finalize` endi jismoniy
 yig'ishni ham qiladi — butlovchilar ombordan chiqadi, variant 1 dona kirim
 bo'ladi (shu tufayli shartnoma to'lovi o'tadi). Butlovchi yetmasa finalize

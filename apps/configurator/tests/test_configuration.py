@@ -56,19 +56,47 @@ class ConfigurationTests(APITestCase):
     def test_total_price(self):
         self.assertEqual(self.configuration.total_price, Decimal('6000000'))
 
-    def test_finalize_requires_act(self):
-        # §11.1: yakunlash engineer bosqichi — ACT ham unda
+    def test_finalize_walks_new_chain(self):
+        """#4: yakunlash bosqichma-bosqich — tasdiq, yig'ish, ACT, keyin ready.
+
+        Har bir to'siq o'z xabari bilan 400 beradi, zanjir to'liq o'tgach 200.
+        """
         self.client.force_authenticate(self.engineer)
-        response = self.client.post(f'/api/configurations/{self.configuration.id}/finalize/')
+        url = f'/api/configurations/{self.configuration.id}'
+
+        # 1) Tasdiqlanmagan yechim yakunlanmaydi
+        response = self.client.post(f'{url}/finalize/')
         self.assertEqual(response.status_code, 400)
+        self.assertIn('texnik yechim', response.data['detail'])
+
+        # 2) submit -> sales/admin approve
+        self.assertEqual(self.client.post(f'{url}/submit/').status_code, 200)
+        self.client.force_authenticate(self.admin)
+        self.assertEqual(self.client.post(f'{url}/approve/').status_code, 200)
+        self.client.force_authenticate(self.engineer)
+
+        # 3) Yig'ilmagan — yakunlanmaydi
+        response = self.client.post(f'{url}/finalize/')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("yig'ilsin", response.data['detail'])
+
+        # GPU omborda yo'q edi — mol keldi deb hisoblaymiz
+        apply_movement(
+            product=self.gpu, warehouse=self.warehouse,
+            type=StockMovement.Type.IN, quantity=Decimal('10'),
+        )
+        self.assertEqual(self.client.post(f'{url}/assemble/').status_code, 200)
+
+        # 4) ACT'siz yakunlanmaydi
+        response = self.client.post(f'{url}/finalize/')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('ACT', response.data['detail'])
 
         act = Act.objects.create(
             number='ACT-001', title='Tarkib o\'zgarishi',
             issued_at=date.today(), created_by=self.admin,
         )
-        self.configuration.act = act
-        self.configuration.save()
-        response = self.client.post(f'/api/configurations/{self.configuration.id}/finalize/')
+        response = self.client.post(f'{url}/finalize/', {'act': act.id}, format='json')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['status'], Configuration.Status.READY)
 

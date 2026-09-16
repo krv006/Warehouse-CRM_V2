@@ -17,6 +17,7 @@ class AutoContractOnFinalizeTests(APITestCase):
     def setUp(self):
         self.sales = User.objects.create_user('sales', password='p', role=User.Role.SALES)
         self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
+        self.admin = User.objects.create_user('admin', password='p', role=User.Role.ADMIN)
         self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
         self.mijoz = Client.objects.create(
             type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
@@ -40,13 +41,26 @@ class AutoContractOnFinalizeTests(APITestCase):
             label='SSD', quantity=1, unit_price=Decimal('5000000'),
         )
         self.act = Act.objects.create(number='ACT-1', title='ACT', issued_at=date.today())
+        # Yig'ish uchun butlovchi omborda bo'lsin
+        from apps.inventory.models import StockMovement
+        from apps.inventory.services import apply_movement
+
+        apply_movement(
+            product=self.ssd, warehouse=self.warehouse,
+            type=StockMovement.Type.IN, quantity=Decimal('5'),
+        )
 
     def _finalize(self, **extra):
-        # §11.1: yakunlash engineer bosqichi
+        # #4 zanjiri: engineer submit -> (admin) approve -> assemble -> finalize
+        url = f'/api/configurations/{self.configuration.id}'
         self.client.force_authenticate(self.engineer)
+        self.client.post(f'{url}/submit/')
+        self.client.force_authenticate(self.admin)
+        self.client.post(f'{url}/approve/')
+        self.client.force_authenticate(self.engineer)
+        self.client.post(f'{url}/assemble/')
         return self.client.post(
-            f'/api/configurations/{self.configuration.id}/finalize/',
-            {'act': self.act.id, **extra}, format='json',
+            f'{url}/finalize/', {'act': self.act.id, **extra}, format='json',
         )
 
     def test_contract_created_with_client_from_request(self):

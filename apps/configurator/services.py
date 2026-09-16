@@ -94,6 +94,191 @@ def resolve_variant(configuration):
     return variant, True
 
 
+def _configuration_owner_sales(configuration):
+    """Konfiguratsiya ortidagi zayavka egasi (sales) — tasdiq va xabarlar unga."""
+    request_obj = (
+        configuration.requests.filter(created_by__isnull=False)
+        .order_by('-created_at').first()
+    )
+    return request_obj.created_by if request_obj else None
+
+
+def submit_configuration(configuration, user):
+    """Engineer texnik yechimni sales ko'rigiga yuboradi (TOPSHIRIQ-2 #4).
+
+    Sales mijozga ko'rsatadi: o'zgartirish kerak bo'lsa izoh bilan
+    qaytaradi, ma'qul bo'lsa tasdiqlaydi — shundan keyingina ta'minot
+    va yig'ish boshlanadi.
+    """
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.accounts.models import User
+    from apps.configurator.models import Configuration
+    from apps.core.models import Notification
+
+    if not (user.is_admin or user.is_engineer):
+        raise PermissionDenied('Texnik yechimni Engineer yuboradi.')
+    if configuration.status != Configuration.Status.DRAFT:
+        raise ValidationError({'detail': 'Faqat chernovik ko\'rikka yuboriladi.'})
+    if not configuration.items.exists():
+        raise ValidationError({'detail': 'Konfiguratsiya qatorlari kiritilmagan.'})
+
+    configuration.status = Configuration.Status.PENDING_SALES
+    configuration.save()
+
+    owner = _configuration_owner_sales(configuration)
+    recipients = [owner] if owner else list(
+        User.objects.filter(role=User.Role.SALES, is_active=True)
+    )
+    for recipient in recipients:
+        Notification.objects.create(
+            user=recipient,
+            title=f'{configuration.number}: konfiguratsiyani ko\'rib chiqing',
+            message=(
+                'Engineer texnik yechimni tayyorladi — mijozga ko\'rsatib '
+                'tasdiqlang yoki izoh bilan qaytaring.'
+            ),
+            level=Notification.Level.WARNING,
+            entity='Configuration',
+            object_id=str(configuration.pk),
+        )
+    return configuration
+
+
+def _decide_configuration(configuration, user, decision, comment):
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import Configuration, ConfigurationApproval
+
+    if not (user.is_admin or user.is_sales):
+        raise PermissionDenied('Texnik yechimni sales (yoki admin) tasdiqlaydi.')
+    if configuration.status != Configuration.Status.PENDING_SALES:
+        raise ValidationError({'detail': 'Konfiguratsiya sales ko\'rigida emas.'})
+    ConfigurationApproval.objects.create(
+        configuration=configuration,
+        decision=decision,
+        comment=comment,
+        decided_by=user,
+    )
+
+
+def approve_configuration(configuration, user, comment=''):
+    """Sales texnik yechimni tasdiqlaydi — endi ta'minot/yig'ish mumkin."""
+    from apps.configurator.models import Configuration, ConfigurationApproval, ConfigurationRequest
+    from apps.core.models import Notification
+
+    _decide_configuration(
+        configuration, user, ConfigurationApproval.Decision.APPROVED, comment,
+    )
+    configuration.status = Configuration.Status.APPROVED
+    configuration.save()
+    # Zayavka holati ergashadi: texnik yechim qabul qilindi
+    configuration.requests.filter(
+        status=ConfigurationRequest.Status.IN_PROGRESS,
+    ).update(status=ConfigurationRequest.Status.DONE)
+
+    if configuration.created_by:
+        Notification.objects.create(
+            user=configuration.created_by,
+            title=f'{configuration.number}: texnik yechim tasdiqlandi',
+            message=(
+                'Sales mijoz bilan kelishdi. Yetishmagani bo\'lsa buyurtmachiga '
+                'yuboring, mol to\'liq bo\'lgach yig\'ib yakunlang.'
+            ),
+            level=Notification.Level.INFO,
+            entity='Configuration',
+            object_id=str(configuration.pk),
+        )
+    return configuration
+
+
+def reject_configuration(configuration, user, comment=''):
+    """Sales izoh bilan qaytaradi — engineer nimani o'zgartirishni biladi."""
+    from apps.configurator.models import Configuration, ConfigurationApproval
+    from apps.core.models import Notification
+
+    _decide_configuration(
+        configuration, user, ConfigurationApproval.Decision.REJECTED, comment,
+    )
+    configuration.status = Configuration.Status.DRAFT
+    configuration.save()
+
+    if configuration.created_by:
+        Notification.objects.create(
+            user=configuration.created_by,
+            title=f'{configuration.number}: konfiguratsiya qaytarildi',
+            message=comment or 'Sales o\'zgartirish so\'radi.',
+            level=Notification.Level.WARNING,
+            entity='Configuration',
+            object_id=str(configuration.pk),
+        )
+    return configuration
+
+
+def act_suggestion_text(configuration):
+    """ACT uchun tayyor matn — bajarilgan ish `changes` dan yoziladi (#4D)."""
+    quantity = getattr(configuration, 'quantity', 1)
+    lines = [f'{quantity} ta {configuration.base_product.name} olindi.']
+    changes = configuration.changes
+    for row in changes['removed']:
+        lines.append(
+            f"{row['component'].name} chiqarilib omborga qaytarildi "
+            f"({row['quantity'] * quantity} dona)."
+        )
+    for row in changes['added']:
+        lines.append(
+            f"O'rniga {row['component'].name} o'rnatildi "
+            f"({row['quantity'] * quantity} dona)."
+        )
+    return ' '.join(lines)
+
+
+def assemble_configuration(configuration, user, *, removals=None, strict=True):
+    """Yig'ish — alohida qadam (TOPSHIRIQ-2 #4): faqat tasdiqlangan yechim.
+
+    build: variant topiladi/yaratiladi va butlovchilardan yig'iladi;
+    modify: tayyor mahsulot fizik o'zgartiriladi (ombor harakatlari,
+    bugalterga ACT xabari). Muvaffaqiyatda `assembled_at` yoziladi —
+    `finalize` shusiz o'tmaydi.
+    """
+    from django.utils.timezone import now
+
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import Configuration
+
+    if not (user.is_admin or user.is_engineer):
+        raise PermissionDenied('Yig\'ishni Engineer bajaradi.')
+    if configuration.status != Configuration.Status.APPROVED:
+        raise ValidationError({
+            'detail': 'Avval texnik yechim sales tomonidan tasdiqlanishi kerak.',
+        })
+    if configuration.assembled_at:
+        return True, []
+
+    if configuration.mode == Configuration.Mode.MODIFY:
+        variant, _ = finalize_modification(configuration, user, removals)
+        configuration.variant = variant
+        assembled, missing = True, []
+    else:
+        variant, _ = resolve_variant(configuration)
+        configuration.variant = variant
+        configuration.save(update_fields=['variant'])
+        assembled, missing = assemble_variant(configuration, user, strict=strict)
+        # Variant allaqachon omborda yetarli bo'lsa ham "yig'ilgan" hisoblanadi
+        from apps.inventory.services import available_quantity
+
+        if not assembled and not missing and available_quantity(
+            variant, configuration.warehouse,
+        ) >= 1:
+            assembled = True
+
+    if assembled:
+        configuration.assembled_at = now()
+    configuration.save()
+    return assembled, missing
+
+
 def assemble_variant(configuration, user, *, strict=True):
     """Build rejimida jismoniy yig'ish (§10.1): butlovchilar chiqadi, variant kiradi.
 
@@ -356,41 +541,6 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
     return request_obj
 
 
-def complete_request(request_obj, user, configuration):
-    """Engineer tayyor konfiguratsiyani biriktiradi — sales'ga xabar boradi."""
-    from rest_framework.exceptions import PermissionDenied, ValidationError
-
-    from apps.configurator.models import ConfigurationRequest
-    from apps.core.models import Notification
-
-    if not (user.is_admin or user.is_engineer):
-        raise PermissionDenied('Zayavkani faqat Engineer yakunlaydi.')
-    if request_obj.status not in {
-        ConfigurationRequest.Status.NEW, ConfigurationRequest.Status.IN_PROGRESS,
-    }:
-        raise ValidationError('Zayavka allaqachon yakunlangan.')
-    if configuration is None:
-        raise ValidationError({'configuration': "Tayyor konfiguratsiya ko'rsatilishi shart."})
-
-    request_obj.configuration = configuration
-    request_obj.status = ConfigurationRequest.Status.DONE
-    request_obj.taken_by = request_obj.taken_by or user
-    request_obj.save()
-
-    Notification.objects.create(
-        user=request_obj.created_by,
-        title=f'{request_obj.number}: konfiguratsiya tayyor',
-        message=(
-            f'{configuration.number} — {configuration.base_product.name}. '
-            'Shartnoma jarayonini boshlashingiz mumkin.'
-        ),
-        level=Notification.Level.INFO,
-        entity='ConfigurationRequest',
-        object_id=str(request_obj.pk),
-    )
-    return request_obj
-
-
 def send_missing_to_procurement(configuration, user):
     """Konfiguratsiyadagi omborda yo'q butlovchilarni buyurtmachiga yuboradi.
 
@@ -403,12 +553,23 @@ def send_missing_to_procurement(configuration, user):
     from rest_framework.exceptions import PermissionDenied, ValidationError
 
     from apps.accounts.models import User
+    from apps.configurator.models import Configuration
     from apps.core.models import Notification
     from apps.inventory.services import main_warehouse
     from apps.procurement.models import Replenishment, ReplenishmentItem
 
     if not (user.is_admin or user.is_engineer):
         raise PermissionDenied('Buyurtmachiga yuborishni Engineer bajaradi.')
+
+    # TOPSHIRIQ-2 #4: ta'minot faqat TASDIQLANGAN yechim uchun ishlaydi —
+    # aks holda mijoz ko'rmagan tarkib uchun mol olinib, pul to'lanardi
+    if configuration.status != Configuration.Status.APPROVED:
+        raise ValidationError({
+            'detail': (
+                'Avval texnik yechim sales tomonidan tasdiqlansin '
+                '(submit -> sales approve) — keyin buyurtmachiga yuboriladi.'
+            ),
+        })
 
     # Bitta konfiguratsiya uchun bitta ochiq hisob: tugma ikki marta bosilsa
     # ikkinchi TLD ochilmaydi — front mavjudini `procurement` maydonidan ko'radi

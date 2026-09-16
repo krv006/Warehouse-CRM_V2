@@ -126,17 +126,35 @@ class FrontFixesTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200, response.data)
 
-    # ---------------------- finalize: §11.1 — engineer bosqichi, tanadagi ACT
+    # ---------------------- finalize: §11.1/#4 — engineer, yangi zanjir bilan
+    def _walk_to_assembled(self):
+        """submit -> approve (admin) -> assemble — yakunlashga tayyorlaydi."""
+        from apps.inventory.models import StockMovement
+        from apps.inventory.services import apply_movement
+
+        ConfigurationItem.objects.create(
+            configuration=self.configuration, component=self.ssd,
+            label='SSD', quantity=1, unit_price=Decimal('1500000'),
+        )
+        apply_movement(
+            product=self.ssd, warehouse=self.warehouse,
+            type=StockMovement.Type.IN, quantity=Decimal('5'),
+        )
+        admin = User.objects.create_user('adm9', password='p', role=User.Role.ADMIN)
+        url = f'/api/configurations/{self.configuration.id}'
+        self.client.post(f'{url}/submit/')
+        self.client.force_authenticate(admin)
+        self.client.post(f'{url}/approve/')
+        self.client.force_authenticate(self.engineer)
+        self.client.post(f'{url}/assemble/')
+
     def test_engineer_finalizes_with_act_in_body(self):
         """§11.1: engineer ACT bilan yakunlaydi va salesga topshiradi."""
         from datetime import date
 
         from apps.configurator.models import Act
 
-        ConfigurationItem.objects.create(
-            configuration=self.configuration, component=self.ssd,
-            label='SSD', quantity=1, unit_price=Decimal('1500000'),
-        )
+        self._walk_to_assembled()
         act = Act.objects.create(number='ACT-9', title='ACT', issued_at=date.today())
         response = self.client.post(
             f'/api/configurations/{self.configuration.id}/finalize/',
@@ -148,6 +166,7 @@ class FrontFixesTests(APITestCase):
         self.assertEqual(self.configuration.status, Configuration.Status.READY)
 
     def test_finalize_with_unknown_act_is_400(self):
+        self._walk_to_assembled()
         response = self.client.post(
             f'/api/configurations/{self.configuration.id}/finalize/',
             {'act': 99999}, format='json',

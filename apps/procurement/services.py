@@ -579,6 +579,21 @@ def receive(replenishment, user):
         if contract:
             sync_contract_reservations(contract)
 
+        # TOPSHIRIQ-2 #4C: yig'ishni bajaradigan odam (engineer) mol
+        # kelganini bilsin — omborni qo'lda kuzatib o'tirmasin
+        if configuration.created_by:
+            Notification.objects.create(
+                user=configuration.created_by,
+                title=f'{configuration.number}: mol keldi — yig\'ish mumkin',
+                message=(
+                    f'{replenishment.number} omborga kirim qilindi. '
+                    'Konfiguratsiyani yig\'ib (assemble) yakunlashingiz mumkin.'
+                ),
+                level=Notification.Level.INFO,
+                entity='Configuration',
+                object_id=str(configuration.pk),
+            )
+
     # §4.3: TLD receive o'zi KIR hujjatini ochadi — invoys/bojxona fayllari
     # shu hujjatga biriktiriladi. Ombor harakati va kassa chiqimi TLD da
     # allaqachon yozilgan, shuning uchun bu KIR hech qachon receive qilinmaydi

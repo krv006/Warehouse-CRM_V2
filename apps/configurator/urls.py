@@ -22,6 +22,16 @@ urlpatterns = [
     path('configurations/<int:pk>/stock-check/', ConfigurationViewSet.as_view({
         'get': 'stock_check',
     }), name='configuration-stock-check'),
+    # #4: texnik tasdiq zanjiri — engineer submit -> sales approve/reject
+    path('configurations/<int:pk>/submit/', ConfigurationViewSet.as_view({
+        'post': 'submit',
+    }), name='configuration-submit'),
+    path('configurations/<int:pk>/approve/', ConfigurationViewSet.as_view({
+        'post': 'approve',
+    }), name='configuration-approve'),
+    path('configurations/<int:pk>/reject/', ConfigurationViewSet.as_view({
+        'post': 'reject',
+    }), name='configuration-reject'),
     path('configurations/<int:pk>/finalize/', ConfigurationViewSet.as_view({
         'post': 'finalize',
     }), name='configuration-finalize'),
@@ -40,9 +50,6 @@ urlpatterns = [
     path('configuration-requests/<int:pk>/take/', ConfigurationRequestViewSet.as_view({
         'post': 'take',
     }), name='configurationrequest-take'),
-    path('configuration-requests/<int:pk>/complete/', ConfigurationRequestViewSet.as_view({
-        'post': 'complete',
-    }), name='configurationrequest-complete'),
 
     path('configuration-items/', ConfigurationItemViewSet.as_view(LIST), name='configurationitem-list'),
     path('configuration-items/<int:pk>/', ConfigurationItemViewSet.as_view(DETAIL), name='configurationitem-detail'),

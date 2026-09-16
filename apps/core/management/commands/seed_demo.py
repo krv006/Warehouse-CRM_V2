@@ -259,6 +259,10 @@ class Command(BaseCommand):
         ConfigurationItem.objects.create(
             configuration=draft, component=wifi, label='WIFI', quantity=1,
         )
+        # #4: ta'minot faqat tasdiqlangan yechim uchun — demo hikoyasi:
+        # sales mijoz bilan tarkibni kelishgan, endi yetishmagani buyurtmada
+        draft.status = Configuration.Status.APPROVED
+        draft.save()
         # Omborda yo'q — buyurtmachiga yuborildi: TLD ochiladi,
         # buyurtmachi/sales/bugalterga xabar tushadi
         send_missing_to_procurement(draft, users['engineer'])

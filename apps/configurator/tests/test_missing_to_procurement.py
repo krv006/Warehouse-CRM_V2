@@ -97,6 +97,8 @@ class MissingToProcurementTests(APITestCase):
         )
         self.configuration = Configuration.objects.create(
             base_product=self.base, warehouse=self.warehouse, created_by=self.engineer,
+            # #4: ta'minot faqat sales tasdiqlagan yechim uchun ishlaydi
+            status=Configuration.Status.APPROVED,
         )
         ConfigurationItem.objects.create(
             configuration=self.configuration, component=self.ssd,

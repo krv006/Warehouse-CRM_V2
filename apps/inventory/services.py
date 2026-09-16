@@ -219,7 +219,14 @@ def sync_configuration_reservations(configuration):
     from apps.configurator.models import Configuration
     from apps.inventory.models import StockReservation
 
-    if configuration.status != Configuration.Status.DRAFT:
+    # Yumshoq bron chernovikdan to texnik tasdiqgacha turadi — finalize'da
+    # shartnomaning qattiq broni o'rnini egallaydi
+    held_statuses = {
+        Configuration.Status.DRAFT,
+        Configuration.Status.PENDING_SALES,
+        Configuration.Status.APPROVED,
+    }
+    if configuration.status not in held_statuses:
         release_reservations(configuration=configuration)
         return
 

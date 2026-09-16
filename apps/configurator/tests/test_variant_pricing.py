@@ -8,6 +8,24 @@ from apps.configurator.models import Act, Configuration, ConfigurationItem
 from apps.inventory.models import Product
 
 
+def walk_to_approved(client, config_id):
+    """#4 oqimi: engineer submit -> sales approve (testlarda admin bilan)."""
+    client.post(f'/api/configurations/{config_id}/submit/')
+    client.post(f'/api/configurations/{config_id}/approve/')
+
+
+def full_finalize(client, config_id, body=None, removals=None):
+    """#4 to'liq zanjir: submit -> approve -> assemble -> finalize."""
+    walk_to_approved(client, config_id)
+    client.post(
+        f'/api/configurations/{config_id}/assemble/',
+        {'removals': removals} if removals else {}, format='json',
+    )
+    return client.post(
+        f'/api/configurations/{config_id}/finalize/', body or {}, format='json',
+    )
+
+
 class VariantPricingTests(APITestCase):
     """TZ 6.2: narx ombordan olinadi, tayyor variant tanib olinadi."""
 
@@ -29,8 +47,18 @@ class VariantPricingTests(APITestCase):
             sku='RAM-4', name='RAM 4', kind=Product.Kind.COMPONENT,
         )
         self.act = Act.objects.create(number='ACT-001', title='ACT', issued_at=date.today())
-        # Admin bilan: konfiguratsiya tahriri ham (engineer ishi), finalize ham
-        # (sales bosqichi) bitta testda ketadi — rol chegaralari alohida testlarda
+        # Yig'ish (assemble) uchun butlovchilar omborda bo'lsin
+        from apps.inventory.models import StockMovement, Warehouse
+        from apps.inventory.services import apply_movement
+
+        warehouse = Warehouse.objects.create(name='Asosiy ombor')
+        for product in (self.ssd, self.gpu, self.no_price):
+            apply_movement(
+                product=product, warehouse=warehouse,
+                type=StockMovement.Type.IN, quantity=Decimal('10'),
+            )
+        # Admin bilan: butun zanjir (submit/approve/assemble/finalize) bitta
+        # testda ketadi — rol chegaralari alohida testlarda
         self.client.force_authenticate(self.admin)
 
     def _configuration(self, components, act=True):
@@ -59,13 +87,13 @@ class VariantPricingTests(APITestCase):
 
     def test_finalize_blocked_without_price(self):
         configuration = self._configuration([(self.ssd, 1), (self.no_price, 1)])
-        response = self.client.post(f'/api/configurations/{configuration.id}/finalize/')
+        response = full_finalize(self.client, configuration.id)
         self.assertEqual(response.status_code, 400)
         self.assertIn('RAM 4', response.data['items'])
 
     def test_finalize_creates_reusable_variant(self):
         configuration = self._configuration([(self.ssd, 1), (self.gpu, 1)])
-        response = self.client.post(f'/api/configurations/{configuration.id}/finalize/')
+        response = full_finalize(self.client, configuration.id)
         self.assertEqual(response.status_code, 200, response.data)
 
         configuration.refresh_from_db()
@@ -79,14 +107,14 @@ class VariantPricingTests(APITestCase):
     def test_same_combination_reuses_existing_variant(self):
         """Bir xil tarkib ikkinchi marta yig'ilsa — yangi mahsulot yaratilmaydi."""
         first = self._configuration([(self.ssd, 1), (self.gpu, 1)])
-        self.client.post(f'/api/configurations/{first.id}/finalize/')
+        full_finalize(self.client, first.id)
         first.refresh_from_db()
 
         second = self._configuration([(self.gpu, 1), (self.ssd, 1)])  # tartibi boshqa
         self.assertEqual(second.signature, first.signature)
         self.assertEqual(second.matching_variant, first.variant)
 
-        response = self.client.post(f'/api/configurations/{second.id}/finalize/')
+        response = full_finalize(self.client, second.id)
         self.assertEqual(response.status_code, 200, response.data)
         second.refresh_from_db()
         self.assertEqual(second.variant, first.variant)
@@ -94,7 +122,7 @@ class VariantPricingTests(APITestCase):
 
     def test_ready_variant_price_is_used(self):
         first = self._configuration([(self.ssd, 1), (self.gpu, 1)])
-        self.client.post(f'/api/configurations/{first.id}/finalize/')
+        full_finalize(self.client, first.id)
         first.refresh_from_db()
 
         # Ombordagi tayyor pozitsiya narxi o'zgardi
@@ -108,16 +136,16 @@ class VariantPricingTests(APITestCase):
 
     def test_different_combination_creates_second_variant(self):
         first = self._configuration([(self.ssd, 1), (self.gpu, 1)])
-        self.client.post(f'/api/configurations/{first.id}/finalize/')
+        full_finalize(self.client, first.id)
 
         second = self._configuration([(self.ssd, 2), (self.gpu, 1)])
         self.assertIsNone(second.matching_variant)
-        self.client.post(f'/api/configurations/{second.id}/finalize/')
+        full_finalize(self.client, second.id)
         self.assertEqual(Product.objects.filter(base_model=self.base).count(), 2)
 
     def test_stock_check_shows_ready_variant(self):
         configuration = self._configuration([(self.ssd, 1), (self.gpu, 1)])
-        self.client.post(f'/api/configurations/{configuration.id}/finalize/')
+        full_finalize(self.client, configuration.id)
         response = self.client.get(f'/api/configurations/{configuration.id}/stock-check/')
         self.assertEqual(response.status_code, 200)
         self.assertTrue(response.data['ready_variant'].startswith('HP-880-V'))
@@ -195,7 +223,7 @@ class BaseModelAsReadyPositionTests(APITestCase):
         config_id = response.data['id']
 
         before = Product.objects.count()
-        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        response = full_finalize(self.client, config_id)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(Product.objects.count(), before)  # yangi mahsulot yaratilmadi
 
@@ -283,9 +311,10 @@ class ModifyModeTests(APITestCase):
 
         bugalter = User.objects.create_user('bug', password='p', role=User.Role.BUGALTER)
         config_id = self._modify_config()
-        response = self.client.post(f'/api/configurations/{config_id}/finalize/', {
-            'removals': {str(self.ram4.id): '350000'},  # yechilgan RAM narxi o'zgartirildi
-        }, format='json')
+        # #4: yechilgan qism narxi endi yig'ish (assemble) bosqichida beriladi
+        response = full_finalize(
+            self.client, config_id, removals={str(self.ram4.id): '350000'},
+        )
         self.assertEqual(response.status_code, 200, response.data)
 
         # Ombor: HP 880 2->1, RAM 8 3->2, RAM 4 0->1, variant 0->1
@@ -302,12 +331,12 @@ class ModifyModeTests(APITestCase):
 
         # Xabar faqat bugalterga: ACT bilan, yechib olinganlar ro'yxati
         # (user'siz umumiy xabar hammaga ko'rinardi — §10.10 tuzatmasi)
-        note = Notification.objects.get(entity='Configuration')
-        self.assertEqual(note.user, bugalter)
+        note = Notification.objects.get(entity='Configuration', user=bugalter)
         self.assertIn('ACT-01', note.title)
         self.assertIn('RAM 4 GB', note.message)
 
-    def test_finalize_blocked_when_no_ready_unit_in_stock(self):
+    def test_assemble_blocked_when_no_ready_unit_in_stock(self):
+        """#4: modify'da yig'ish (assemble) bazaviy mahsulot yo'q bo'lsa 400."""
         from apps.inventory.models import StockMovement
         from apps.inventory.services import apply_movement
 
@@ -316,11 +345,15 @@ class ModifyModeTests(APITestCase):
             product=self.base, warehouse=self.warehouse,
             type=StockMovement.Type.OUT, quantity=Decimal('2'),
         )
-        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        walk_to_approved(self.client, config_id)
+        response = self.client.post(f'/api/configurations/{config_id}/assemble/')
         self.assertEqual(response.status_code, 400)
         self.assertIn('HP 880', str(response.data))
+        # Yig'ilmagan konfiguratsiya yakunlanmaydi ham
+        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        self.assertEqual(response.status_code, 400)
 
-    def test_finalize_blocked_when_added_part_missing(self):
+    def test_assemble_blocked_when_added_part_missing(self):
         from apps.inventory.models import StockMovement
         from apps.inventory.services import apply_movement
 
@@ -329,7 +362,8 @@ class ModifyModeTests(APITestCase):
             product=self.ram8, warehouse=self.warehouse,
             type=StockMovement.Type.OUT, quantity=Decimal('3'),
         )
-        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        walk_to_approved(self.client, config_id)
+        response = self.client.post(f'/api/configurations/{config_id}/assemble/')
         self.assertEqual(response.status_code, 400)
         self.assertIn('RAM 8 GB', str(response.data['items']))
 
@@ -340,7 +374,7 @@ class ModifyModeTests(APITestCase):
             'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 1}],
         }, format='json')
         config_id = response.data['id']
-        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        response = full_finalize(self.client, config_id)
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['warehouse'], self.warehouse.id)
         self.assertEqual(self._stock(self.base), Decimal('1'))
@@ -356,7 +390,9 @@ class ModifyModeTests(APITestCase):
             'act': self.act.id,  # mode default: build
             'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 1}],
         }, format='json')
-        response = self.client.post(f'/api/configurations/{response.data["id"]}/finalize/')
+        config_id = response.data['id']
+        walk_to_approved(self.client, config_id)
+        response = self.client.post(f'/api/configurations/{config_id}/assemble/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertTrue(response.data['assembled'])
 
@@ -364,9 +400,12 @@ class ModifyModeTests(APITestCase):
         self.assertEqual(self._stock(self.ram8), Decimal('2'))
         variant = Product.objects.get(base_model=self.base)
         self.assertEqual(self._stock(variant), Decimal('1'))
+        # Endi yakunlash o'tadi — mahsulot haqiqatan tayyor
+        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        self.assertEqual(response.status_code, 200, response.data)
 
-    def test_build_mode_with_shortage_defers_assembly(self):
-        """Butlovchi yetmasa finalize bloklanmaydi — yig'ish keyinga qoladi."""
+    def test_build_shortage_blocks_until_goods_arrive(self):
+        """#4: butlovchi yetmasa yig'ish 400 — mol kelgach qayta bosiladi."""
         from apps.inventory.models import StockMovement
         from apps.inventory.services import apply_movement
 
@@ -376,12 +415,16 @@ class ModifyModeTests(APITestCase):
             'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 10}],
         }, format='json')
         config_id = response.data['id']
-        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
-        self.assertEqual(response.status_code, 200, response.data)
-        self.assertFalse(response.data['assembled'])
-        self.assertIn('RAM 8 GB', response.data['assembly_missing'])
+        walk_to_approved(self.client, config_id)
 
-        # Mol keldi — endi /assemble/ yig'adi
+        response = self.client.post(f'/api/configurations/{config_id}/assemble/')
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('RAM 8 GB', str(response.data['items']))
+        # Yig'ilmaguncha yakunlash (va demak shartnoma) yo'q
+        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        self.assertEqual(response.status_code, 400)
+
+        # Mol keldi — endi yig'iladi va yakunlanadi
         apply_movement(
             product=self.ram8, warehouse=self.warehouse,
             type=StockMovement.Type.IN, quantity=Decimal('10'),
@@ -391,3 +434,5 @@ class ModifyModeTests(APITestCase):
         self.assertTrue(response.data['assembled'])
         variant = Product.objects.get(base_model=self.base)
         self.assertEqual(self._stock(variant), Decimal('1'))
+        response = self.client.post(f'/api/configurations/{config_id}/finalize/')
+        self.assertEqual(response.status_code, 200, response.data)

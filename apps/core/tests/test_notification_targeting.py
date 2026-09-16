@@ -111,6 +111,8 @@ class OwnerSalesTargetingTests(APITestCase):
         base = Product.objects.create(sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE)
         self.configuration = Configuration.objects.create(
             base_product=base, warehouse=self.warehouse, created_by=self.engineer,
+            # #4: ta'minot faqat sales tasdiqlagan yechim uchun
+            status=Configuration.Status.APPROVED,
         )
         ConfigurationRequest.objects.create(
             text='HP 880 kerak', created_by=self.owner,

@@ -2,6 +2,7 @@ from django.db.models import (
     PROTECT,
     SET_NULL,
     CharField,
+    DateTimeField,
     ForeignKey,
     TextChoices,
     TextField,
@@ -27,6 +28,9 @@ class Configuration(StatusTrackedModel):
 
     class Status(TextChoices):
         DRAFT = 'draft', 'Chernovik'
+        # TOPSHIRIQ-2 #4: texnik tasdiq — sales mijozga ko'rsatib tasdiqlaydi
+        PENDING_SALES = 'pending_sales', "Sales ko'rigida"
+        APPROVED = 'approved', 'Texnik yechim tasdiqlandi'
         READY = 'ready', 'Tayyor'
         # Terminal holat: shartnoma faollashdi (pul keldi) — zanjir yopildi
         SOLD = 'sold', 'Sotildi'
@@ -53,6 +57,8 @@ class Configuration(StatusTrackedModel):
     )
     mode = CharField(max_length=20, choices=Mode.choices, default=Mode.BUILD)
     status = CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    # TOPSHIRIQ-2 #4: yig'ish alohida qadam — qachon jismonan yig'ilgani
+    assembled_at = DateTimeField(null=True, blank=True)
     note = TextField(blank=True)
     created_by = ForeignKey(
         'accounts.User', SET_NULL, related_name='configurations',

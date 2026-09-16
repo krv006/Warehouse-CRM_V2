@@ -370,6 +370,10 @@ mijoz roziligi bosqichi va bildirishnomalar shu odamga; hisob ochilganda
 zanjirdan bir marta to'ldiriladi. `Notification.user` — endi **majburiy**
 (CASCADE): egasiz "e'lon taxtasi" yozuv mavjud emas.
 
+`ConfigurationApproval` (#4) — texnik tasdiq tarixi: `configuration`,
+`step` (sales), `decision`, `comment`, `decided_by`. `Configuration.status`ga
+`pending_sales`/`approved` qo'shildi, `assembled_at` — yig'ish vaqti.
+
 `status_changed_at` (`StatusTrackedModel` — TOPSHIRIQ #3): Contract,
 Replenishment, ConfigurationRequest, Configuration, ExpenseRequest'da —
 hujjat AYNAN shu bosqichga qachon kelgani (holat o'zgargandagina yoziladi);

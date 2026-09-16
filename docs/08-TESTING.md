@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **345 ta test, hammasi OK**.
+Hozirgi holat: **350 ta test, hammasi OK**.
 
 ---
 
@@ -55,6 +55,7 @@ Hozirgi holat: **345 ta test, hammasi OK**.
 | `apps/procurement/tests/test_replenishment_flow.py` | TZ 7: yetishmayotganlar ro'yxati, hisob shakllantirish, narxsiz yuborishning bloklanishi, buyurtmachi→bugalter→admin zanjiri, pul yetmasa qarzga o'tishi (1 400 000 / 500 000 / 900 000), qarz muddati kirimdan 60 kun, ombor qoldig'i, bojxona bosqichi, admin qatorni tahrirlashi |
 | `apps/configurator/tests/test_variant_pricing.py` | TZ 6.2: narx ombordan olinishi, narxsiz qatorning bloklanishi, variant yaratilishi, bir xil tarkibning qayta ishlatilishi, tayyor variant narxi |
 | `apps/configurator/tests/test_configuration_request.py` | Sales→Engineer zayavka oqimi: ZVK raqami, take/complete faqat engineerga, take'da konfiguratsiya avtomatik ochilishi, sales'ga notification, configuratsiz complete 400 |
+| `apps/configurator/tests/test_approval_flow.py` | #4: sales navbatida configuration_review, ta'minot tasdiqqacha 400, receive'da engineerga 'mol keldi', assemble'da act_suggestion, pending_sales'da tahrir qulfi |
 | `apps/finance/tests/test_supplier_debt_cash.py` | TOPSHIRIQ-2 #1: qarzli to'lovda kassada faqat bitta chiqim (fantom kirim yo'q, qoldiq aynan naqd qismga kamayadi), qarz yopilgach jami chiqim = hisob summasi, shaxsiy qarz kirim yozadi, ta'minotchi qarzi yozmaydi |
 | `apps/core/tests/test_sla.py` | TOPSHIRIQ #3: sla_deadline misollari (kesim 16:00, hafta oxiri o'tkaziladi), status_changed_at faqat holat o'zgarganda, turib qolgan ish egasida danger+waiting_days, adminda stale qator holder bilan, sidebar==my-work |
 | `apps/procurement/tests/test_admin_threshold.py` | TOPSHIRIQ #2: kichik TLD adminsiz (avtomatik tarix yozuvi, xabar 'Admin tasdiqladi' demaydi), katta/valyuta/0 — adminga, shartnoma chegarasi TLD ga ta'sir qilmaydi |

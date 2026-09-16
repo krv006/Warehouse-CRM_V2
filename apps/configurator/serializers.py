@@ -10,6 +10,7 @@ from rest_framework.serializers import (
 from apps.configurator.models import (
     Act,
     Configuration,
+    ConfigurationApproval,
     ConfigurationItem,
     ConfigurationRemoval,
     ConfigurationRequest,
@@ -111,9 +112,27 @@ class ConfigurationRemovalSerializer(ModelSerializer):
         read_only_fields = fields
 
 
+class ConfigurationApprovalSerializer(ModelSerializer):
+    """Texnik tasdiq tarixi (#4) — sales qarorlari izohi bilan."""
+
+    step_display = ReadOnlyField(source='get_step_display')
+    decision_display = ReadOnlyField(source='get_decision_display')
+    decided_by_name = ReadOnlyField(source='decided_by.display_name')
+
+    class Meta:
+        model = ConfigurationApproval
+        fields = [
+            'id', 'configuration', 'step', 'step_display', 'decision',
+            'decision_display', 'comment', 'decided_by', 'decided_by_name',
+            'created_at',
+        ]
+        read_only_fields = fields
+
+
 class ConfigurationSerializer(ModelSerializer):
     items = ConfigurationItemSerializer(many=True, required=False)
     removals = ConfigurationRemovalSerializer(many=True, read_only=True)
+    approvals = ConfigurationApprovalSerializer(many=True, read_only=True)
     mode_display = ReadOnlyField(source='get_mode_display')
     client_name = ReadOnlyField(source='client.display_name')
     base_product_name = ReadOnlyField(source='base_product.name')
@@ -137,9 +156,10 @@ class ConfigurationSerializer(ModelSerializer):
             'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
             'ready_variant', 'missing_count', 'procurement', 'sent_to_procurement',
-            'removals', 'created_by', 'created_by_name', 'created_at',
+            'assembled_at', 'removals', 'approvals',
+            'created_by', 'created_by_name', 'created_at',
         ]
-        read_only_fields = ['number', 'created_by', 'variant']
+        read_only_fields = ['number', 'created_by', 'variant', 'assembled_at']
 
     def get_missing_count(self, obj):
         return len(obj.missing_items)
