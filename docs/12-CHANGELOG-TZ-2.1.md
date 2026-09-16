@@ -994,6 +994,35 @@ yozish ataylab qo'shilmadi.
 
 ---
 
+## 8.31 Demo ma'lumotlar yangi oqimlarga qayta yozildi 🌱
+
+`seed_demo` endi so'nggi bosqichlardagi HAMMA mexanizmni jonli ko'rsatadi
+(`--reset` eski ma'lumotni o'chirib, toza yuklaydi; userlar qoladi):
+
+- **#4 texnik tasdiq**: 4 konfiguratsiya — chernovik (engineer),
+  `pending_sales` (sales ko'rigida), `approved` (ta'minotda) va `sold`
+  (to'liq zanjir: submit→approve→assemble→finalize→SHT);
+- **#3 partiya**: sotilgan konfiguratsiya 2 talik — assemble 2 ta variant
+  yasagan, shartnoma qatori ham 2;
+- **#2 yetkazish**: faol shartnoma **yetkazilmagan** (buyurtmachining
+  "Yetkazing" navbatida), yana bittasi `ship` bilan yopilgan;
+- **§11.3 chegaralar**: profile'da 50 mln (shartnoma) / 5 mln (TLD) —
+  bitta katta shartnoma adminга borgan, bitta kichigi va bitta kichik TLD
+  admin chetlab o'tilgan (tarixda avtomatik yozuv);
+- **owner_sales**: konfiguratsiyadan ochilgan TLD narxlanib
+  `pending_sales`da — faqat sales1 xabar olgan;
+- **#1 qarz**: 5 mln ta'minotchi qarzi bilan to'lov — kassaga fantom kirim
+  YO'Q; shaxsiy qarz esa kirim bilan;
+- **§4.3 avto-KIR**: receive'dan KIR hujjati ochilgan;
+- **§11.4 bron**: 13 ta faol bron (qattiq — shartnomalar, yumshoq —
+  chernovik);
+- **SLA**: Didox navbatidagi bitta shartnoma 6 kun "turib qolgan" —
+  admin bosh sahifasida qizil, "Bugalterda N ish kuni".
+
+Server yangilangach toza yuklash: `python manage.py seed_demo --reset`.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -1025,5 +1054,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **104** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **33** |
-| Testlar | 66 | **360** |
+| Testlar | 66 | **365** |
 | Rollar | 3 | **5** |

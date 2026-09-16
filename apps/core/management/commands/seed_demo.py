@@ -10,12 +10,13 @@ from io import StringIO
 
 
 class Command(BaseCommand):
-    """Butun tizim uchun bog'langan demo ma'lumotlar to'plami.
+    """Butun tizim uchun bog'langan demo ma'lumotlar to'plami — YANGI oqimlar bilan.
 
-    Har bo'limga ~5 tadan tushunarli yozuv: mahsulot, qoldiq, mijoz, lead,
-    shartnoma (har xil bosqichda), kirim (har xil turda), to'ldirish hisobi,
-    qarz, xarajat so'rovi va eslatmalar. Jarayonlar haqiqiy servislar orqali
-    yuritiladi — kassa va ombor raqamlari bir-biriga mos chiqadi.
+    Hamma narsa haqiqiy servislar orqali yuritiladi, shuning uchun kassa,
+    ombor, bron va bildirishnoma raqamlari bir-biriga mos chiqadi. Qamrov:
+    texnik tasdiq zanjiri (#4), partiya (#3), yetkazish `ship` (#2),
+    TLD/shartnoma admin chegaralari (§11.3, #2-TLD), owner_sales, bron
+    (§11.4), SLA (turib qolgan ish), fantom pulsiz qarz (#1), avto-KIR (§4.3).
     """
 
     help = "To'liq demo: userlar, mijozlar, ombor, shartnomalar, kirim, kassa"
@@ -51,13 +52,14 @@ class Command(BaseCommand):
         products = self._products(warehouses, users)
         self._base_income()
         act = self._act(users)
-        self._configurations(products, warehouses, act, users)
-        self._requests(users)
-        contracts = self._contracts(products, users)
-        self._leads(contracts, users)
+        state = {}
+        self._configuration_stories(products, warehouses, act, users, state)
+        self._contracts(products, users, state)
+        self._leads(users, state)
         self._purchases(products, warehouses, users)
         self._replenishments(products, warehouses, users)
         self._loans_and_expenses(users)
+        self._make_one_stale(state)
         call_command('check_deadlines', stdout=quiet)
 
         self._summary()
@@ -72,6 +74,7 @@ class Command(BaseCommand):
         from apps.configurator.models import (
             Act,
             Configuration,
+            ConfigurationApproval,
             ConfigurationItem,
             ConfigurationRemoval,
             ConfigurationRequest,
@@ -83,6 +86,7 @@ class Command(BaseCommand):
             ProductSpec,
             Stock,
             StockMovement,
+            StockReservation,
             Warehouse,
         )
         from apps.procurement.models import (
@@ -102,13 +106,15 @@ class Command(BaseCommand):
 
         ordered = [
             Notification, ActivityLog,
+            StockReservation,
             CashTransaction, ExpenseRequest,
             ReplenishmentEvent, ReplenishmentApproval, ReplenishmentItem, Replenishment,
             Loan,
             PurchaseDocument, PurchaseItem,
             ContractPayment, ContractApproval, ContractItem,
             Lead,
-            ConfigurationRequest, ConfigurationRemoval, ConfigurationItem, Configuration,
+            ConfigurationRequest, ConfigurationApproval, ConfigurationRemoval,
+            ConfigurationItem, Configuration,
             Contract, Purchase,
             Act,
             StockMovement, Stock, ProductSpec, Product,
@@ -127,12 +133,13 @@ class Command(BaseCommand):
             'admin': User.objects.get(username='admin'),
             'bugalter': User.objects.get(username='bugalter'),
             'sales': User.objects.get(username='sales1'),
+            'sales2': User.objects.get(username='sales2'),
             'engineer': User.objects.get(username='engineer'),
             'buyurtmachi': User.objects.get(username='buyurtmachi'),
         }
 
     def _company_profile(self):
-        """Bajaruvchi (o'z firmamiz) rekvizitlari — shartnoma chop etish uchun."""
+        """Bajaruvchi rekvizitlari + chegaralar (§11.3, TOPSHIRIQ-2 #2)."""
         from apps.core.models import CompanyProfile
 
         profile = CompanyProfile.load()
@@ -151,7 +158,13 @@ class Command(BaseCommand):
                 "topshirilgach 10 bank kuni ichida. Yetkazib berish muddati "
                 "shartnomada ko'rsatilgan kundan boshlab hisoblanadi."
             )
-            profile.save()
+        # Chegaralar: 50 mln dan kichik shartnoma va 5 mln dan kichik TLD
+        # admin tasdig'isiz o'tadi — demo shuni ko'rsatadi
+        if not profile.admin_approval_threshold:
+            profile.admin_approval_threshold = Decimal('50000000')
+        if not profile.replenishment_approval_threshold:
+            profile.replenishment_approval_threshold = Decimal('5000000')
+        profile.save()
 
     def _warehouses(self):
         from apps.inventory.models import Warehouse
@@ -170,13 +183,13 @@ class Command(BaseCommand):
         rows = [
             # sku, nomi, turi, tannarx, sotuv narxi, reorder, qoldiq
             ('HP-880', 'HP 880 kompyuter', Product.Kind.MACHINE,
-             '18000000', '25000000', 2, 3),
+             '18000000', '25000000', 2, 8),
             ('SSD-1TB', 'SSD disk 1 TB', Product.Kind.COMPONENT,
              '1200000', '1500000', 5, 10),
             ('GPU-32', 'Videokarta GPU 32', Product.Kind.COMPONENT,
-             '4000000', '4500000', 5, 2),      # kam qolgan — to'ldirish ro'yxatiga tushadi
+             '4000000', '4500000', 5, 3),
             ('RAM-16', 'Operativ xotira RAM 16 GB', Product.Kind.COMPONENT,
-             '700000', '800000', 4, 0),        # tugagan
+             '700000', '800000', 4, 0),        # tugagan — to'ldirish ro'yxatida
             ('CPU-8', 'Protsessor 8 yadro', Product.Kind.COMPONENT,
              '1900000', '2200000', 3, 6),
         ]
@@ -222,24 +235,113 @@ class Command(BaseCommand):
         return Act.objects.create(
             number='ACT-0001',
             title='HP 880 tarkibini o\'zgartirish',
-            description='Mijoz talabiga ko\'ra SSD va GPU almashtiriladi',
+            description=(
+                '2 ta HP 880 olindi. Har biriga SSD 1 TB qo\'shimcha o\'rnatildi '
+                '(jami 2 dona). RAM olib tashlandi va omborga qaytarildi.'
+            ),
             issued_at=localdate(),
             created_by=users['engineer'],
         )
 
-    def _configurations(self, products, warehouses, act, users):
-        """2 ta konfiguratsiya: chernovik (yangi tovar + buyurtmachiga yuborilgan)
-        va yakunlangan (engineer ACT bilan yopgan, variant bilan — §11.1)."""
+    # ------------------------------------------------- konfiguratsiya hikoyalari
+    def _configuration_stories(self, products, warehouses, act, users, state):
+        """To'rt hikoya — #4 zanjirining har bosqichidan bittadan.
+
+        A: to'liq zanjir (submit -> approve -> assemble -> finalize -> SHT)
+        C: sales ko'rigida (pending_sales) — sales navbati
+        D: tasdiqlangan + ta'minotda (TLD pending_sales, owner_sales bilan)
+        E: engineer chernovigi (draft)
+        """
         from apps.clients.models import Client
-        from apps.configurator.models import Configuration, ConfigurationItem
+        from apps.configurator.models import ConfigurationItem, ConfigurationRequest
         from apps.configurator.services import (
-            resolve_variant,
+            approve_configuration,
+            assemble_configuration,
             send_missing_to_procurement,
+            submit_configuration,
+            take_request,
         )
         from apps.inventory.models import Product
-        from apps.inventory.services import create_product_from_order
+        from apps.inventory.services import (
+            create_product_from_order,
+            sync_configuration_reservations,
+        )
+        from apps.procurement import services as procurement
+        from apps.procurement.models import Replenishment
+        from apps.sales.services import create_contract_from_configuration
 
         clients = list(Client.objects.order_by('id'))
+
+        # ---------- A: to'liq zanjir — 2 talik partiya, sotuvgacha boradi (#3, #4)
+        request_a = ConfigurationRequest.objects.create(
+            client=clients[2],
+            text='2 ta HP 880: SSD 2 tadan bo\'lsin, RAM keraksiz — olib tashlansin.',
+            base_product=products['HP-880'], warehouse=warehouses['main'],
+            quantity=2,
+            created_by=users['sales'],
+        )
+        request_a = take_request(request_a, users['engineer'])
+        config_a = request_a.configuration
+        # Engineer tarkibni mijoz talabiga moslaydi: SSD 2 ta, RAM olib tashlanadi
+        config_a.items.filter(component=products['SSD-1TB']).update(quantity=2)
+        config_a.items.filter(component=products['RAM-16']).delete()
+        submit_configuration(config_a, users['engineer'])
+        approve_configuration(config_a, users['sales'], 'Mijoz tarkibga rozi')
+        assemble_configuration(config_a, users['engineer'])
+        config_a.act = act
+        config_a.status = config_a.Status.READY
+        config_a.save()
+        sync_configuration_reservations(config_a)
+        contract_a = create_contract_from_configuration(
+            config_a, users['engineer'], None,
+        )
+        state['contract_active'] = contract_a
+        state['config_a'] = config_a
+
+        # ---------- C: sales ko'rigida — "Konfiguratsiyani ko'rib chiqing"
+        request_c = ConfigurationRequest.objects.create(
+            client=clients[1],
+            text='5 ta o\'quv klassi kompyuteri: GPU kuchli bo\'lsin.',
+            base_product=products['HP-880'], warehouse=warehouses['main'],
+            quantity=5,
+            created_by=users['sales2'],
+        )
+        request_c = take_request(request_c, users['engineer'])
+        submit_configuration(request_c.configuration, users['engineer'])
+        state['config_review'] = request_c.configuration
+
+        # ---------- D: tasdiqlangan, yetishmagani buyurtmachida (owner_sales)
+        request_d = ConfigurationRequest.objects.create(
+            client=clients[0],
+            text='HP 880 ga Wi-Fi modul qo\'shib bering.',
+            base_product=products['HP-880'], warehouse=warehouses['main'],
+            created_by=users['sales'],
+        )
+        request_d = take_request(request_d, users['engineer'])
+        config_d = request_d.configuration
+        # Bazada yo'q tovar configuratordan qo'shildi (buyurtma = katalogga kirish)
+        wifi = create_product_from_order(
+            name='Wi-Fi modul 6E', sku='WIFI-6E',
+            kind=Product.Kind.COMPONENT, cost_price=Decimal('350000'),
+        )
+        products['WIFI-6E'] = wifi
+        ConfigurationItem.objects.create(
+            configuration=config_d, component=wifi, label='WIFI', quantity=1,
+        )
+        submit_configuration(config_d, users['engineer'])
+        approve_configuration(config_d, users['sales'], 'Wi-Fi bilan ma\'qul')
+        replenishment_d = send_missing_to_procurement(config_d, users['engineer'])
+        # Buyurtmachi narxlarni kiritdi va yubordi -> sales (mijoz roziligi)
+        for item in replenishment_d.items.select_related('product'):
+            if not item.unit_price:
+                item.unit_price = item.product.cost_price or Decimal('350000')
+                item.save()
+        procurement.submit(replenishment_d, users['buyurtmachi'])
+        state['config_d'] = config_d
+        state['replenishment_d'] = replenishment_d
+
+        # ---------- E: engineer chernovigi — hali ko'rikka yuborilmagan
+        from apps.configurator.models import Configuration
 
         draft = Configuration.objects.create(
             client=clients[0], base_product=products['HP-880'],
@@ -250,125 +352,100 @@ class Command(BaseCommand):
             ConfigurationItem.objects.create(
                 configuration=draft, component=products[sku], label=label, quantity=1,
             )
-        # Engineer bazada yo'q tovarni configuratordan qo'shdi (new_component_name)
-        wifi = create_product_from_order(
-            name='Wi-Fi modul 6E', sku='WIFI-6E',
-            kind=Product.Kind.COMPONENT, cost_price=Decimal('350000'),
-        )
-        products['WIFI-6E'] = wifi
-        ConfigurationItem.objects.create(
-            configuration=draft, component=wifi, label='WIFI', quantity=1,
-        )
-        # #4: ta'minot faqat tasdiqlangan yechim uchun — demo hikoyasi:
-        # sales mijoz bilan tarkibni kelishgan, endi yetishmagani buyurtmada
-        draft.status = Configuration.Status.APPROVED
-        draft.save()
-        # Omborda yo'q — buyurtmachiga yuborildi: TLD ochiladi,
-        # buyurtmachi/sales/bugalterga xabar tushadi
-        send_missing_to_procurement(draft, users['engineer'])
+        sync_configuration_reservations(draft)
 
-        ready = Configuration.objects.create(
-            client=clients[2], base_product=products['HP-880'],
-            warehouse=warehouses['main'], act=act, created_by=users['engineer'],
-            note='Engineer ACT bilan yakunlab salesga topshirdi',
-        )
-        for sku, label, quantity in [('SSD-1TB', 'SSD', 2), ('GPU-32', 'GPU', 1),
-                                     ('CPU-8', 'CPU', 1)]:
-            ConfigurationItem.objects.create(
-                configuration=ready, component=products[sku], label=label, quantity=quantity,
-            )
-        variant, _ = resolve_variant(ready)
-        ready.variant = variant
-        ready.status = Configuration.Status.READY
-        ready.save()
-
-    def _requests(self, users):
-        """2 ta zayavka: yangi va bajarilgani (sales -> engineer oqimi)."""
-        from apps.clients.models import Client
-        from apps.configurator.models import Configuration, ConfigurationRequest
-        from apps.inventory.models import Product, Warehouse
-
-        clients = list(Client.objects.order_by('id'))
-        hp = Product.objects.get(sku='HP-880')
-        warehouse = Warehouse.objects.filter(is_active=True).first()
+        # Yangi, hali olinmagan zayavka — engineer hovuzi
         ConfigurationRequest.objects.create(
-            client=clients[1],
-            text='Client 2 ta kuchli kompyuter xohlaydi: SSD kattaroq, GPU zo\'r bo\'lsin.',
-            base_product=hp, warehouse=warehouse,
-            created_by=users['sales'],
-        )
-        done = ConfigurationRequest.objects.create(
-            client=clients[2],
-            text='HP 880 ni SSD 2 ta bilan, protsessor kuchliroq qilib bering.',
-            base_product=hp, warehouse=warehouse,
-            status=ConfigurationRequest.Status.DONE,
-            configuration=Configuration.objects.filter(
-                status=Configuration.Status.READY,
-            ).first(),
-            taken_by=users['engineer'],
-            created_by=users['sales'],
+            client=clients[3],
+            text='Server yig\'ish kerak: katta xotira, 2 ta protsessor.',
+            base_product=products['HP-880'], warehouse=warehouses['main'],
+            quantity=1,
+            created_by=users['sales2'],
         )
 
-    def _contracts(self, products, users):
-        """5 ta shartnoma — jarayonning har bir bosqichidan bittadan."""
+    # ----------------------------------------------------------- shartnomalar
+    def _contracts(self, products, users, state):
+        """Har bosqichdan bittadan — hammasi haqiqiy servislar orqali."""
         from apps.clients.models import Client
-        from apps.sales.models import Contract, ContractApproval, ContractItem
-        from apps.sales.services import confirm_payment
+        from apps.inventory.services import sync_contract_reservations
+        from apps.sales.models import Contract, ContractItem
+        from apps.sales.services import (
+            approve_contract,
+            confirm_payment,
+            ship_contract,
+            submit_contract,
+        )
 
         clients = list(Client.objects.order_by('id'))
         hp = products['HP-880']
 
-        def build(client, quantity, status, note):
-            total = hp.sale_price * quantity
+        def build(client, quantity, note, sales_user=None):
             contract = Contract.objects.create(
-                client=client, status=status, total_amount=total,
-                term_days=90, signed_at=localdate(), note=note,
-                created_by=users['sales'],
+                client=client, term_days=90, note=note,
+                created_by=sales_user or users['sales'],
             )
             ContractItem.objects.create(
                 contract=contract, product=hp, quantity=quantity,
                 unit_price=hp.sale_price,
             )
+            contract.total_amount = contract.items_total_with_vat
+            contract.prepayment_percent = None
+            contract.save()
+            sync_contract_reservations(contract)
             return contract
 
-        contracts = {}
-        contracts['draft'] = build(
-            clients[0], 1, Contract.Status.DRAFT, 'Sales hali yubormadi',
-        )
-        contracts['bugalter'] = build(
-            clients[1], 2, Contract.Status.PENDING_BUGALTER, 'Bugalter tekshiruvida',
+        # 1) Chernovik — sales hali yubormagan
+        build(clients[0], 1, 'Sales hali yubormadi')
+
+        # 2) Didox navbati (pending_bugalter) — SLA demo uchun keyin eskirtiriladi
+        c2 = build(clients[1], 1, 'Bugalter Didoxdan qabul qilishi kutilmoqda')
+        submit_contract(c2, users['sales'])
+        state['contract_stale'] = c2
+
+        # 3) Katta summa — chegaradan oshadi, ADMINGA boradi (§11.3 demo)
+        c3 = build(clients[2], 3, '75 mln + QQS — chegaradan katta, admin ko\'radi')
+        submit_contract(c3, users['sales'])
+        approve_contract(
+            c3, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
+            didox_number='DDX-2026-0031',
         )
 
-        c3 = build(clients[2], 1, Contract.Status.PENDING_ADMIN, 'Admin tasdig\'ini kutmoqda')
-        ContractApproval.objects.create(
-            contract=c3, step=ContractApproval.Step.BUGALTER,
-            decision=ContractApproval.Decision.APPROVED,
-            comment='Bandlar to\'g\'ri', decided_by=users['bugalter'],
+        # 4) Kichik summa — chegaradan past, ADMIN CHETLAB O'TILADI (§11.3 demo):
+        # bugalter tasdig'i bilan to'g'ri approved, tarixda avtomatik yozuv
+        c4 = build(clients[3], 1, 'Kichik summa — admin tasdig\'i talab qilinmadi')
+        submit_contract(c4, users['sales'])
+        approve_contract(
+            c4, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
+            didox_number='DDX-2026-0044',
         )
-        contracts['admin'] = c3
 
-        c4 = build(clients[3], 2, Contract.Status.APPROVED, 'Pul tushishi kutilmoqda')
-        for step, user in [(ContractApproval.Step.BUGALTER, users['bugalter']),
-                           (ContractApproval.Step.ADMIN, users['admin'])]:
-            ContractApproval.objects.create(
-                contract=c4, step=step,
-                decision=ContractApproval.Decision.APPROVED, decided_by=user,
-            )
-        contracts['approved'] = c4
-
-        # Faol shartnoma: to'lovlar haqiqiy servis orqali — kassaga kirim tushadi
-        c5 = build(clients[0], 2, Contract.Status.APPROVED, 'Faol shartnoma')
+        # 5) Faol, YETKAZILMAGAN — A-hikoya shartnomasi: to'lov keldi, mol
+        # bron'da, buyurtmachining "Yetkazing" navbatida turadi (#2)
+        c5 = state['contract_active']
+        submit_contract(c5, users['sales'])
+        approve_contract(
+            c5, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
+            didox_number='DDX-2026-0055',
+        )
         confirm_payment(c5, users['bugalter'], amount=c5.prepayment_amount)
-        # Qo'shimcha (2-) to'lov — oldindan to'lov emas, balansni kamaytiradi
         confirm_payment(c5, users['bugalter'], amount=Decimal('5000000'))
         c5.refresh_from_db()
-        # Muddat sanog'i ko'rinishi uchun boshlanishini orqaga suramiz (8 kun qoldi — qizil)
+        # Muddat sanog'i ko'rinishi uchun boshlanishini orqaga suramiz (qizil zona)
         c5.start_date = localdate() - timedelta(days=82)
         c5.save()
-        contracts['active'] = c5
-        return contracts
 
-    def _leads(self, contracts, users):
+        # 6) Yetkazilgan va yopilgan — to'liq hayot yo'li (#2: ship)
+        c6 = build(clients[3], 1, 'Yetkazilgan va yopilgan shartnoma')
+        submit_contract(c6, users['sales'])
+        approve_contract(
+            c6, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
+            didox_number='DDX-2026-0066',
+        )
+        confirm_payment(c6, users['bugalter'], amount=c6.total_amount)
+        c6.refresh_from_db()
+        ship_contract(c6, users['buyurtmachi'])
+
+    def _leads(self, users, state):
         """5 ta og'zaki kelishuv — har bosqichdan bittadan."""
         from apps.clients.models import Client
         from apps.sales.models import Lead
@@ -377,7 +454,7 @@ class Command(BaseCommand):
         rows = [
             ('Ofis uchun 3 ta kompyuter', Lead.Stage.NEW, '75000000', 2),
             ('O\'quv markazi jihozlash', Lead.Stage.NEGOTIATION, '125000000', 5),
-            ('Server yig\'ish bo\'yicha kelishuv', Lead.Stage.VERBAL, '40000000', 1),
+            ('Server yig\'ish bo\'yicha kelishuv', Lead.Stage.VERBAL, '40000000', 0),
             ('Do\'kon uchun kassa kompyuteri', Lead.Stage.CONTRACT, '25000000', 0),
             ('Chegirma so\'ragan mijoz', Lead.Stage.LOST, '25000000', 0),
         ]
@@ -385,13 +462,20 @@ class Command(BaseCommand):
             Lead.objects.create(
                 client=clients[index % len(clients)],
                 title=title, stage=stage, expected_amount=Decimal(amount),
-                next_contact_at=now() + timedelta(days=days) if days else None,
-                contract=contracts['active'] if stage == Lead.Stage.CONTRACT else None,
+                # 3-qatordagi VERBAL: aloqa sanasi BUGUN — salesga eslatma tushadi
+                next_contact_at=(
+                    now() + timedelta(days=days) if days
+                    else (now() if stage == Lead.Stage.VERBAL else None)
+                ),
+                contract=(
+                    state['contract_active'] if stage == Lead.Stage.CONTRACT else None
+                ),
                 created_by=users['sales'],
             )
 
     def _purchases(self, products, warehouses, users):
-        """5 ta kirim: UZB ichidan, import (yo'lda), ustav, qabul qilingan, muddati yaqin."""
+        """5 ta qo'lda kirim: UZB ichidan, import (yo'lda), ustav, qabul qilingan,
+        muddati yaqin. (TLD receive'dan avto-KIR alohida qo'shiladi — §4.3.)"""
         from apps.purchases.models import Purchase, PurchaseDocument, PurchaseItem
         from apps.purchases.services import receive_purchase
 
@@ -455,15 +539,16 @@ class Command(BaseCommand):
         )
 
     def _replenishments(self, products, warehouses, users):
-        """Yana 2 ta to'ldirish hisobi: chernovik va to'liq jarayondan o'tgani.
+        """Yana 3 ta TLD: chernovik, chegara demo (adminsiz) va to'liq o'tgani.
 
-        (Uchinchisi configuratordan ochilgan — `_configurations` ichida.)
+        (To'rtinchisi — konfiguratsiyadan, `_configuration_stories` ichida.)
         """
         from apps.procurement.models import Replenishment, ReplenishmentEvent, ReplenishmentItem
         from apps.procurement import services
 
         main = warehouses['main']
 
+        # 1) Chernovik — buyurtmachi hali yubormagan
         draft = Replenishment.objects.create(
             warehouse=main, supplier='Etuf MCHJ', created_by=users['buyurtmachi'],
             note='Yetishmayotgan GPU va RAM uchun',
@@ -474,6 +559,21 @@ class Command(BaseCommand):
                 quantity=Decimal(quantity), unit_price=Decimal(price),
             )
 
+        # 2) Kichik summa — TLD chegarasi demo (#2-TLD): bugalter tasdig'i
+        # bilan to'g'ri approved, admin chetlab o'tiladi, to'lov kutilmoqda
+        small = Replenishment.objects.create(
+            warehouse=main, supplier='Texno Savdo MCHJ',
+            created_by=users['buyurtmachi'],
+            note='Kichik hisob — chegaradan past, admin shart emas',
+        )
+        ReplenishmentItem.objects.create(
+            replenishment=small, product=products['RAM-16'],
+            quantity=Decimal('5'), unit_price=Decimal('700000'),
+        )
+        services.submit(small, users['buyurtmachi'])
+        services.approve(small, users['bugalter'], 'Narx mos — chegaradan past')
+
+        # 3) To'liq o'tgani: qarz bilan to'lov (#1: fantom pulsiz) + avto-KIR
         flow = Replenishment.objects.create(
             warehouse=main, supplier='Orient Supply', created_by=users['buyurtmachi'],
             logistics_cost=Decimal('1500000'), other_cost=Decimal('500000'),
@@ -486,17 +586,17 @@ class Command(BaseCommand):
         services.submit(flow, users['buyurtmachi'])
         services.approve(flow, users['bugalter'], 'Narxlar bozorga mos')
         services.approve(flow, users['admin'], 'Tasdiqlayman')
-        # 5 mln qarzga o'tkazib to'laymiz — ta'minotchi qarzi misoli
+        # 5 mln qarzga o'tkazib to'laymiz — qarz MAJBURIYAT, kassaga kirim YO'Q
         services.pay(flow, users['bugalter'], debt_amount=Decimal('5000000'))
         services.add_event(
             flow, users['buyurtmachi'],
             stage=ReplenishmentEvent.Stage.CUSTOMS,
             comment='Bojxonada rasmiylashtirilmoqda',
         )
-        services.receive(flow, users['bugalter'])
+        services.receive(flow, users['bugalter'])  # avto-KIR ham ochiladi (§4.3)
 
     def _loans_and_expenses(self, users):
-        """Shaxsiy qarz va xarajat so'rovlari."""
+        """Shaxsiy qarz (kirim BOR) va xarajat so'rovlari."""
         from apps.finance.models import CashCategory, ExpenseRequest, Loan
         from apps.finance.services import record_transaction
 
@@ -507,6 +607,7 @@ class Command(BaseCommand):
             source=Loan.Source.PERSONAL,
             note='Aylanma mablag\' uchun', created_by=users['bugalter'],
         )
+        # Shaxsiy qarz — pul haqiqatan keladi, kirim yoziladi (#1 qoidasi)
         record_transaction(
             code='loan', amount=loan.amount, occurred_at=now(),
             description=f'{loan.lender_name} dan qarz', loan=loan,
@@ -538,13 +639,23 @@ class Command(BaseCommand):
             user=users['bugalter'], approved_by=users['admin'],
         )
 
+    def _make_one_stale(self, state):
+        """SLA demo (#3-TOPSHIRIQ): Didox navbatidagi shartnoma 6 kun turib
+        qolgan — admin bosh sahifasida qizil, "Bugalterda N ish kuni" bo'lib
+        chiqadi; bugalterning o'z navbatida ham qizil."""
+        from apps.sales.models import Contract
+
+        Contract.objects.filter(pk=state['contract_stale'].pk).update(
+            status_changed_at=now() - timedelta(days=6),
+        )
+
     def _summary(self):
         from apps.clients.models import Client
         from apps.configurator.models import Configuration, ConfigurationRequest
         from apps.core.models import Notification
         from apps.finance.models import CashTransaction, ExpenseRequest, Loan
         from apps.finance.services import cash_balance
-        from apps.inventory.models import Product
+        from apps.inventory.models import Product, StockReservation
         from apps.procurement.models import Replenishment
         from apps.purchases.models import Purchase
         from apps.sales.models import Contract, Lead
@@ -558,6 +669,7 @@ class Command(BaseCommand):
             ('Zayavkalar', ConfigurationRequest.objects.count()),
             ('Kirimlar', Purchase.objects.count()),
             ("To'ldirish hisoblari", Replenishment.objects.count()),
+            ('Bronlar', StockReservation.objects.count()),
             ('Qarzlar', Loan.objects.count()),
             ("Xarajat so'rovlari", ExpenseRequest.objects.count()),
             ('Kassa harakatlari', CashTransaction.objects.count()),

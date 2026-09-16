@@ -22,25 +22,31 @@ class SeedDemoTests(APITestCase):
     def test_counts_per_module(self):
         # 5 asosiy mahsulot + engineer configuratordan qo'shgan Wi-Fi modul
         self.assertEqual(Product.objects.filter(base_model__isnull=True).count(), 6)
-        self.assertEqual(Contract.objects.count(), 5)
+        self.assertEqual(Contract.objects.count(), 6)
         self.assertEqual(Lead.objects.count(), 5)
         # 5 ta qo'lda + 1 ta TLD receive'da avtomatik ochilgan KIR (§4.3)
         self.assertEqual(Purchase.objects.count(), 6)
-        self.assertEqual(Replenishment.objects.count(), 3)
+        self.assertEqual(Replenishment.objects.count(), 4)
         self.assertEqual(PurchaseDocument.objects.count(), 2)
 
     def test_configurator_created_replenishment(self):
-        """Engineer 'omborda yo'q' deb yuborgani: TLD konfiguratsiyaga bog'langan."""
+        """Engineer 'omborda yo'q' deb yuborgani: TLD konfiguratsiyaga bog'langan.
+
+        Yangi oqim: hisob narxlanib SUBMIT qilingan — sales (zayavka egasi)
+        mijoz roziligini olishi kutilmoqda; owner_sales to'ldirilgan.
+        """
         from apps.accounts.models import User
         from apps.core.models import Notification
 
         linked = Replenishment.objects.get(configuration__isnull=False)
-        self.assertEqual(linked.status, Replenishment.Status.DRAFT)
+        self.assertEqual(linked.status, Replenishment.Status.PENDING_SALES)
+        self.assertEqual(linked.owner_sales.username, 'sales1')
         skus = set(linked.items.values_list('product__sku', flat=True))
         self.assertIn('WIFI-6E', skus)
 
-        # Buyurtmachi, sales va bugalterga warning xabari tushgan
-        for username in ('buyurtmachi', 'sales1', 'bugalter'):
+        # Buyurtmachi va bugalterga "omborda yo'q" xabari; egasi sales1 ga
+        # "mijoz roziligi kerak" — boshqa sales (sales2) esa hech narsa olmaydi
+        for username in ('buyurtmachi', 'bugalter', 'sales1'):
             user = User.objects.get(username=username)
             self.assertTrue(
                 Notification.objects.filter(
@@ -49,6 +55,12 @@ class SeedDemoTests(APITestCase):
                 ).exists(),
                 f'{username} uchun xabar topilmadi',
             )
+        sales2 = User.objects.get(username='sales2')
+        self.assertFalse(
+            Notification.objects.filter(
+                user=sales2, entity='Replenishment', object_id=str(linked.pk),
+            ).exists()
+        )
 
     def test_engineer_added_product_from_configurator(self):
         """Bazada yo'q tovar configuratordan qo'shilgan (new_component_name uslubi)."""
@@ -68,12 +80,70 @@ class SeedDemoTests(APITestCase):
         )
 
     def test_contract_statuses_cover_the_chain(self):
+        """Har bosqichdan bittadan — endi yetkazilgan/yopilgan ham bor (#2)."""
         statuses = set(Contract.objects.values_list('status', flat=True))
         self.assertEqual(statuses, {
             Contract.Status.DRAFT, Contract.Status.PENDING_BUGALTER,
             Contract.Status.PENDING_ADMIN, Contract.Status.APPROVED,
-            Contract.Status.ACTIVE,
+            Contract.Status.ACTIVE, Contract.Status.COMPLETED,
         })
+
+    def test_threshold_demo_contract_skipped_admin(self):
+        """§11.3 demo: kichik shartnoma bugalter tasdig'i bilan approved,
+        tarixda decided_by bo'sh avtomatik admin yozuvi bor."""
+        from apps.sales.models import ContractApproval
+
+        auto = ContractApproval.objects.filter(
+            step=ContractApproval.Step.ADMIN, decided_by__isnull=True,
+        )
+        self.assertTrue(auto.exists())
+        self.assertIn('chegara', auto.first().comment)
+
+    def test_active_contract_awaits_shipment(self):
+        """#2 demo: faol shartnoma yetkazilmagan — buyurtmachi navbatida."""
+        active = Contract.objects.get(status=Contract.Status.ACTIVE)
+        self.assertIsNone(active.delivered_at)
+        completed = Contract.objects.get(status=Contract.Status.COMPLETED)
+        self.assertIsNotNone(completed.delivered_at)
+
+    def test_configuration_chain_states_present(self):
+        """#4 demo: chernovik, sales ko'rigi, tasdiqlangan va sotilgan."""
+        from apps.configurator.models import Configuration
+
+        statuses = set(Configuration.objects.values_list('status', flat=True))
+        self.assertEqual(statuses, {
+            Configuration.Status.DRAFT, Configuration.Status.PENDING_SALES,
+            Configuration.Status.APPROVED, Configuration.Status.SOLD,
+        })
+        # Partiya: A-hikoya konfiguratsiyasi 2 talik
+        sold = Configuration.objects.get(status=Configuration.Status.SOLD)
+        self.assertEqual(sold.quantity, 2)
+        self.assertIsNotNone(sold.assembled_at)
+
+    def test_reservations_exist(self):
+        """§11.4 demo: qattiq (shartnoma) va yumshoq (chernovik) bronlar bor."""
+        from apps.inventory.models import StockReservation
+
+        kinds = set(
+            StockReservation.objects.filter(
+                status=StockReservation.Status.ACTIVE,
+            ).values_list('kind', flat=True)
+        )
+        self.assertEqual(
+            kinds, {StockReservation.Kind.HARD, StockReservation.Kind.SOFT},
+        )
+
+    def test_stale_contract_for_sla_demo(self):
+        """SLA demo: Didox navbatidagi shartnoma 6 kun turib qolgan —
+        admin my-work'da stale qator ko'radi."""
+        from apps.accounts.models import User
+
+        admin = User.objects.get(username='admin')
+        self.client.force_authenticate(admin)
+        work = self.client.get('/api/my-work/').data
+        stale = [r for r in work['items'] if r.get('reason') == 'stale']
+        self.assertTrue(stale)
+        self.assertEqual(stale[0]['holder_role'], 'bugalter')
 
     def test_active_contract_is_in_red_zone(self):
         contract = Contract.objects.get(status=Contract.Status.ACTIVE)
@@ -105,7 +175,7 @@ class SeedDemoTests(APITestCase):
 
     def test_second_run_does_not_duplicate(self):
         call_command('seed_demo', stdout=StringIO())
-        self.assertEqual(Contract.objects.count(), 5)
+        self.assertEqual(Contract.objects.count(), 6)
         self.assertEqual(Purchase.objects.count(), 6)
 
     def test_dashboard_is_rich_after_seed(self):
@@ -143,7 +213,7 @@ class SeedDemoResetTests(APITestCase):
         self.assertFalse(Product.objects.filter(sku='JUNK-1').exists())
         self.assertFalse(Loan.objects.filter(lender_name='test').exists())
         self.assertEqual(Loan.objects.count(), 2)
-        self.assertEqual(Contract.objects.count(), 5)
+        self.assertEqual(Contract.objects.count(), 6)
         self.assertTrue(User.objects.filter(username='mening_akkauntim').exists())
         self.assertTrue(User.objects.filter(username='engineer').exists())
 
@@ -169,8 +239,16 @@ class SeedDemoResetTests(APITestCase):
         engineer = User.objects.get(username='engineer')
         self.assertEqual(engineer.role, User.Role.ENGINEER)
         self.assertTrue(engineer.check_password('Ombor2026!'))
-        # Zayavkalar: yangi va engineer bajargan
-        self.assertEqual(ConfigurationRequest.objects.count(), 2)
-        done = ConfigurationRequest.objects.get(status=ConfigurationRequest.Status.DONE)
-        self.assertEqual(done.taken_by, engineer)
-        self.assertIsNotNone(done.configuration)
+        # Zayavkalar: yangi (hovuz), sales ko'rigida va bajarilganlar (#4)
+        self.assertEqual(ConfigurationRequest.objects.count(), 4)
+        done = ConfigurationRequest.objects.filter(
+            status=ConfigurationRequest.Status.DONE,
+        )
+        self.assertTrue(done.exists())
+        self.assertEqual(done.first().taken_by, engineer)
+        self.assertIsNotNone(done.first().configuration)
+        self.assertTrue(
+            ConfigurationRequest.objects.filter(
+                status=ConfigurationRequest.Status.NEW,
+            ).exists()
+        )
