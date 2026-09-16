@@ -77,15 +77,19 @@ class LoanViewSet(BaseModelViewSet):
 
     def perform_create(self, serializer):
         loan = serializer.save(created_by=self._current_user())
-        record_transaction(
-            code='loan',
-            amount=loan.amount,
-            occurred_at=now(),
-            description=f'{loan.lender_name} dan qarz',
-            currency=loan.currency,
-            loan=loan,
-            user=self._current_user(),
-        )
+        # TOPSHIRIQ-2 #1: kirim faqat SHAXSIY qarzda — pul haqiqatan keladi.
+        # Ta'minotchi qarzi majburiyat: mol to'lanmasdan olingan, pul
+        # harakat qilmaydi — kassaga yozuv yo'q.
+        if loan.source == Loan.Source.PERSONAL:
+            record_transaction(
+                code='loan',
+                amount=loan.amount,
+                occurred_at=now(),
+                description=f'{loan.lender_name} dan qarz',
+                currency=loan.currency,
+                loan=loan,
+                user=self._current_user(),
+            )
         self.log_action(ActivityLog.Action.CREATE, loan)
 
     def repay(self, request, pk=None):

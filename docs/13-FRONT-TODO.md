@@ -617,6 +617,12 @@ Qo'shiladigani:
   maydonlari (izoh bilan: kesim soatidan keyin kelgan ish keyingi ish
   kunidan sanaladi; dam olish kunlari sanalmaydi).
 
+## 19. Qarz/kassa tuzatildi (TOPSHIRIQ-2 #1) 🟢 front ishi yo'q
+
+Raqamlar to'g'rilanadi, ko'rinish o'sha-o'sha. Deploy'dan keyin kassa
+qoldig'i KAMAYADI (fantom pul yo'qoladi) — bu kutilgan natija, xato emas;
+migratsiya logida qancha kamaygani yozib qo'yiladi.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

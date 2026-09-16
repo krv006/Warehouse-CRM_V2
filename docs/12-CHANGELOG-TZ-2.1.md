@@ -871,6 +871,30 @@ yozilmasin):
 
 ---
 
+## 8.27 Ta'minotchi qarzi endi kassaga "pul" bo'lib tushmaydi 🔴🔴→✅
+
+TOPSHIRIQ-2 #1 (eng og'ir xato): TLD to'lovida yetmagan qism qarzga
+o'tganda kassaga `loan` KIRIMi yozilardi — hech qanday pul kelmagan bo'lsa
+ham. Natija: kassada qarz summasiga teng **fantom pul** paydo bo'lar (uni
+sarflash mumkin edi!), qarz yopilgach esa jami xarajat qarz summasiga
+**kam** ko'rsatilardi.
+
+To'g'ri model: ta'minotchi qarzi — **majburiyat** (kreditorlik), kirim
+emas. Kassa u bilan faqat qaytarilganda (`loan_repay` chiqimi) uchrashadi.
+
+1. `pay()` qarz qismi uchun kassa yozuvini butunlay yozmaydi (Loan,
+   bog'lanish, bildirishnoma — o'z joyida).
+2. `LoanViewSet.perform_create` endi `source` ga qaraydi: `personal` —
+   kirim bor (pul haqiqatan keladi), `supplier` — yo'q.
+3. `Loan.repaid`/`balance` faqat chiqimni sanaydi — test bilan qulflandi.
+4. **Migratsiya (finance.0005)** bazadagi fantom kirimlarni o'chiradi va
+   logda hisobot chiqaradi (nechta yozuv, jami summa).
+
+⚠️ Deploy'dan keyin **kassa qoldig'i kamayadi** — bu kutilgan natija:
+fantom pul yo'qoladi, haqiqiy raqam qoladi (migratsiya logida summa bor).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -902,5 +926,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **100** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **32** |
-| Testlar | 66 | **341** |
+| Testlar | 66 | **345** |
 | Rollar | 3 | **5** |

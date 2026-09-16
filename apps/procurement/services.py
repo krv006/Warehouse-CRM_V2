@@ -416,17 +416,11 @@ def pay(replenishment, user, *, debt_amount=None):
             note=f'{replenishment.number} bo\'yicha qarz',
             created_by=user,
         )
-        record_transaction(
-            code='loan',
-            amount=debt_amount,
-            occurred_at=now(),
-            description=f'{replenishment.number} — qarzga o\'tqazildi',
-            currency=replenishment.currency,
-            exchange_rate=replenishment.exchange_rate,
-            loan=loan,
-            replenishment=replenishment,
-            user=user,
-        )
+        # TOPSHIRIQ-2 #1: ta'minotchi qarzi — MAJBURIYAT, kirim emas: hech
+        # qanday pul kelmaydi, shuning uchun kassaga yozuv YO'Q. (Avval
+        # 'loan' KIRIMi yozilib, kassada yo'q pul paydo bo'lar va xarajat
+        # qarz summasiga kam ko'rsatilardi.) Kassa qarz bilan faqat
+        # QAYTARILGANDA (loan_repay chiqimi) uchrashadi.
         replenishment.debt = loan
         # Qarz — pul ma'lumoti: faqat bugalter va adminga (hammaga emas)
         from apps.accounts.models import User

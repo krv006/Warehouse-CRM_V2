@@ -352,6 +352,12 @@ Admin oynasida doimo ko'rinadi:
 | `cash_available` | Kassadagi mavjud pul |
 | `shortfall` | Yetmayotgan qism |
 
+**Qarz va kassa (TOPSHIRIQ-2 #1):** ta'minotchi qarzi (`source=supplier`)
+kassaga KIRIM yozmaydi — u majburiyat, pul harakat qilmaydi; kassa u bilan
+faqat `repay` (chiqim) da uchrashadi. Shaxsiy qarz (`source=personal`) esa
+haqiqiy pul kelishi — kirim yoziladi. Shu tufayli jami chiqim mol qanchaga
+tushgan bo'lsa shuncha bo'ladi.
+
 TZ 7.1 misoli: summa **1 400 000**, kassada **500 000** → **900 000** avtomatik hisoblanadi va
 `POST /pay/` da shu qism **qarzga** o'tqaziladi.
 
