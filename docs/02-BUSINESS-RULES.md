@@ -281,6 +281,11 @@ bo'lmasa sales qaytaradi va hisob bugalter/admin stolini band qilmaydi.
 Hammasi omborda bo'lsa TLD umuman ochilmaydi (`request-procurement` 400) —
 engineer `complete` qiladi, sales shartnoma bilan davom etadi.
 
+**Partiya (#3):** `Configuration.quantity` — mijoz nechta so'ragani
+(zayavkadan ko'chadi). Tarkib bitta dona uchun yuritiladi; yetishmovchilik,
+bron, yig'ish va shartnoma partiyaga ko'paytiriladi. Qisman yig'ish yo'q —
+hammasi yoki hech nima.
+
 **Texnik tasdiq (#4):** engineer yig'ib bo'lgach `submit` — konfiguratsiya
 sales ko'rigiga o'tadi; sales mijozga ko'rsatib `approve` (zayavka `done`)
 yoki izoh bilan `reject` (chernovikka qaytadi, engineer xabar oladi).

@@ -934,6 +934,29 @@ approved ──assemble──► (yig'ildi) ──finalize──► ready + SHT 
 
 ---
 
+## 8.29 Konfiguratsiya endi partiya yasaydi (`quantity`) 💯
+
+TOPSHIRIQ-2 #3: mijoz 100 ta so'rasa ham tizim bitta dona yasar edi —
+shartnomada 100 yozilib, omborda 1 ta bo'lardi (2-banddagi "to'lovda mol
+yetmaydi"ning bosh sababi).
+
+- **`Configuration.quantity`** va **`ConfigurationRequest.quantity`**
+  (default 1): sales zayavkada yozadi, `take` konfiguratsiyaga ko'chiradi,
+  engineer chernovikda o'zgartira oladi.
+- Tarkib qatorlari **bitta dona uchun** o'qiladi; ombor/bron/shartnoma
+  bilan ishlashda partiyaga ko'paytiriladi: `shortage` (yangi
+  `total_needed`), yumshoq bron, `assemble` (butlovchilar ×partiya chiqadi,
+  variant partiya bo'lib kiradi), `modify` (baza ×partiya olinadi, yechib
+  olinganlar ×partiya qaytadi — narxi bitta donaga yoziladi), avtomatik
+  shartnoma qatori (`quantity=partiya`, narx bitta donaga — jami o'zi
+  ko'payadi).
+- `total_price` bitta dona narxi bo'lib qoldi — shartnoma `qty × narx`ni
+  o'zi hisoblaydi.
+- Qisman yig'ish YO'Q (hozircha): hammasi yoki hech nima — yetmasa
+  `assemble` 400, mol TLD orqali kelgach butun partiya yig'iladi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -965,5 +988,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **102** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **33** |
-| Testlar | 66 | **350** |
+| Testlar | 66 | **357** |
 | Rollar | 3 | **5** |

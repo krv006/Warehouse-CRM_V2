@@ -66,8 +66,13 @@ class ConfigurationItem(TimeStampedModel):
         return available_quantity(self.component, self.configuration.warehouse)
 
     @property
+    def total_needed(self):
+        """Butun partiya uchun kerak: qator miqdori × konfiguratsiya miqdori (#3)."""
+        return self.quantity * self.configuration.quantity
+
+    @property
     def shortage(self):
-        return max(self.quantity - self.available, 0)
+        return max(self.total_needed - self.available, 0)
 
     @property
     def source(self):

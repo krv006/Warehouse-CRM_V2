@@ -228,7 +228,7 @@ keyin kelgani keyingi ish kuni oxirigacha (`/company/` da `sla_cutoff_hour`,
 | Metod | Manzil | Izoh |
 |---|---|---|
 | GET/POST | `/acts/` | yozish **engineer** (admin) — §11.1: ACT tarkib egasida |
-| GET/POST | `/configurations/` | **yozish: engineer (admin)**; qatorlar ixtiyoriy |
+| GET/POST | `/configurations/` | **yozish: engineer (admin)**; qatorlar ixtiyoriy; `quantity` — partiya (#3, tarkib bitta dona uchun o'qiladi) |
 | PUT/PATCH/DELETE | `/configurations/{id}/` | faqat `draft` holatida — `ready`/`sold` 400 qaytaradi |
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |

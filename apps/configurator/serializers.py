@@ -153,7 +153,7 @@ class ConfigurationSerializer(ModelSerializer):
         fields = [
             'id', 'number', 'client', 'client_name', 'base_product', 'base_product_name',
             'warehouse', 'act', 'act_number', 'mode', 'mode_display',
-            'status', 'status_display',
+            'quantity', 'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
             'ready_variant', 'missing_count', 'procurement', 'sent_to_procurement',
             'assembled_at', 'removals', 'approvals',
@@ -253,7 +253,7 @@ class ConfigurationRequestSerializer(ModelSerializer):
     class Meta:
         model = ConfigurationRequest
         fields = [
-            'id', 'number', 'client', 'client_name', 'text',
+            'id', 'number', 'client', 'client_name', 'text', 'quantity',
             'base_product', 'base_product_name', 'warehouse', 'status',
             'status_display', 'configuration', 'configuration_number',
             'taken_by', 'taken_by_name', 'created_by', 'created_by_name',

@@ -640,6 +640,15 @@ migratsiya logida qancha kamaygani yozib qo'yiladi.
 - `request-procurement` endi faqat `approved`da ishlaydi — tugmani shu
   holatda ko'rsating; `complete` endpointi o'chirildi.
 
+## 21. Partiya — Miqdor maydoni (TOPSHIRIQ-2 #3) 🔴
+
+- Zayavka va konfiguratsiya formalariga **"Miqdor"** maydoni (`quantity`).
+- Konfiguratsiya sarlavhasida `HP 880 × 100`; tarkib jadvalida izoh:
+  `kerak: 1 × 100 = 100` (backend `total_needed`/`shortage`ni allaqachon
+  ko'paytirib beradi — front faqat ko'rsatadi).
+- Yetishmovchilik/`assembly_missing` avvalgidek ishlaydi — raqamlar endi
+  partiya bo'yicha.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

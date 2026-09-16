@@ -3,6 +3,7 @@ from django.db.models import (
     SET_NULL,
     CharField,
     ForeignKey,
+    PositiveIntegerField,
     TextChoices,
     TextField,
 )
@@ -33,6 +34,8 @@ class ConfigurationRequest(StatusTrackedModel):
         null=True, blank=True,
     )
     text = TextField(help_text='Client xohishi — sales yozgan matn')
+    # #3: mijoz nechta so'ragani — sales yozadi, take'da konfiguratsiyaga ko'chadi
+    quantity = PositiveIntegerField(default=1)
     base_product = ForeignKey(
         'inventory.Product', PROTECT, related_name='configuration_requests',
         null=True, blank=True,

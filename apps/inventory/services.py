@@ -235,8 +235,12 @@ def sync_configuration_reservations(configuration):
         configuration=configuration, status=StockReservation.Status.ACTIVE,
     ).delete()
     needs = {}
+    # #3: butun partiya rejalanadi — qator miqdori × konfiguratsiya miqdori
     for item in configuration.items.select_related('component'):
-        needs[item.component] = needs.get(item.component, 0) + item.quantity
+        needs[item.component] = (
+            needs.get(item.component, 0)
+            + item.quantity * configuration.quantity
+        )
     for product, quantity in needs.items():
         room = plannable_quantity(product, warehouse)
         take = min(quantity, max(room, 0))

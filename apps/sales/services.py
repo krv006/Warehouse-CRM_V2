@@ -73,7 +73,8 @@ def create_contract_from_configuration(configuration, user, client=None):
     ContractItem.objects.create(
         contract=contract,
         product=configuration.variant or configuration.base_product,
-        quantity=1,
+        # #3: partiya — mijoz nechta so'ragan bo'lsa shuncha; narx bitta donaga
+        quantity=configuration.quantity,
         unit_price=configuration.total_price,
     )
     contract.total_amount = contract.items_total_with_vat

@@ -4,6 +4,7 @@ from django.db.models import (
     CharField,
     DateTimeField,
     ForeignKey,
+    PositiveIntegerField,
     TextChoices,
     TextField,
 )
@@ -56,6 +57,10 @@ class Configuration(StatusTrackedModel):
         null=True, blank=True,
     )
     mode = CharField(max_length=20, choices=Mode.choices, default=Mode.BUILD)
+    # TOPSHIRIQ-2 #3: partiya — mijoz nechta so'ragani. Tarkib qatorlari
+    # BITTA dona uchun o'qiladi; ombor va shartnoma bilan ishlashda shu
+    # songa ko'paytiriladi. Qisman yig'ish yo'q: hammasi yoki hech nima.
+    quantity = PositiveIntegerField(default=1)
     status = CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     # TOPSHIRIQ-2 #4: yig'ish alohida qadam — qachon jismonan yig'ilgani
     assembled_at = DateTimeField(null=True, blank=True)

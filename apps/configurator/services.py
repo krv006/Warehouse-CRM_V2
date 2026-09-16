@@ -270,7 +270,7 @@ def assemble_configuration(configuration, user, *, removals=None, strict=True):
 
         if not assembled and not missing and available_quantity(
             variant, configuration.warehouse,
-        ) >= 1:
+        ) >= configuration.quantity:
             assembled = True
 
     if assembled:
@@ -308,7 +308,8 @@ def assemble_variant(configuration, user, *, strict=True):
         return False, []
 
     warehouse = configuration.warehouse or main_warehouse()
-    if available_quantity(variant, warehouse) >= 1:
+    batch = configuration.quantity
+    if available_quantity(variant, warehouse) >= batch:
         return False, []
 
     # §11.4: boshqa shartnomalarga band qilingan butlovchi yig'ishga olinmaydi;
@@ -319,12 +320,13 @@ def assemble_variant(configuration, user, *, strict=True):
         .order_by('-id')
         .first()
     )
+    # #3: butun partiya uchun tekshiriladi — qator miqdori × partiya
     missing = [
         item.component.name
         for item in configuration.items.select_related('component')
         if sellable_quantity(
             item.component, warehouse, for_contract=own_contract,
-        ) < item.quantity
+        ) < item.quantity * batch
     ]
     if missing:
         if strict:
@@ -338,13 +340,13 @@ def assemble_variant(configuration, user, *, strict=True):
         for item in configuration.items.select_related('component'):
             apply_movement(
                 product=item.component, warehouse=warehouse,
-                type=StockMovement.Type.OUT, quantity=item.quantity,
+                type=StockMovement.Type.OUT, quantity=item.quantity * batch,
                 reason=StockMovement.Reason.CONFIGURATION,
                 reference=configuration.number, user=user,
             )
         apply_movement(
             product=variant, warehouse=warehouse,
-            type=StockMovement.Type.IN, quantity=1,
+            type=StockMovement.Type.IN, quantity=batch,
             reason=StockMovement.Reason.CONFIGURATION,
             reference=configuration.number, user=user,
         )
@@ -382,21 +384,23 @@ def finalize_modification(configuration, user, removal_overrides=None):
         configuration.warehouse = warehouse
 
     base = configuration.base_product
+    batch = configuration.quantity  # #3: butun partiya birdek o'zgartiriladi
 
-    if available_quantity(base, warehouse) < 1:
+    if available_quantity(base, warehouse) < batch:
         raise ValidationError({
             'detail': (
-                f"'{warehouse.name}' omborida tayyor {base.name} qolmagan — "
-                "o'zgartirish uchun kamida 1 dona kerak. Qoldiq boshqa omborda "
+                f"'{warehouse.name}' omborida tayyor {base.name} yetarli emas — "
+                f"o'zgartirish uchun {batch} dona kerak. Qoldiq boshqa omborda "
                 "bo'lsa, konfiguratsiyada o'sha omborni tanlang."
             ),
         })
 
     changes = configuration.changes
     shortages = [
-        f"{row['component'].name} (kerak: {row['quantity']}, omborda: {available_quantity(row['component'], warehouse)})"
+        f"{row['component'].name} (kerak: {row['quantity'] * batch}, "
+        f"omborda: {available_quantity(row['component'], warehouse)})"
         for row in changes['added']
-        if available_quantity(row['component'], warehouse) < row['quantity']
+        if available_quantity(row['component'], warehouse) < row['quantity'] * batch
     ]
     if shortages:
         raise ValidationError({
@@ -409,10 +413,10 @@ def finalize_modification(configuration, user, removal_overrides=None):
     with atomic():
         variant, created = resolve_variant(configuration)
 
-        # 1 dona butun mahsulot ishga olinadi
+        # butun partiya ishga olinadi
         apply_movement(
             product=base, warehouse=warehouse,
-            type=StockMovement.Type.OUT, quantity=1,
+            type=StockMovement.Type.OUT, quantity=batch,
             reason=StockMovement.Reason.CONFIGURATION,
             reference=configuration.number, user=user,
         )
@@ -420,33 +424,35 @@ def finalize_modification(configuration, user, removal_overrides=None):
         for row in changes['added']:
             apply_movement(
                 product=row['component'], warehouse=warehouse,
-                type=StockMovement.Type.OUT, quantity=row['quantity'],
+                type=StockMovement.Type.OUT, quantity=row['quantity'] * batch,
                 reason=StockMovement.Reason.CONFIGURATION,
                 reference=configuration.number, user=user,
             )
-        # yechib olinganlar omborga qaytadi — narxi yozib qo'yiladi
+        # yechib olinganlar omborga qaytadi — narxi (bitta donaga) yozib qo'yiladi
         removed_lines = []
         for row in changes['removed']:
             price = overrides.get(row['component'].pk, row['unit_price'])
             ConfigurationRemoval.objects.create(
                 configuration=configuration,
                 component=row['component'],
-                quantity=row['quantity'],
+                quantity=row['quantity'] * batch,
                 unit_price=price,
                 note='Tayyor mahsulotdan yechib olindi',
             )
             apply_movement(
                 product=row['component'], warehouse=warehouse,
-                type=StockMovement.Type.IN, quantity=row['quantity'],
+                type=StockMovement.Type.IN, quantity=row['quantity'] * batch,
                 reason=StockMovement.Reason.CONFIGURATION,
                 reference=configuration.number, user=user,
             )
-            removed_lines.append(f"{row['component'].name} x{row['quantity']} — {price}")
+            removed_lines.append(
+                f"{row['component'].name} x{row['quantity'] * batch} — {price}",
+            )
 
         # o'zgartirilgan mahsulot tayyor pozitsiya sifatida omborga kiradi
         apply_movement(
             product=variant, warehouse=warehouse,
-            type=StockMovement.Type.IN, quantity=1,
+            type=StockMovement.Type.IN, quantity=batch,
             reason=StockMovement.Reason.CONFIGURATION,
             reference=configuration.number, user=user,
         )
@@ -523,6 +529,9 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
             client=request_obj.client,
             warehouse=warehouse or request_obj.warehouse or main_warehouse(),
             mode=mode or Configuration.Mode.BUILD,
+            # #3: mijoz nechta so'ragani zayavkadan ko'chadi (engineer
+            # chernovikda o'zgartira oladi)
+            quantity=request_obj.quantity,
             note=f'{request_obj.number}: {request_obj.text}',
             created_by=user,
         )
