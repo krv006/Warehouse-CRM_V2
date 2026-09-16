@@ -36,6 +36,13 @@ class CompanyProfile(TimeStampedModel):
         max_digits=18, decimal_places=2, default=0,
         help_text="Shu summadan kichik shartnomalar admin tasdig'isiz o'tadi (QQS bilan, UZS); 0 — chegara yo'q",
     )
+    # TOPSHIRIQ #2: TLD uchun ALOHIDA chegara — summalar tabiatan boshqa
+    # (shartnoma o'nlab million, butlovchi yuz minglar); bitta chegara
+    # ikkalasiga mos kelmaydi
+    replenishment_approval_threshold = DecimalField(
+        max_digits=18, decimal_places=2, default=0,
+        help_text="Shu summadan kichik to'ldirish hisoblari admin tasdig'isiz o'tadi (QQS+xarajatlar bilan, UZS); 0 — chegara yo'q",
+    )
     # §11.4: bron muddatlari (kun). 0 = muddat yo'q, qo'lda bo'shatilguncha turadi
     contract_reservation_days = PositiveIntegerField(
         default=7,

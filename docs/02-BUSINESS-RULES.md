@@ -268,6 +268,12 @@ Client qo'shish **bugalterda yo'q** — sales, buyurtmachi va adminda bor (TZ 11
 | 8 | Yetkazib berish bosqichlari (bojxona va h.k.) | buyurtmachi / bugalter | `POST /{id}/events/` |
 | 9 | Omborga kirim | buyurtmachi / bugalter | `POST /{id}/receive/` |
 
+**Admin chegarasi TLD da ham (TOPSHIRIQ #2):**
+`CompanyProfile.replenishment_approval_threshold` — shu summadan kichik UZS
+hisob bugalter tasdig'i bilan to'g'ridan-to'g'ri `approved` bo'ladi
+(shartnoma chegarasidan alohida maydon; qoidalari bir xil: QQS+xarajatlar
+bilan, faqat UZS, 0 — chegara yo'q, tarixda avtomatik yozuv).
+
 **Sales-gate qoidasi:** mijoz buyurtmasidan (konfiguratsiyadan) ochilgan hisob
 `submit`da avval **sales**ga boradi (`pending_sales`) — sales mijoz bilan
 narxlarni kelishib tasdiqlagachgina bugalter/adminga tushadi; mijoz rozi

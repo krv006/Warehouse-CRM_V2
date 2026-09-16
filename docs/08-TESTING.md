@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **324 ta test, hammasi OK**.
+Hozirgi holat: **329 ta test, hammasi OK**.
 
 ---
 
@@ -55,6 +55,7 @@ Hozirgi holat: **324 ta test, hammasi OK**.
 | `apps/procurement/tests/test_replenishment_flow.py` | TZ 7: yetishmayotganlar ro'yxati, hisob shakllantirish, narxsiz yuborishning bloklanishi, buyurtmachi→bugalter→admin zanjiri, pul yetmasa qarzga o'tishi (1 400 000 / 500 000 / 900 000), qarz muddati kirimdan 60 kun, ombor qoldig'i, bojxona bosqichi, admin qatorni tahrirlashi |
 | `apps/configurator/tests/test_variant_pricing.py` | TZ 6.2: narx ombordan olinishi, narxsiz qatorning bloklanishi, variant yaratilishi, bir xil tarkibning qayta ishlatilishi, tayyor variant narxi |
 | `apps/configurator/tests/test_configuration_request.py` | Sales→Engineer zayavka oqimi: ZVK raqami, take/complete faqat engineerga, take'da konfiguratsiya avtomatik ochilishi, sales'ga notification, configuratsiz complete 400 |
+| `apps/procurement/tests/test_admin_threshold.py` | TOPSHIRIQ #2: kichik TLD adminsiz (avtomatik tarix yozuvi, xabar 'Admin tasdiqladi' demaydi), katta/valyuta/0 — adminga, shartnoma chegarasi TLD ga ta'sir qilmaydi |
 | `apps/core/tests/test_ownership.py` | EGALIK §3 egalik: sales boshqaning shartnomasini ko'rmaydi/tahrirlamaydi/yubormaydi (404), bugalter/admin hammasini ko'radi, engineer o'z konfiguratsiyasi + new zayavkalar, sales o'z zayavkasidan tug'ilgan konfiguratsiyani ko'radi, sales faqat o'z pending_sales hisobini ko'radi, admin sales nomidan yubora oladi |
 | `apps/core/tests/test_my_work.py` | EGALIK §2/§5: my-work rol bo'yicha (sales o'ziniki, bugalter/admin navbati, engineer new+o'ziniki, buyurtmachi + low_stock, pending_sales faqat egasiga), sidebar == my-work counts; created_by_name (to'liq ism), created_by filtri, users o'qish bugalterga/yozish yo'q |
 | `apps/core/tests/test_notification_targeting.py` | Bildirishnoma manzillari (EGALIK §4): shartnoma muddati — egasi+bugalter+admin, qarz — bugalter+admin, kirim — bugalter+buyurtmachi, user=null yo'q, per-user idempotent; request-procurement/mijoz roziligi — faqat zayavka egasi |

@@ -191,13 +191,33 @@ def _notify_sales_for_client_approval(replenishment):
     )
 
 
+def _admin_threshold_skip(replenishment):
+    """TOPSHIRIQ #2: chegaradan kichik UZS hisob admin tasdig'isiz o'tadimi.
+
+    Shartnomadagi qoidalar aynan: taqqoslash QQS bilan (`total_amount` —
+    logistika/boshqa xarajatlar ham ichida), faqat UZS (boshqa valyutada
+    kurs yo'q — doim adminga), 0 — chegara yo'q.
+    """
+    from apps.core.models import CompanyProfile
+
+    threshold = CompanyProfile.load().replenishment_approval_threshold
+    return bool(
+        threshold
+        and replenishment.currency == 'UZS'
+        and replenishment.total_amount < threshold
+    )
+
+
 @atomic
 def approve(replenishment, user, comment=''):
     """Tasdiqlash zanjiri (TZ 9).
 
     Mijoz buyurtmasidan ochilgan hisobda: sales (mijoz roziligi) -> bugalter
-    -> admin. Oddiy to'ldirishda: bugalter -> admin.
+    -> admin. Oddiy to'ldirishda: bugalter -> admin. TOPSHIRIQ #2: summa
+    `replenishment_approval_threshold` dan kichik (UZS) bo'lsa admin bosqichi
+    o'tkazib yuboriladi — tarixda avtomatik yozuv qoladi.
     """
+    admin_skipped = False
     if replenishment.status == Replenishment.Status.PENDING_SALES:
         _require(user, sales=True)
         step = ReplenishmentApproval.Step.SALES
@@ -205,7 +225,11 @@ def approve(replenishment, user, comment=''):
     elif replenishment.status == Replenishment.Status.PENDING_BUGALTER:
         _require(user, bugalter=True)
         step = ReplenishmentApproval.Step.BUGALTER
-        replenishment.status = Replenishment.Status.PENDING_ADMIN
+        admin_skipped = _admin_threshold_skip(replenishment)
+        replenishment.status = (
+            Replenishment.Status.APPROVED if admin_skipped
+            else Replenishment.Status.PENDING_ADMIN
+        )
     elif replenishment.status == Replenishment.Status.PENDING_ADMIN:
         _require(user, admin=True)
         step = ReplenishmentApproval.Step.ADMIN
@@ -221,15 +245,31 @@ def approve(replenishment, user, comment=''):
         comment=comment,
         decided_by=user,
     )
-    _notify_next_step(replenishment)
+    if admin_skipped:
+        # Tarix jim qolmasin: nega admin ko'rmagani yozib qo'yiladi
+        from apps.core.models import CompanyProfile
+
+        threshold = CompanyProfile.load().replenishment_approval_threshold
+        ReplenishmentApproval.objects.create(
+            replenishment=replenishment,
+            step=ReplenishmentApproval.Step.ADMIN,
+            decision=ReplenishmentApproval.Decision.APPROVED,
+            comment=(
+                f'Summa {replenishment.total_amount} {replenishment.currency} — '
+                f'chegara {threshold} dan past, admin tasdig\'i talab qilinmadi.'
+            ),
+            decided_by=None,
+        )
+    _notify_next_step(replenishment, admin_skipped=admin_skipped)
     return replenishment
 
 
-def _notify_next_step(replenishment):
+def _notify_next_step(replenishment, admin_skipped=False):
     """Tasdiq zanjirida navbat kimga o'tgan bo'lsa, o'shanga xabar tushadi.
 
     Aks holda keyingi bosqich egasi (masalan admin) hisob unga kelganini
-    bilmay qolardi — front topgan xato.
+    bilmay qolardi — front topgan xato. `admin_skipped` — chegara tufayli
+    admin chetlab o'tilgan: xabar "Admin tasdiqladi" demasin.
     """
     from apps.accounts.models import User
 
@@ -252,19 +292,32 @@ def _notify_next_step(replenishment):
             ),
         )
     elif replenishment.status == Replenishment.Status.APPROVED:
+        if admin_skipped:
+            pay_message = (
+                f'Summa chegaradan past — admin tasdig\'i talab qilinmadi. '
+                f'Summa: {replenishment.total_amount} {replenishment.currency} '
+                f'— to\'lovni amalga oshiring.'
+            )
+            done_message = (
+                'Tasdiqlandi (summa chegaradan past — admin shart emas) — '
+                'to\'lov bugalterda.'
+            )
+        else:
+            pay_message = (
+                f'Admin tasdiqladi. Summa: {replenishment.total_amount} '
+                f'{replenishment.currency} — to\'lovni amalga oshiring.'
+            )
+            done_message = 'Barcha bosqichlardan o\'tdi — to\'lov bugalterda.'
         _notify_role(
             User.Role.BUGALTER, replenishment,
             title=f'{replenishment.number}: tasdiqlandi — to\'lov bosqichi',
-            message=(
-                f'Admin tasdiqladi. Summa: {replenishment.total_amount} '
-                f'{replenishment.currency} — to\'lovni amalga oshiring.'
-            ),
+            message=pay_message,
         )
         if replenishment.created_by:
             Notification.objects.create(
                 user=replenishment.created_by,
                 title=f'{replenishment.number}: hisob to\'liq tasdiqlandi',
-                message='Barcha bosqichlardan o\'tdi — to\'lov bugalterda.',
+                message=done_message,
                 level=Notification.Level.INFO,
                 entity='Replenishment',
                 object_id=str(replenishment.pk),

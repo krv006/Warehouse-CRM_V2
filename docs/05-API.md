@@ -571,7 +571,7 @@ Omborda yetarli bo'lmasa — `400`:
 | GET/POST | `/replenishments/` | yozish: admin, buyurtmachi |
 | GET/PUT/PATCH/DELETE | `/replenishments/{id}/` | admin, buyurtmachi |
 | POST | `/replenishments/{id}/submit/` | buyurtmachi; keyingi bosqich egasiga (sales yoki bugalter) bildirishnoma tushadi |
-| POST | `/replenishments/{id}/approve/` | mijoz buyurtmasidan ochilganda: avval **sales** (mijoz roziligi), keyin bugalter, keyin admin; oddiy to'ldirishda bugalter → admin; har tasdiqda keyingi bosqich egasiga bildirishnoma tushadi |
+| POST | `/replenishments/{id}/approve/` | mijoz buyurtmasidan ochilganda: avval **sales** (mijoz roziligi), keyin bugalter, keyin admin; oddiy to'ldirishda bugalter → admin; summa `replenishment_approval_threshold` dan kichik (UZS) bo'lsa admin bosqichi o'tkazib yuboriladi (tarixda avtomatik yozuv); har tasdiqda keyingi bosqich egasiga bildirishnoma tushadi |
 | POST | `/replenishments/{id}/reject/` | bugalter / admin |
 | POST | `/replenishments/{id}/pay/` | bugalter; `debt_amount` satr/son bo'lishi mumkin, noto'g'ri format 400 |
 | POST | `/replenishments/{id}/events/` | buyurtmachi / bugalter |

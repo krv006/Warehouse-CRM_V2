@@ -595,6 +595,16 @@ moslansin. Buyurtmachi TLD kartasidagi konfiguratsiya havolasi buyurtmachiga
 rollarga chizing. `reassign` (egasini almashtirish) hozircha yo'q — ta'tilda
 admin davom ettiradi.
 
+## 17. TLD admin chegarasi (TOPSHIRIQ #2) 🟠
+
+- Sozlamalar → Rekvizitlar: yangi `replenishment_approval_threshold` maydoni
+  (shartnomadagi `admin_approval_threshold` yonida). Izoh: QQS+xarajatlar
+  bilan, faqat UZS, 0 — chegara yo'q.
+- `replenishmentSteps()` dinamik bo'lsin: bugalter tasdig'idan keyin status
+  to'g'ridan-to'g'ri `approved` kelishi mumkin — "Admin" qadami chizilmaydi
+  (tarixda `decided_by=null` avtomatik yozuv bor, undan bilsa bo'ladi) —
+  `src/modules/replenishments/lib/transitions.ts`.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

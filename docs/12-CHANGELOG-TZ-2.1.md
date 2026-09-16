@@ -817,6 +817,24 @@ bosqichlarda sales faqat kuzatadi.
 
 ---
 
+## 8.25 TLD uchun alohida admin chegarasi ⚡
+
+TOPSHIRIQLAR #2: chegara faqat shartnomada edi — 675 000 so'mlik bitta
+protsessor ham admin tasdig'ini kutardi. Bitta chegara ikkalasiga mos
+kelmaydi (shartnoma — o'nlab million, butlovchi — yuz minglar), shuning
+uchun **ikkinchi maydon**: `CompanyProfile.replenishment_approval_threshold`.
+
+Qoidalar shartnomadagi bilan aynan: taqqoslash QQS+logistika+boshqa
+xarajatlar bilan (`total_amount`), faqat UZS (boshqa valyuta doim adminga),
+0 — chegara yo'q; chetlab o'tilganda tarixga avtomatik
+`ReplenishmentApproval` (step=admin, decided_by bo'sh, sabab bilan);
+bildirishnoma "Admin tasdiqladi" demaydi.
+
+Zanjir endi: buyurtmachi → (sales) → bugalter → **summa chegaradan kichik
+bo'lsa to'g'ri `approved`** → to'lov.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -848,5 +866,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **100** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **32** |
-| Testlar | 66 | **324** |
+| Testlar | 66 | **329** |
 | Rollar | 3 | **5** |
