@@ -370,6 +370,12 @@ mijoz roziligi bosqichi va bildirishnomalar shu odamga; hisob ochilganda
 zanjirdan bir marta to'ldiriladi. `Notification.user` — endi **majburiy**
 (CASCADE): egasiz "e'lon taxtasi" yozuv mavjud emas.
 
+`status_changed_at` (`StatusTrackedModel` — TOPSHIRIQ #3): Contract,
+Replenishment, ConfigurationRequest, Configuration, ExpenseRequest'da —
+hujjat AYNAN shu bosqichga qachon kelgani (holat o'zgargandagina yoziladi);
+SLA muddati shu maydondan. `CompanyProfile.sla_cutoff_hour` (16),
+`sla_working_days` (1), `replenishment_approval_threshold` (TLD chegarasi).
+
 Boshqa yangi maydonlar (shu bosqichda): `Contract.didox_number`,
 `Contract.didox_accepted_at` (§11.2); `CompanyProfile.admin_approval_threshold`,
 `contract_reservation_days`, `configuration_reservation_days` (§11.3/§11.4);

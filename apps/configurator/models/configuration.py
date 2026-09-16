@@ -7,11 +7,11 @@ from django.db.models import (
     TextField,
 )
 
-from apps.core.models import TimeStampedModel
+from apps.core.models import StatusTrackedModel
 from apps.core.utils import next_number
 
 
-class Configuration(TimeStampedModel):
+class Configuration(StatusTrackedModel):
     """Bazaviy model ustidan yig'ilgan mijoz konfiguratsiyasi (chernovik).
 
     Ikki xil rejim (TZ 6.2):

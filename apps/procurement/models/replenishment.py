@@ -12,14 +12,14 @@ from django.db.models import (
 )
 
 from apps.core.choices import Currency
-from apps.core.models import TimeStampedModel
+from apps.core.models import StatusTrackedModel
 from apps.core.utils import deadline_progress, next_number
 
 # TZ 7.2: qarz mahsulot kelgandan keyin 2 oy ichida qaytariladi
 DEBT_TERM_DAYS = 60
 
 
-class Replenishment(TimeStampedModel):
+class Replenishment(StatusTrackedModel):
     """Omborni to'ldirish buyurtmasi — Buyurtmachi rolining asosiy hujjati (TZ 7)."""
 
     class Status(TextChoices):

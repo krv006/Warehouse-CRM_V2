@@ -7,11 +7,11 @@ from django.db.models import (
     TextField,
 )
 
-from apps.core.models import TimeStampedModel
+from apps.core.models import StatusTrackedModel
 from apps.core.utils import next_number
 
 
-class ConfigurationRequest(TimeStampedModel):
+class ConfigurationRequest(StatusTrackedModel):
     """Sales'dan Engineerga boradigan matnli zayavka.
 
     Sales client bilan gaplashib zakazni matn ko'rinishida yozadi va yuboradi.

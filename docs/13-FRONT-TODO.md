@@ -605,6 +605,18 @@ admin davom ettiradi.
   (tarixda `decided_by=null` avtomatik yozuv bor, undan bilsa bo'ladi) —
   `src/modules/replenishments/lib/transitions.ts`.
 
+## 18. SLA — turib qolgan ish qizil (TOPSHIRIQ #3) 🔴
+
+Deyarli tayyor: `danger` allaqachon qizil chiziladi va birinchi turadi.
+Qo'shiladigani:
+
+- `work-reason.ts` ga `stale` matni ("Muddatidan ortiq turibdi").
+- Qatorda `holder_name` + `waiting_days` ko'rsatish: "Bugalterda 2 ish kuni".
+- O'z qatorida `waiting_days` kelsa ham ko'rsatish ("2 ish kundan beri sizda").
+- Sozlamalar → Rekvizitlar: `sla_cutoff_hour` va `sla_working_days`
+  maydonlari (izoh bilan: kesim soatidan keyin kelgan ish keyingi ish
+  kunidan sanaladi; dam olish kunlari sanalmaydi).
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

@@ -10,10 +10,10 @@ from django.db.models import (
 )
 
 from apps.core.choices import Currency
-from apps.core.models import TimeStampedModel
+from apps.core.models import StatusTrackedModel
 
 
-class ExpenseRequest(TimeStampedModel):
+class ExpenseRequest(StatusTrackedModel):
     """Bugalter pul chiqarish uchun admindan so'raydigan ruxsat (TZ: bugalter roli)."""
 
     class Status(TextChoices):

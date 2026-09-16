@@ -13,6 +13,7 @@ class CompanyProfileSerializer(ModelSerializer):
             'bank_name', 'mfo', 'account_number', 'director_name',
             'contract_terms', 'admin_approval_threshold',
             'replenishment_approval_threshold',
+            'sla_cutoff_hour', 'sla_working_days',
             'contract_reservation_days', 'configuration_reservation_days',
             'updated_at',
         ]

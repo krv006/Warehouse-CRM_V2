@@ -94,6 +94,50 @@ def deadline_progress(start_date, term_days, today=None):
     }
 
 
+# ------------------------------------------------- SLA — ish kuni hisobi (#3)
+
+def next_working_day(day):
+    """Keyingi ish kuni (shanba/yakshanba sanalmaydi)."""
+    day = day + timedelta(days=1)
+    while day.weekday() >= 5:
+        day += timedelta(days=1)
+    return day
+
+
+def sla_deadline(entered_at, cutoff_hour, working_days):
+    """Ish qachongacha bajarilishi kerak (sana, shu kunning oxiri deb o'qiladi).
+
+    Kesim soatidan OLDIN kelgan (va ish kuniga tushgan) ish — shu kunning
+    oxirigacha; KEYIN kelgani yoki dam olish kuniga tushgani — keyingi ish
+    kunidan sanaladi. `working_days` > 1 bo'lsa qo'shimcha ish kunlari
+    qo'shiladi. Misollar (cutoff=16, days=1):
+      Du 12:00 -> Du oxiri (Se kuni qizil)
+      Du 17:00 -> Se oxiri (Cho kuni qizil)
+      Ju 17:00 -> Du oxiri (Se kuni qizil — shanba/yakshanba o'tkaziladi)
+    """
+    from django.utils.timezone import localtime
+
+    moment = localtime(entered_at)
+    day = moment.date()
+    if day.weekday() >= 5 or moment.hour >= cutoff_hour:
+        day = next_working_day(day)
+    for _ in range(max(working_days, 1) - 1):
+        day = next_working_day(day)
+    return day
+
+
+def working_days_since(start_date, today=None):
+    """`start_date` dan keyin nechta to'liq ish kuni o'tgani (bugungi kun bilan)."""
+    today = today or localdate()
+    days = 0
+    day = start_date
+    while day < today:
+        day += timedelta(days=1)
+        if day.weekday() < 5:
+            days += 1
+    return days
+
+
 def next_number(model, prefix, width=5):
     """Hujjat raqamini ketma-ket generatsiya qiladi: PREFIX-00001."""
     last = model.objects.order_by('-id').first()

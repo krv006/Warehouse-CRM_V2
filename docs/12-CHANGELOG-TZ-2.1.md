@@ -835,6 +835,42 @@ bo'lsa to'g'ri `approved`** → to'lov.
 
 ---
 
+## 8.26 SLA: bir ish kunidan ortiq turgan ish qizil 🔴⏱
+
+TOPSHIRIQLAR #3. Hujjat kimgadir taqalib muddatidan ortiq qimirlamasa —
+egasining navbatida ham, adminning bosh sahifasida ham **qizil**.
+
+**Muddat qoidasi** (sozlanadi, `CompanyProfile`):
+
+- `sla_cutoff_hour` (default 16): kesim soatidan **oldin** kelgan ish — shu
+  ish kunining oxirigacha; **keyin** kelgani — keyingi ish kunining
+  oxirigacha. `sla_working_days` (default 1) — necha ish kuni beriladi.
+- Ish kuni — shanba/yakshanba sanalmaydi (Ju 17:00 → muddat Du oxiri).
+- Bayramlar hozircha yo'q (keyingi bosqich, jadval kerak bo'ladi).
+
+**`status_changed_at`** — yangi maydon (`StatusTrackedModel`): `Contract`,
+`Replenishment`, `ConfigurationRequest`, `Configuration`, `ExpenseRequest`.
+Faqat holat haqiqatan o'zgarganda yoziladi (`updated_at` yaroqsiz edi —
+izoh tahriri ham yangilardi). Migratsiyada eskilarga `created_at` berildi.
+
+**`/my-work/` kengaydi** (alohida endpoint YO'Q — ikkinchi ta'rif
+yozilmasin):
+
+- o'z qatori muddati o'tsa: `level: "danger"` + `waiting_days` (necha ISH
+  kuni kutayotgani) — egasi adminga yetguncha o'zi ko'radi;
+- adminga qo'shimcha qatorlar: `reason: "stale"`, `holder_role`,
+  `holder_name`, `waiting_days` — kimda turib qolgani. Qamrov: shartnoma
+  (draft/rejected — sales; pending_bugalter/approved — bugalter), TLD
+  (draft/rejected — buyurtmachi; pending_sales — owner_sales;
+  pending_bugalter/approved — bugalter), zayavka (new — hovuz;
+  in_progress — taken_by), konfiguratsiya (draft — engineer). Adminning
+  o'z ishi (pending_admin, xarajat) o'z qatorida qizaradi. `leads`/`loans`
+  qamrovda emas (o'z muddati bilan yuritiladi), `active`/`delivered` kabi
+  amal kutilmaydigan holatlar ham.
+- `sidebar-counts` stale qatorlarni ham sanaydi — raqamlar mos qoladi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -866,5 +902,5 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 | REST endpoint | 70 | **100** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **32** |
-| Testlar | 66 | **329** |
+| Testlar | 66 | **341** |
 | Rollar | 3 | **5** |

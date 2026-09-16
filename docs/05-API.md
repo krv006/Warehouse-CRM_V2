@@ -215,6 +215,13 @@ Bo'lim kalitlari: `contracts`, `leads`, `requests`, `configurations`,
 `replenishments`, `low_stock`, `expense_requests`, `loans`; 0 bo'lsa badge
 chizilmaydi. Ruxsat: istalgan login — javob so'rovchi roli bo'yicha.
 
+**SLA (TOPSHIRIQ #3):** muddatidan ortiq turgan ishning o'z qatori
+`level: "danger"` + `waiting_days` (ish kunlari) bilan keladi; adminga
+qo'shimcha `reason: "stale"` qatorlari `holder_role`/`holder_name` bilan —
+kimda turib qolgani. Muddat: kesim soatidan oldin kelgan ish shu ish kuni,
+keyin kelgani keyingi ish kuni oxirigacha (`/company/` da `sla_cutoff_hour`,
+`sla_working_days`; dam olish kunlari sanalmaydi).
+
 ## Configurator
 
 | Metod | Manzil | Izoh |

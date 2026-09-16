@@ -43,6 +43,17 @@ class CompanyProfile(TimeStampedModel):
         max_digits=18, decimal_places=2, default=0,
         help_text="Shu summadan kichik to'ldirish hisoblari admin tasdig'isiz o'tadi (QQS+xarajatlar bilan, UZS); 0 — chegara yo'q",
     )
+    # TOPSHIRIQ #3 (SLA): kesim soatidan OLDIN kelgan ish — shu ish kunining
+    # oxirigacha, KEYIN kelgani — keyingi ish kunining oxirigacha bajarilsin;
+    # muddati o'tgani admin (va egasining) navbatida qizil chiqadi
+    sla_cutoff_hour = PositiveIntegerField(
+        default=16,
+        help_text="Kesim soati: shu soatdan keyin kelgan ish keyingi ish kunidan sanaladi",
+    )
+    sla_working_days = PositiveIntegerField(
+        default=1,
+        help_text='Ishga beriladigan ish kunlari soni',
+    )
     # §11.4: bron muddatlari (kun). 0 = muddat yo'q, qo'lda bo'shatilguncha turadi
     contract_reservation_days = PositiveIntegerField(
         default=7,

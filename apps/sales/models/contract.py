@@ -15,7 +15,7 @@ from django.db.models import (
 )
 
 from apps.core.choices import Currency
-from apps.core.models import TimeStampedModel
+from apps.core.models import StatusTrackedModel
 from apps.core.utils import deadline_progress, next_number
 
 # TZ: 1 mlrd dan kam bo'lsa 30%, ko'p bo'lsa 15% oldindan to'lov
@@ -32,7 +32,7 @@ def default_prepayment_percent(total_amount):
     return PREPAYMENT_PERCENT_LARGE
 
 
-class Contract(TimeStampedModel):
+class Contract(StatusTrackedModel):
     """Sales tomonidan tuziladigan shartnoma va uning tasdiqlash zanjiri."""
 
     class Status(TextChoices):
