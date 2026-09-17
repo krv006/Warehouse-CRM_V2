@@ -162,6 +162,40 @@ class RequiredFromStockTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('Dell OptiPlex 7010 MT', str(response.data['items']))
 
+    def test_api_missing_list_drives_front_button(self):
+        """3-to'plam §2: front qarori bitta maydondan — `missing` ro'yxati.
+
+        Bo'sh — "Yig'ish", bo'sh emas — "Buyurtmachiga yuborish · N".
+        Modify'da bazaviy model ham shu yerda, `kind` bilan farqlanadi.
+        """
+        self._stock_in(self.base, 2)
+        self._stock_in(self.ram, 4)
+        configuration = self._modify_config()
+
+        response = self.client.get(f'/api/configurations/{configuration.id}/')
+        self.assertEqual(response.status_code, 200, response.data)
+        missing = response.data['missing']
+        self.assertEqual(response.data['missing_count'], len(missing))
+        self.assertEqual(len(missing), 2)
+        by_kind = {row['kind']: row for row in missing}
+        self.assertEqual(by_kind['machine']['product'], self.base.pk)
+        self.assertEqual(by_kind['machine']['name'], 'Dell OptiPlex 7010 MT')
+        self.assertEqual(by_kind['machine']['needed'], 10)
+        self.assertEqual(by_kind['machine']['available'], Decimal('2'))
+        self.assertEqual(by_kind['machine']['shortage'], Decimal('8'))
+        self.assertEqual(by_kind['component']['product'], self.ram.pk)
+        self.assertEqual(by_kind['component']['shortage'], Decimal('6'))
+
+    def test_api_missing_empty_when_stock_enough(self):
+        """Hammasi omborda bor — `missing` bo'sh, front "Yig'ish"ni ko'rsatadi."""
+        self._stock_in(self.base, 10)
+        self._stock_in(self.ram, 10)
+        configuration = self._modify_config()
+
+        response = self.client.get(f'/api/configurations/{configuration.id}/')
+        self.assertEqual(response.data['missing'], [])
+        self.assertEqual(response.data['missing_count'], 0)
+
     def test_build_mode_unchanged(self):
         """Build rejimida xulq eskicha: har bir qator × partiya."""
         self._stock_in(self.ram, 4)

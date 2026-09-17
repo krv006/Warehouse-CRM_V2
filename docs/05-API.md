@@ -281,6 +281,29 @@ ham `false` bo'ladi va yangi TLD ochish mumkin. Ochiq TLD turganda
 `request-procurement` qayta bosilsa **400**: `{"detail": "CFG-00023 uchun
 TLD-00004 hisobi allaqachon ochilgan (...)", "replenishment": 4}`.
 
+**`missing` — "Yig'ish" yoki "Buyurtmachiga yuborish" qarori** (3-to'plam §2).
+Konfiguratsiya javobida ombordan olinishi kerak-u, yetishmayotgan pozitsiyalar
+ro'yxati bor — `required_from_stock` dan quriladi, ya'ni `modify` da bazaviy
+model ham shu yerda (`kind` bilan farqlanadi), o'zgarmagan qismlar esa yo'q:
+```json
+GET /api/configurations/12/
+{
+  "...": "...",
+  "missing": [
+    {"product": 12, "name": "Dell OptiPlex 7010 MT", "kind": "machine",
+     "needed": 10, "available": 2, "shortage": 8},
+    {"product": 27, "name": "Corsair DDR5 32 GB", "kind": "component",
+     "needed": 20, "available": 0, "shortage": 20}
+  ],
+  "missing_count": 2
+}
+```
+Front qoidasi bitta qator: `missing` bo'sh — **"Yig'ish"** tugmasi, bo'sh
+emas — **"Buyurtmachiga yuborish · {missing.length}"** ("Yig'ish" umuman
+ko'rsatilmaydi: u baribir 400 beradi). `missing_count` — shu ro'yxat uzunligi.
+`shortage` teshikni ham yopadi: boshqa hujjatlarga ortiqcha va'da qilingan
+bo'lsa `needed` dan ko'p chiqishi mumkin.
+
 **Yaratish** (`items` ixtiyoriy — yuborilmasa zavod tarkibi avtomatik yuklanadi):
 ```json
 POST /api/configurations/

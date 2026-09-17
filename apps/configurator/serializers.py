@@ -143,6 +143,7 @@ class ConfigurationSerializer(ModelSerializer):
     total_price = ReadOnlyField()
     items_total = ReadOnlyField()
     variant_sku = ReadOnlyField(source='variant.sku')
+    missing = SerializerMethodField()
     missing_count = SerializerMethodField()
     ready_variant = SerializerMethodField()
     procurement = SerializerMethodField()
@@ -155,11 +156,31 @@ class ConfigurationSerializer(ModelSerializer):
             'warehouse', 'act', 'act_number', 'mode', 'mode_display',
             'quantity', 'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
-            'ready_variant', 'missing_count', 'procurement', 'sent_to_procurement',
+            'ready_variant', 'missing', 'missing_count', 'procurement', 'sent_to_procurement',
             'assembled_at', 'removals', 'approvals',
             'created_by', 'created_by_name', 'created_at',
         ]
         read_only_fields = ['number', 'created_by', 'variant', 'assembled_at']
+
+    def get_missing(self, obj):
+        """Ombordan olinishi kerak-u, yetishmayotganlar (3-to'plam §2).
+
+        Front qoidasi bitta qator: ro'yxat bo'sh — "Yig'ish" tugmasi,
+        bo'sh emas — "Buyurtmachiga yuborish · N". `required_from_stock`
+        dan quriladi: modify'da bazaviy model ham shu yerda (`kind` orqali
+        tayyor model va butlovchi farqlanadi).
+        """
+        return [
+            {
+                'product': row['product'].pk,
+                'name': row['product'].name,
+                'kind': row['product'].kind,
+                'needed': row['needed'],
+                'available': row['available'],
+                'shortage': row['shortage'],
+            }
+            for row in obj.missing_items
+        ]
 
     def get_missing_count(self, obj):
         return len(obj.missing_items)

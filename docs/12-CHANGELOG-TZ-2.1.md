@@ -1053,6 +1053,22 @@ Testlar: `apps/configurator/tests/test_required_from_stock.py` (7).
 
 ---
 
+## 8.33 Javobda `missing` — "Yig'ish" yoki "Buyurtmachiga yuborish" 🔘
+
+3-to'plam §2. Yetishmovchilik bo'lganda "Yig'ish" tugmasi baribir 400
+berardi — endi front qarorni uchta joydan yig'ib emas, bitta maydondan
+oladi. Konfiguratsiya javobiga `missing` ro'yxati qo'shildi:
+`{product, name, kind, needed, available, shortage}` — `required_from_stock`
+dan quriladi (§8.32), modify'da bazaviy model ham shu yerda (`kind`:
+`machine`/`component`). `missing_count` endi shu ro'yxat uzunligi
+(avval `items` dan hisoblanib modify'da noto'g'ri son berardi).
+
+Front qoidasi: `missing` bo'sh — "Yig'ish", bo'sh emas — "Buyurtmachiga
+yuborish · N". Alohida endpoint ochilmadi: bazaviy model va butlovchilar
+BITTA TLD da ketadi (`open_replenishment` — bitta ochiq hisob qoidasi).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

@@ -665,6 +665,33 @@ migratsiya logida qancha kamaygani yozib qo'yiladi.
   — matni `work-reason.ts`ga; buyurtmachi endi faol-yetkazilmagan
   shartnomalarni ochib ko'ra oladi (narxlar unga baribir ko'rinmaydi).
 
+## 23. "Yig'ish" / "Buyurtmachiga yuborish" — bitta qoida (3-to'plam §1–2) 🔴
+
+Konfiguratsiya javobida yangi `missing` ro'yxati bor — ombordan olinishi
+kerak-u, yetishmayotgan pozitsiyalar. `modify` da **bazaviy model ham shu
+yerda** (`kind: "machine"`), mashina ichidagi o'zgarmagan qismlar esa yo'q:
+
+```json
+"missing": [
+  {"product": 12, "name": "Dell OptiPlex 7010 MT", "kind": "machine",
+   "needed": 10, "available": 2, "shortage": 8}
+],
+"missing_count": 1
+```
+
+Qoida bitta qator (holat `approved` bo'lganda):
+
+- `missing.length === 0` -> **"Yig'ish"** tugmasi (`POST .../assemble/`);
+- `missing.length > 0` -> **"Buyurtmachiga yuborish · {missing.length}"**
+  (`POST .../request-procurement/`) — "Yig'ish" umuman ko'rsatilmaydi,
+  u baribir 400 beradi. Alohida ogohlantirish bloki ham shart emas.
+
+Diqqat: tarkib jadvalidagi qator darajasidagi "Omborda"/"Yetishmaydi"
+ustunlari `modify` da yetishmovchilik manbai EMAS — u yerda mashina
+ichidagi qismlar ham turadi. Yetishmovchilik faqat `missing` dan o'qilsin.
+
+---
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |
