@@ -215,6 +215,119 @@ def reject_configuration(configuration, user, comment=''):
     return configuration
 
 
+def change_quantity(configuration, user, *, quantity, comment=''):
+    """Partiya sonini o'zgartiradi (4-to'plam §2) — yon ta'sirlari bilan.
+
+    Mijoz "10 emas, 100 kerak" desa zanjir qaytadan boshlanmaydi: son
+    yangilanadi, bron yangi partiyaga moslashadi, zayavka soni ergashadi.
+    Bu tijoriy o'zgarish — `approved` yechim sales ko'rigiga qaytadi
+    (narx va muddat mijoz bilan qayta kelishiladi). Sales so'raydi,
+    engineer yozadi — tarkib bilan ishlaydigan odam bitta (§3.4 egalik).
+    """
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import Configuration
+    from apps.core.models import Notification
+    from apps.inventory.services import sync_configuration_reservations
+    from apps.procurement.models import Replenishment
+
+    if not (user.is_admin or user.is_engineer):
+        raise PermissionDenied(
+            "Partiyani engineer (yoki admin) o'zgartiradi — sales so'raydi.",
+        )
+
+    try:
+        quantity = int(quantity)
+    except (TypeError, ValueError):
+        raise ValidationError({'quantity': 'Partiya soni butun son bo\'lishi kerak.'})
+    if quantity < 1:
+        raise ValidationError({'quantity': 'Partiya kamida 1 dona bo\'ladi.'})
+
+    allowed = {
+        Configuration.Status.DRAFT,
+        Configuration.Status.PENDING_SALES,
+        Configuration.Status.APPROVED,
+    }
+    if configuration.status not in allowed:
+        raise ValidationError({
+            'detail': (
+                f"'{configuration.get_status_display()}' holatida partiya "
+                "o'zgartirilmaydi — shartnoma ochilgan yoki zanjir yopilgan."
+            ),
+        })
+    if configuration.assembled_at:
+        raise ValidationError({
+            'detail': (
+                "Mahsulot allaqachon yig'ilgan — ombor harakatlari yozilgan, "
+                "partiya endi o'zgarmaydi."
+            ),
+        })
+
+    # Ochiq TLD chernovikdan o'tgan bo'lsa — mol yo'lga chiqqan, partiyani
+    # jimgina o'zgartirish mumkin emas. Chernovik TLD to'smaydi: buyurtmachi
+    # qatorlarni baribir o'zi tahrirlaydi.
+    open_tld = configuration.open_replenishment
+    if open_tld and open_tld.status != Replenishment.Status.DRAFT:
+        raise ValidationError({
+            'detail': (
+                f'{open_tld.number} hisobi "{open_tld.get_status_display()}" '
+                "holatida — mol buyurtma qilingan yoki to'langan. Avval TLD "
+                "bekor qilinsin yoki kirim qilinsin."
+            ),
+            'replenishment': open_tld.pk,
+        })
+
+    old_quantity = configuration.quantity
+    if quantity == old_quantity:
+        raise ValidationError({'quantity': 'Partiya soni o\'zgarmadi.'})
+
+    was_approved = configuration.status == Configuration.Status.APPROVED
+    configuration.quantity = quantity
+    if was_approved:
+        # Mijoz roziligi eskirdi: 10 taning narxi 100 taniki emas
+        configuration.status = Configuration.Status.PENDING_SALES
+    configuration.save()
+
+    # Bron yangi partiyaga moslashadi (required_from_stock × yangi son)
+    sync_configuration_reservations(configuration)
+    # Zayavka soni ergashadi — ikki hujjatda ikki xil son qolmasin
+    configuration.requests.update(quantity=quantity)
+
+    change_text = f'Partiya {old_quantity} dan {quantity} ga o\'zgardi.'
+    if comment:
+        change_text += f' Izoh: {comment}'
+
+    owner = _configuration_owner_sales(configuration)
+    if owner:
+        Notification.objects.create(
+            user=owner,
+            title=f'{configuration.number}: partiya {old_quantity} → {quantity}',
+            message=change_text + (
+                ' Narx va muddatni mijoz bilan qayta tasdiqlang.'
+                if was_approved else ''
+            ),
+            level=Notification.Level.WARNING if was_approved else Notification.Level.INFO,
+            entity='Configuration',
+            object_id=str(configuration.pk),
+        )
+    if open_tld:
+        from apps.accounts.models import User
+
+        for supplier in User.objects.filter(role=User.Role.SUPPLIER, is_active=True):
+            Notification.objects.create(
+                user=supplier,
+                title=f'{open_tld.number}: partiya o\'zgardi',
+                message=(
+                    f'{configuration.number}: {change_text} Hisob qatorlarini '
+                    'yangi songa moslab chiqing.'
+                ),
+                level=Notification.Level.WARNING,
+                entity='Replenishment',
+                object_id=str(open_tld.pk),
+            )
+    return configuration
+
+
 def act_suggestion_text(configuration):
     """ACT uchun tayyor matn — bajarilgan ish `changes` dan yoziladi (#4D)."""
     quantity = getattr(configuration, 'quantity', 1)

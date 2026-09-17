@@ -38,6 +38,10 @@ urlpatterns = [
     path('configurations/<int:pk>/assemble/', ConfigurationViewSet.as_view({
         'post': 'assemble',
     }), name='configuration-assemble'),
+    # 4-to'plam §2: partiya sonini o'zgartirish — yon ta'sirlari bilan
+    path('configurations/<int:pk>/change-quantity/', ConfigurationViewSet.as_view({
+        'post': 'change_quantity',
+    }), name='configuration-change-quantity'),
     path('configurations/<int:pk>/request-procurement/', ConfigurationViewSet.as_view({
         'post': 'request_procurement',
     }), name='configuration-request-procurement'),

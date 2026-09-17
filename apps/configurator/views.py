@@ -26,6 +26,7 @@ from apps.configurator.services import (
     approve_configuration,
     assemble_configuration,
     build_configuration_workbook,
+    change_quantity,
     notify_engineers_about_request,
     reject_configuration,
     send_missing_to_procurement,
@@ -198,6 +199,25 @@ class ConfigurationViewSet(BaseModelViewSet):
         )
         self.log_action(
             ActivityLog.Action.REJECT, configuration, request.data.get('comment', ''),
+        )
+        return Response(self.get_serializer(configuration).data)
+
+    def change_quantity(self, request, pk=None):
+        """POST /configurations/{id}/change-quantity/ — partiya soni (4-to'plam §2).
+
+        Mijoz sonni o'zgartirsa zanjir qaytadan boshlanmaydi: bron yangi
+        partiyaga moslashadi, zayavka soni ergashadi, `approved` yechim
+        sales ko'rigiga qaytadi. Tana: {"quantity": 100, "comment": "..."}.
+        """
+        configuration = change_quantity(
+            self.get_object(), request.user,
+            quantity=request.data.get('quantity'),
+            comment=str(request.data.get('comment', '') or ''),
+        )
+        self.log_action(
+            ActivityLog.Action.UPDATE, configuration,
+            f'Partiya {configuration.quantity} taga o\'zgartirildi'
+            + (f": {request.data.get('comment')}" if request.data.get('comment') else ''),
         )
         return Response(self.get_serializer(configuration).data)
 

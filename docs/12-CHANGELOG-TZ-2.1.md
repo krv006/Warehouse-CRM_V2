@@ -1105,6 +1105,31 @@ Testlar: `apps/sales/tests/test_payment_limit.py` (5).
 
 ---
 
+## 8.36 Partiya sonini o'zgartirish — `change-quantity` 🔢
+
+4-to'plam §2. Mijoz "10 emas, 100 kerak" desa yagona chora
+konfiguratsiyani bekor qilib qaytadan boshlash edi (tasdiq tarixi, TLD,
+zayavka bog'lanishi — hammasi yo'qolardi): `quantity` faqat chernovikda
+tahrirlanadi. Endi:
+
+- `POST /configurations/{id}/change-quantity/` —
+  `{"quantity": 100, "comment": "..."}`; **engineer** (hujjat egasi) va
+  admin — sales so'raydi, engineer yozadi (§3.4 egalik);
+- holatlar: `draft` / `pending_sales` / `approved`;
+- son yangilanadi, **bron** `required_from_stock` × yangi partiya bo'yicha
+  qayta quriladi, **zayavka soni** ergashadi (ikki hujjatda bir xil son);
+- `approved` bo'lsa **`pending_sales` ga qaytadi** — bu tijoriy
+  o'zgarish: narx va muddat mijoz bilan qayta kelishiladi (sales
+  navbatiga `configuration_review` qatori o'zi qaytadi);
+- rad: yig'ilgan (`assembled_at` — ombor harakatlari yozilgan), terminal
+  holat, **ochiq TLD chernovikdan o'tgan** (400 xabarida TLD raqami) —
+  chernovik TLD esa to'smaydi, buyurtmachiga xabar boradi;
+- tarixga `ActivityLog`, zayavka egasiga (sales) bildirishnoma.
+
+Testlar: `apps/configurator/tests/test_change_quantity.py` (6).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -1133,7 +1158,7 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **104** |
+| REST endpoint | 70 | **105** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **33** |
 | Testlar | 66 | **365** |

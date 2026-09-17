@@ -368,6 +368,16 @@ Shartnoma zanjirida ham xuddi shunday.
 **Bitta konfiguratsiya — bitta ochiq TLD:** ochiq (bekor/kirim qilinmagan)
 hisob turganda `request-procurement` qayta chaqirilsa 400 qaytadi — ikkita
 parallel hisob ochilib ketmaydi. Konfiguratsiya javobidagi
+**Partiya o'zgarishi (4-to'plam §2).** Mijoz sonni o'zgartirsa zanjir
+qaytadan boshlanmaydi: `POST /configurations/{id}/change-quantity/` (engineer,
+admin; sales so'raydi — §3.4 egalik). Son yangilanadi, bron yangi partiyaga
+moslashadi, zayavka (`ConfigurationRequest.quantity`) ergashadi; `approved`
+yechim `pending_sales` ga qaytadi — 10 taning narxi 100 taniki emas, mijoz
+roziligi qayta olinadi. Rad: mahsulot yig'ilgan (`assembled_at`), terminal
+holat, ochiq TLD chernovikdan o'tgan (mol yo'lda — avval TLD hal qilinsin),
+`quantity < 1`. Chernovik TLD to'smaydi: buyurtmachi qatorlarni o'zi moslaydi
+(xabar oladi). Tarixga `ActivityLog`, zayavka egasiga bildirishnoma.
+
 `sent_to_procurement` va `procurement` maydonlari jarayon holatini ko'rsatib
 turadi (`rejected` — hali ochiq: buyurtmachi to'g'irlab qayta yuboradi).
 

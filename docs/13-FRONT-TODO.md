@@ -697,6 +697,24 @@ qilingan" deb yozing — `shortage` bu teshikni ham yopib buyurtma qiladi.
 
 ---
 
+## 24. Partiyani o'zgartirish tugmasi (4-to'plam §2) 🔴
+
+Yangi endpoint: `POST /configurations/{id}/change-quantity/` —
+`{"quantity": 100, "comment": "..."}` (izohni majburiy qiling).
+
+- Konfiguratsiya kartasida sarlavha yonidagi partiya (`HP 880 × 100`)
+  bosiladigan bo'lsin yoki kichik "Miqdorni o'zgartirish" tugmasi —
+  oyna: yangi son + izoh;
+- Tugma faqat `draft` / `pending_sales` / `approved` da va
+  `assembled_at` bo'sh bo'lganda ko'rinsin; ochiq TLD chernovikdan
+  o'tgan bo'lsa backend 400 beradi (xabarida TLD raqami bor — shuni
+  ko'rsating);
+- Muvaffaqiyatda: `approved` bo'lgan hujjat `pending_sales` ga qaytadi
+  — sales navbatiga `configuration_review` qatori o'zi tushadi,
+  qo'shimcha front ishi yo'q; javob — yangilangan konfiguratsiya.
+
+---
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |
