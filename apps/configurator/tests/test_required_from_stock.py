@@ -196,6 +196,51 @@ class RequiredFromStockTests(APITestCase):
         self.assertEqual(response.data['missing'], [])
         self.assertEqual(response.data['missing_count'], 0)
 
+    def test_available_clamped_overbooked_returned(self):
+        """3-to'plam §3: "omborda -6" o'rniga available=0 + overbooked=6.
+
+        Jonli misol (CFG-00037): boshqa konfiguratsiya bron qilgan mol keyin
+        chiqim bo'lib ketgan — reja qoldig'i manfiyga tushgan. Shortage esa
+        teshikni ham yopadi: 10 tasi o'ziga, 6 tasi teshikka = 16.
+        """
+        self._stock_in(self.base, 10)
+        self._stock_in(self.ram, 10)
+        # Boshqa hujjat 10 talik RAM rejasini olgan...
+        other = Configuration.objects.create(
+            base_product=self.base, warehouse=self.warehouse,
+            created_by=self.engineer, quantity=10,
+        )
+        ConfigurationItem.objects.create(
+            configuration=other, component=self.ram, label='RAM', quantity=1,
+        )
+        sync_configuration_reservations(other)
+        # ...keyin omborda 6 dona RAM chiqim bo'lib ketgan
+        apply_movement(
+            product=self.ram, warehouse=self.warehouse,
+            type=StockMovement.Type.OUT, quantity=Decimal('6'),
+        )
+
+        configuration = self._modify_config()
+        ram_item = configuration.items.get(component=self.ram)
+        self.assertEqual(ram_item.available, 0)          # manfiy ko'rsatilmaydi
+        self.assertEqual(ram_item.overbooked, Decimal('6'))
+        self.assertEqual(ram_item.shortage, Decimal('16'))  # 10 o'ziga + 6 teshikka
+
+        response = self.client.get(f'/api/configurations/{configuration.id}/')
+        api_row = next(
+            row for row in response.data['missing']
+            if row['product'] == self.ram.pk
+        )
+        self.assertEqual(api_row['available'], 0)
+        self.assertEqual(api_row['overbooked'], Decimal('6'))
+        self.assertEqual(api_row['shortage'], Decimal('16'))
+        item_row = next(
+            row for row in response.data['items']
+            if row['component'] == self.ram.pk
+        )
+        self.assertEqual(item_row['available'], 0)
+        self.assertEqual(item_row['overbooked'], Decimal('6'))
+
     def test_build_mode_unchanged(self):
         """Build rejimida xulq eskicha: har bir qator × partiya."""
         self._stock_in(self.ram, 4)

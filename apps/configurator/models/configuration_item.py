@@ -45,18 +45,35 @@ class ConfigurationItem(TimeStampedModel):
         return self.quantity * self.unit_price
 
     @property
-    def available(self):
-        """Rejadan keyin qolgan qoldiq (§11.4): Jami − Band − boshqalar rejasi.
-
-        Engineer xavfsiz raqamni ko'radi — boshqa shartnoma va konfiguratsiyalarga
-        va'da qilingan mol "bor" bo'lib ko'rinmaydi; o'z rejasi hisobga olinmaydi.
-        """
+    def _planned_left(self):
+        """Rejadan keyingi XOM qoldiq — manfiy bo'lishi mumkin (ichki hisob)."""
         from apps.inventory.services import plannable_quantity
 
         return plannable_quantity(
             self.component, self.configuration.warehouse,
             for_configuration=self.configuration,
         )
+
+    @property
+    def available(self):
+        """Rejadan keyin qolgan qoldiq (§11.4): Jami − Band − boshqalar rejasi.
+
+        Engineer xavfsiz raqamni ko'radi — boshqa shartnoma va konfiguratsiyalarga
+        va'da qilingan mol "bor" bo'lib ko'rinmaydi; o'z rejasi hisobga olinmaydi.
+        3-to'plam §3: 0 dan past tushmaydi — ekranda "omborda -6" o'rniga
+        "omborda 0" + alohida `overbooked` chiqadi.
+        """
+        return max(self._planned_left, 0)
+
+    @property
+    def overbooked(self):
+        """Boshqa hujjatlarga zaxiradan ORTIQCHA va'da qilingani (3-to'plam §3).
+
+        Bron turgan mol keyin chiqim bo'lib ketsa reja qoldig'i manfiyga
+        tushadi — front "omborda 0, ustiga N dona ortiqcha va'da qilingan"
+        deb aniq yozadi. `shortage` bu teshikni ham yopib buyurtma qiladi.
+        """
+        return max(-self._planned_left, 0)
 
     @property
     def stock_total(self):
@@ -72,7 +89,8 @@ class ConfigurationItem(TimeStampedModel):
 
     @property
     def shortage(self):
-        return max(self.total_needed - self.available, 0)
+        # Xom qoldiqdan: manfiy bo'lsa buyurtma teshikni ham yopadi (§3)
+        return max(self.total_needed - self._planned_left, 0)
 
     @property
     def source(self):

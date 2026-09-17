@@ -196,7 +196,11 @@ Yechib olingan qism omborga qaytadi, bugalterga ACT bilan xabar boradi.
 ### `ConfigurationItem`
 `configuration` (CASCADE, `items`), `component` (FK Product, PROTECT), `label`, `quantity`, `unit_price`.
 `unit_price` bo'sh saqlansa — ombordagi narx avtomatik qo'yiladi.
-Property: `subtotal`, `stock_price`, `needs_price`, `available`, `shortage`, `source` (`stock` / `purchase`).
+Property: `subtotal`, `stock_price`, `needs_price`, `available` (rejadan
+keyingi xavfsiz qoldiq — **0 dan past tushmaydi**, 3-to'plam §3),
+`overbooked` (boshqa hujjatlarga zaxiradan ortiqcha va'da qilingani),
+`shortage` (xom qoldiqdan — teshikni ham yopadi, `needed` dan ko'p
+chiqishi mumkin), `source` (`stock` / `purchase`).
 
 ### `ConfigurationRequest` — Sales → Engineer zayavkasi
 | Maydon | Tur |

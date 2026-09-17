@@ -291,9 +291,9 @@ GET /api/configurations/12/
   "...": "...",
   "missing": [
     {"product": 12, "name": "Dell OptiPlex 7010 MT", "kind": "machine",
-     "needed": 10, "available": 2, "shortage": 8},
+     "needed": 10, "available": 2, "overbooked": 0, "shortage": 8},
     {"product": 27, "name": "Corsair DDR5 32 GB", "kind": "component",
-     "needed": 20, "available": 0, "shortage": 20}
+     "needed": 20, "available": 0, "overbooked": 6, "shortage": 26}
   ],
   "missing_count": 2
 }
@@ -303,6 +303,11 @@ emas — **"Buyurtmachiga yuborish · {missing.length}"** ("Yig'ish" umuman
 ko'rsatilmaydi: u baribir 400 beradi). `missing_count` — shu ro'yxat uzunligi.
 `shortage` teshikni ham yopadi: boshqa hujjatlarga ortiqcha va'da qilingan
 bo'lsa `needed` dan ko'p chiqishi mumkin.
+
+**`available` manfiy chiqmaydi** (3-to'plam §3) — ham `missing` da, ham
+tarkib qatorlarida (`items[].available`): manfiy o'rniga `0` va alohida
+`overbooked` maydoni keladi. Front "omborda 0, ustiga 6 dona ortiqcha
+va'da qilingan" deb aniq yozadi ("omborda -6" o'rniga).
 
 **Yaratish** (`items` ixtiyoriy — yuborilmasa zavod tarkibi avtomatik yuklanadi):
 ```json

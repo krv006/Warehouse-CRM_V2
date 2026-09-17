@@ -1069,6 +1069,21 @@ BITTA TLD da ketadi (`open_replenishment` — bitta ochiq hisob qoidasi).
 
 ---
 
+## 8.34 `available` manfiy chiqmaydi — o'rniga `overbooked` 🧮
+
+3-to'plam §3. Boshqa hujjat bron qilgan mol keyin chiqim bo'lib ketsa
+reja qoldig'i manfiyga tushar va ekranda "omborda -6" degan tushunarsiz
+raqam chiqardi. Endi (`ConfigurationItem.available` ham, `missing`
+ro'yxati ham):
+
+- `available` — 0 dan past tushmaydi;
+- `overbooked` — boshqa hujjatlarga zaxiradan ortiqcha va'da qilingani
+  (yangi maydon, tarkib qatorlarida ham, `missing` da ham);
+- `shortage` xom qoldiqdan hisoblanadi — teshikni ham yopadi: 10 tasi
+  o'ziga + 6 tasi teshikka = 16 (buyurtma to'g'ri, ko'rinishi endi aniq).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

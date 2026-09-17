@@ -63,6 +63,7 @@ class ConfigurationItemSerializer(ModelSerializer):
     component_name = ReadOnlyField(source='component.name')
     subtotal = ReadOnlyField()
     available = ReadOnlyField()
+    overbooked = ReadOnlyField()
     stock_total = ReadOnlyField()
     shortage = ReadOnlyField()
     source = ReadOnlyField()
@@ -75,7 +76,7 @@ class ConfigurationItemSerializer(ModelSerializer):
             'id', 'configuration', 'component', 'new_component_name',
             'new_component_sku', 'component_name', 'label', 'quantity',
             'unit_price', 'stock_price', 'needs_price', 'subtotal',
-            'available', 'stock_total', 'shortage', 'source',
+            'available', 'overbooked', 'stock_total', 'shortage', 'source',
         ]
 
     def validate(self, attrs):
@@ -177,6 +178,7 @@ class ConfigurationSerializer(ModelSerializer):
                 'kind': row['product'].kind,
                 'needed': row['needed'],
                 'available': row['available'],
+                'overbooked': row['overbooked'],
                 'shortage': row['shortage'],
             }
             for row in obj.missing_items

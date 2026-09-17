@@ -690,6 +690,11 @@ Diqqat: tarkib jadvalidagi qator darajasidagi "Omborda"/"Yetishmaydi"
 ustunlari `modify` da yetishmovchilik manbai EMAS — u yerda mashina
 ichidagi qismlar ham turadi. Yetishmovchilik faqat `missing` dan o'qilsin.
 
+`available` endi manfiy kelmaydi (§3): manfiy o'rniga `0` + alohida
+`overbooked` maydoni (tarkib qatorlarida ham, `missing` da ham).
+`overbooked > 0` bo'lsa "omborda 0, ustiga N dona ortiqcha va'da
+qilingan" deb yozing — `shortage` bu teshikni ham yopib buyurtma qiladi.
+
 ---
 
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)

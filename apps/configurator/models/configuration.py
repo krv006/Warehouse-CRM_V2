@@ -174,9 +174,10 @@ class Configuration(StatusTrackedModel):
 
         `required_from_stock` dan quriladi (3-to'plam §1): modify'da bazaviy
         model ham shu ro'yxatga tushadi, o'zgarmagan qismlar esa tushmaydi.
-        Har bir yozuv: {'product', 'needed', 'available', 'shortage'} —
-        shortage teshikni ham yopadi (boshqalarga ortiqcha va'da qilingan
-        bo'lsa, needed dan ko'p chiqishi mumkin).
+        Har bir yozuv: {'product', 'needed', 'available', 'overbooked',
+        'shortage'} — `available` 0 dan past tushmaydi (§3), `overbooked`
+        boshqalarga ortiqcha va'da qilinganini ko'rsatadi, `shortage` esa
+        shu teshikni ham yopadi (needed dan ko'p chiqishi mumkin).
         """
         from apps.inventory.services import plannable_quantity
 
@@ -191,6 +192,7 @@ class Configuration(StatusTrackedModel):
                     'product': product,
                     'needed': needed,
                     'available': max(room, 0),
+                    'overbooked': max(-room, 0),
                     'shortage': shortage,
                 })
         return rows
