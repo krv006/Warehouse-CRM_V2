@@ -219,7 +219,7 @@ butlovchilar va ularning miqdori. Shu sababli:
 | Rejim | Nima bo'ladi |
 |---|---|
 | `build` | Butlovchilardan yangi mahsulot rejalashtiriladi; yetishmagani kirim orqali to'ldiriladi. Yakunlashda ombor harakati bo'lmaydi |
-| `modify` | **Ombordagi butun tayyor mahsulot olinadi** va ichi o'zgartiriladi: qo'shilgan qism ombordan chiqadi, **yechib olingani omborga qaytadi** (narxi bilan, narxni o'zgartirish mumkin), o'zgartirilgan mahsulot tayyor pozitsiya sifatida omborga kiradi. Yechib olinganlar haqida **bugalterga ACT bilan xabar** boradi |
+| `modify` | **Ombordagi butun tayyor mahsulot olinadi** va ichi o'zgartiriladi: qo'shilgan qism ombordan chiqadi, **yechib olingani omborga qaytadi** (narxi bilan, narxni o'zgartirish mumkin), o'zgartirilgan mahsulot tayyor pozitsiya sifatida omborga kiradi. Yechib olinganlar haqida **bugalterga ACT bilan xabar** boradi. **Tayyor model — yaxlit birlik** (3-to'plam §1): ombor bilan aloqa faqat modelning O'ZI × partiya va **qo'shilgan** qatorlar × partiya bo'yicha (`required_from_stock`) — bron, yetishmovchilik va TLD shu ta'rifdan o'qiydi; o'zgarmagan qismlar mashina ichida keladi: band qilinmaydi, yetishmovchilikka tushmaydi; yetishmagan **bazaviy model ham TLD ga tushadi** |
 
 Configurator **barcha rollarga** ochiq (TZ 6.5).
 

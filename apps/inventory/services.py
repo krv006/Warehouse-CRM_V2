@@ -211,10 +211,12 @@ def sync_contract_reservations(contract):
 
 
 def sync_configuration_reservations(configuration):
-    """Konfiguratsiyaning yumshoq bronini qatorlariga moslab qayta quradi.
+    """Konfiguratsiyaning yumshoq bronini `required_from_stock` ga moslab quradi.
 
-    Chernovik butlovchilarni "Rejada" deb belgilaydi — bu hech kimni
-    to'smaydi, faqat boshqa engineer va salesga xavfni ko'rsatadi.
+    Chernovik ombordan olinadigan narsani "Rejada" deb belgilaydi — bu hech
+    kimni to'smaydi, faqat boshqa engineer va salesga xavfni ko'rsatadi.
+    3-to'plam §1: modify'da bazaviy modelning O'ZI va faqat qo'shilgan
+    qatorlar band qilinadi — mashina ichidagi o'zgarmagan qismlar emas.
     """
     from apps.configurator.models import Configuration
     from apps.inventory.models import StockReservation
@@ -234,14 +236,7 @@ def sync_configuration_reservations(configuration):
     StockReservation.objects.filter(
         configuration=configuration, status=StockReservation.Status.ACTIVE,
     ).delete()
-    needs = {}
-    # #3: butun partiya rejalanadi — qator miqdori × konfiguratsiya miqdori
-    for item in configuration.items.select_related('component'):
-        needs[item.component] = (
-            needs.get(item.component, 0)
-            + item.quantity * configuration.quantity
-        )
-    for product, quantity in needs.items():
+    for product, quantity in configuration.required_from_stock:
         room = plannable_quantity(product, warehouse)
         take = min(quantity, max(room, 0))
         if take > 0:

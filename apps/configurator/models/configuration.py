@@ -144,9 +144,56 @@ class Configuration(StatusTrackedModel):
         return {'added': added, 'removed': removed}
 
     @property
+    def required_from_stock(self):
+        """[(product, miqdor)] — shu konfiguratsiya OMBORDAN nimani oladi.
+
+        Yagona ta'rif (3-to'plam §1) — bron, yetishmovchilik va TLD shu
+        yerdan o'qiydi:
+          build : har bir qator × partiya (mahsulot butlovchilardan yig'iladi);
+          modify: bazaviy modelning O'ZI × partiya + FAQAT qo'shilgan qatorlar
+                  × partiya. O'zgarmagan qismlar tayyor mashinaning ichida
+                  keladi — ombor bilan aloqasi yo'q: band ham qilinmaydi,
+                  yetishmovchilikka ham tushmaydi.
+        """
+        batch = self.quantity
+        needs = {}
+        if self.mode == self.Mode.MODIFY:
+            needs[self.base_product] = batch
+            for change in self.changes['added']:
+                component = change['component']
+                needs[component] = needs.get(component, 0) + change['quantity'] * batch
+        else:
+            for item in self.items.select_related('component'):
+                component = item.component
+                needs[component] = needs.get(component, 0) + item.quantity * batch
+        return list(needs.items())
+
+    @property
     def missing_items(self):
-        """Omborda yetishmayotgan, ya'ni kirim qilinishi kerak bo'lgan qatorlar."""
-        return [item for item in self.items.all() if item.shortage > 0]
+        """Ombordan olinishi kerak-u, yetishmayotgan pozitsiyalar.
+
+        `required_from_stock` dan quriladi (3-to'plam §1): modify'da bazaviy
+        model ham shu ro'yxatga tushadi, o'zgarmagan qismlar esa tushmaydi.
+        Har bir yozuv: {'product', 'needed', 'available', 'shortage'} —
+        shortage teshikni ham yopadi (boshqalarga ortiqcha va'da qilingan
+        bo'lsa, needed dan ko'p chiqishi mumkin).
+        """
+        from apps.inventory.services import plannable_quantity
+
+        rows = []
+        for product, needed in self.required_from_stock:
+            room = plannable_quantity(
+                product, self.warehouse, for_configuration=self,
+            )
+            shortage = max(needed - room, 0)
+            if shortage > 0:
+                rows.append({
+                    'product': product,
+                    'needed': needed,
+                    'available': max(room, 0),
+                    'shortage': shortage,
+                })
+        return rows
 
     @property
     def last_replenishment(self):

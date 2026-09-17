@@ -386,27 +386,25 @@ def finalize_modification(configuration, user, removal_overrides=None):
     base = configuration.base_product
     batch = configuration.quantity  # #3: butun partiya birdek o'zgartiriladi
 
-    if available_quantity(base, warehouse) < batch:
-        raise ValidationError({
-            'detail': (
-                f"'{warehouse.name}' omborida tayyor {base.name} yetarli emas — "
-                f"o'zgartirish uchun {batch} dona kerak. Qoldiq boshqa omborda "
-                "bo'lsa, konfiguratsiyada o'sha omborni tanlang."
-            ),
-        })
-
-    changes = configuration.changes
+    # 3-to'plam §1: qo'riqchi yagona ta'rifdan o'qiydi — model × partiya va
+    # qo'shilgan qatorlar × partiya. O'zgarmagan qismlar tekshirilmaydi:
+    # ular tayyor mashinaning ichida keladi, omborga aloqasi yo'q.
     shortages = [
-        f"{row['component'].name} (kerak: {row['quantity'] * batch}, "
-        f"omborda: {available_quantity(row['component'], warehouse)})"
-        for row in changes['added']
-        if available_quantity(row['component'], warehouse) < row['quantity'] * batch
+        f'{product.name} (kerak: {needed}, '
+        f'omborda: {available_quantity(product, warehouse)})'
+        for product, needed in configuration.required_from_stock
+        if available_quantity(product, warehouse) < needed
     ]
     if shortages:
         raise ValidationError({
-            'detail': "Qo'shiladigan butlovchilar omborda yetarli emas.",
+            'detail': (
+                "O'zgartirish uchun omborda yetarli emas — avval "
+                'yetishmaganini buyurtmachidan kirim qiling.'
+            ),
             'items': shortages,
         })
+
+    changes = configuration.changes
 
     overrides = {int(k): Decimal(str(v)) for k, v in (removal_overrides or {}).items()}
 
@@ -592,13 +590,12 @@ def send_missing_to_procurement(configuration, user):
             'replenishment': existing.pk,
         })
 
-    missing = [
-        item for item in configuration.items.select_related('component')
-        if item.shortage > 0
-    ]
+    # 3-to'plam §1: ro'yxat `required_from_stock` dan — modify'da yetishmagan
+    # BAZAVIY MODEL ham TLD ga tushadi, o'zgarmagan qismlar esa tushmaydi
+    missing = configuration.missing_items
     if not missing:
         raise ValidationError({
-            'detail': "Barcha butlovchilar omborda yetarli — buyurtmachiga yuborish shart emas.",
+            'detail': "Hammasi omborda yetarli — buyurtmachiga yuborish shart emas.",
         })
 
     # §4.3 (SIDEBAR-VA-EGALIK): zayavka egasi (sales) bir marta topilib hisobga
@@ -619,19 +616,19 @@ def send_missing_to_procurement(configuration, user):
             note=f"{configuration.number} uchun yetishmayotgan butlovchilar",
             created_by=user,
         )
-        for item in missing:
+        for row in missing:
             ReplenishmentItem.objects.create(
                 replenishment=replenishment,
-                product=item.component,
-                quantity=item.shortage,
-                unit_price=item.component.cost_price or 0,
+                product=row['product'],
+                quantity=row['shortage'],
+                unit_price=row['product'].cost_price or 0,
                 note=f'{configuration.number} konfiguratsiyasi uchun',
             )
 
     # Hovuz: buyurtmachi (ish unga keldi) va bugalter (oldindan biladi).
     # Sales — hovuz EMAS (§4.2): faqat zayavka egasi; egasi aniqlanmasa
     # (ZVK'siz konfiguratsiya) barcha sales'ga tushadi — xabar yo'qolmasin.
-    names = ', '.join(item.component.name for item in missing)
+    names = ', '.join(row['product'].name for row in missing)
     messages = {
         User.Role.SUPPLIER: 'kirim qilish kerak — buyurtmani rasmiylashtirib yuboring.',
         User.Role.BUGALTER: "tekshirib chiqing — buyurtmachi yuborgach tasdiq sizdan boshlanadi.",

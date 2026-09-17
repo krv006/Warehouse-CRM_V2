@@ -1023,6 +1023,36 @@ Server yangilangach toza yuklash: `python manage.py seed_demo --reset`.
 
 ---
 
+## 8.32 `modify`: tayyor model — yaxlit birlik (`required_from_stock`) 🧩
+
+3-to'plam §1. "Bu konfiguratsiya ombordan nimani oladi?" degan savolga
+to'rt joy to'rt xil javob berardi: yig'ish (`finalize_modification`)
+to'g'ri (model + qo'shilganlar), bron sinxroni esa BARCHA qatorlarni
+band qilardi (mashina ichidagi qismlarni ham), modelning o'zini esa
+band qilmasdi; yetishmovchilik va TLD ham qatorlardan hisoblanardi.
+Natija: yo'q narsa band, kerakli narsa ochiq, 10 ta tayyor model esa
+istalgan paytda sotilib ketishi mumkin edi — yig'ish 400 berardi.
+
+- `Configuration.required_from_stock` — yagona ta'rif: build — har bir
+  qator × partiya; **modify — bazaviy modelning O'ZI × partiya + faqat
+  qo'shilgan qatorlar × partiya**. O'zgarmagan qismlar ombor bilan
+  umuman ishlamaydi;
+- `sync_configuration_reservations` shu ro'yxatdan quradi — endi
+  **modelning o'zi band qilinadi**, ichidagi qismlar band qilinmaydi;
+- `missing_items` shu ro'yxatdan: `{product, needed, available,
+  shortage}` — yetishmagan **bazaviy model ham ro'yxatda**;
+- `request-procurement` TLD ga endi bazaviy model qatori ham tushadi
+  (`ReplenishmentItem` mashinani allaqachon qabul qilardi) — TLD kirim
+  qilingach yig'ish o'tadi (avval model kelmagani uchun o'tmasdi);
+- `finalize_modification` qo'riqchisi ham shu ta'rifdan o'qiydi
+  (mantiq o'sha: model va qo'shilganlar tekshiriladi, xabar `items`
+  ro'yxati bilan);
+- build rejimida xulq o'zgarmagan.
+
+Testlar: `apps/configurator/tests/test_required_from_stock.py` (7).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

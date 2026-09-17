@@ -180,7 +180,13 @@ Unique: (`product`, `component`).
 | `note`, `created_by` | |
 
 Property: `items_total`, `total_price`, `signature`, `matching_variant`,
-`changes` (zavod tarkibiga nisbatan qo'shilgan/yechilganlar), `missing_items`, `items_without_price`.
+`changes` (zavod tarkibiga nisbatan qo'shilgan/yechilganlar),
+`required_from_stock` — **ombordan nimani oladi** degan savolning yagona javobi
+(3-to'plam §1: build — har bir qator × partiya; modify — bazaviy modelning
+o'zi × partiya + faqat qo'shilganlar × partiya), `missing_items` — shu
+ro'yxatdan yetishmayotganlari (`{product, needed, available, shortage}`;
+bron sinxroni, TLD va yig'ish qo'riqchisi ham shundan o'qiydi),
+`items_without_price`.
 
 ### `ConfigurationRemoval` — yechib olingan butlovchi (modify rejimi)
 `configuration` (CASCADE, `removals`), `component` (PROTECT), `quantity`,
