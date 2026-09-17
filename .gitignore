@@ -278,3 +278,6 @@ schema.yml
 *.bak
 *.bak-*
 db.sqlite3.bak
+
+*.sqlite3
+!data/db.sqlite3
