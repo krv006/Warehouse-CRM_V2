@@ -1130,6 +1130,29 @@ Testlar: `apps/configurator/tests/test_change_quantity.py` (6).
 
 ---
 
+## 8.37 Eski bronlarni tozalash — `resync_reservations` 🧹
+
+4-to'plam §1. 3-to'plam §1 kelajak uchun to'g'ri ishlaydi, lekin undan
+OLDIN yozilgan bronlar eski qoida bilan qolgan edi (jonli bazada 125
+dona "mashina ichidagi" butlovchi behuda qulflangan, modellar esa
+ochiq). O'zi tuzalmaydi: saqlash faqat chernovikda o'tadi, TLD kirimi
+hisobi bor hujjatnigina tuzatadi, finalize esa zanjir oxiri.
+
+- `python manage.py resync_reservations` — har bir konfiguratsiya
+  uchun `sync_configuration_reservations`: ochiq holatlar
+  (`draft`/`pending_sales`/`approved`) `required_from_stock` bo'yicha
+  qayta band qilinadi, terminal holatlar (`ready`/`sold`/`cancelled`)
+  bo'shatiladi; hisobot chiqaradi;
+- Makefile: `make resync` (lokal) / `make docker-resync` (server);
+- migratsiya emas, komanda: bron ta'rifi yana o'zgarsa qo'lda bir
+  marta yurgizib qo'yiladi.
+
+**Serverda deploydan keyin bir marta:** `make docker-resync`.
+
+Testlar: `apps/core/tests/test_resync_reservations.py` (2).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

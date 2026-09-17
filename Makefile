@@ -80,6 +80,10 @@ stock: ## Kam qolgan mahsulotlarga demo kirim (har biriga kamida 10 dona)
 deadlines: ## Muddat eslatmalarini tekshiradi
 	$(MANAGE) check_deadlines
 
+.PHONY: resync
+resync: ## Konfiguratsiya bronlarini yagona ta'rifdan qayta quradi
+	$(MANAGE) resync_reservations
+
 .PHONY: static
 static: ## Static fayllarni yig'adi
 	$(MANAGE) collectstatic --noinput
@@ -176,6 +180,10 @@ docker-stock: ## Serverda kam qolgan mahsulotlarga demo kirim yozadi
 .PHONY: docker-deadlines
 docker-deadlines: ## Konteyner ichida muddat eslatmalari
 	$(COMPOSE) exec web python manage.py check_deadlines
+
+.PHONY: docker-resync
+docker-resync: ## Serverda konfiguratsiya bronlarini qayta quradi
+	$(COMPOSE) exec web python manage.py resync_reservations
 
 .PHONY: docker-dbcheck
 docker-dbcheck: ## Konteyner qaysi bazani ishlatayotganini ko'rsatadi
