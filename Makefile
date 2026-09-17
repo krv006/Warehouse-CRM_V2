@@ -68,6 +68,10 @@ demo: ## To'liq demo: userlar, mijozlar, ombor, shartnomalar, kirim, kassa
 demo-reset: ## Bazani tozalab, demo'ni qaytadan yuklaydi (userlar qoladi)
 	$(MANAGE) seed_demo --reset
 
+.PHONY: wipe
+wipe: ## Bazani tozalaydi — demo'siz (userlar, rekvizitlar, yacheykalar qoladi)
+	$(MANAGE) wipe_data --yes
+
 .PHONY: stock
 stock: ## Kam qolgan mahsulotlarga demo kirim (har biriga kamida 10 dona)
 	$(MANAGE) seed_stock
@@ -160,6 +164,10 @@ docker-demo: ## Serverda to'liq demo ma'lumotlar
 .PHONY: docker-demo-reset
 docker-demo-reset: ## Serverda bazani tozalab demo'ni qaytadan yuklaydi
 	$(COMPOSE) exec web python manage.py seed_demo --reset
+
+.PHONY: docker-wipe
+docker-wipe: ## Serverda bazani tozalaydi — demo'siz (userlar qoladi)
+	$(COMPOSE) exec web python manage.py wipe_data --yes
 
 .PHONY: docker-stock
 docker-stock: ## Serverda kam qolgan mahsulotlarga demo kirim yozadi

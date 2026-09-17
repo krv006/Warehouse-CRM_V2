@@ -66,62 +66,8 @@ class Command(BaseCommand):
 
     # ------------------------------------------------------------------ yordam
     def _wipe(self):
-        """Barcha biznes ma'lumotni o'chiradi. Foydalanuvchi akkauntlari qoladi.
-
-        O'chirish tartibi PROTECT bog'lanishlarga mos: avval bolalar, keyin otalar.
-        """
-        from apps.clients.models import Client
-        from apps.configurator.models import (
-            Act,
-            Configuration,
-            ConfigurationApproval,
-            ConfigurationItem,
-            ConfigurationRemoval,
-            ConfigurationRequest,
-        )
-        from apps.core.models import ActivityLog, Notification
-        from apps.finance.models import CashTransaction, ExpenseRequest, Loan
-        from apps.inventory.models import (
-            Product,
-            ProductSpec,
-            Stock,
-            StockMovement,
-            StockReservation,
-            Warehouse,
-        )
-        from apps.procurement.models import (
-            Replenishment,
-            ReplenishmentApproval,
-            ReplenishmentEvent,
-            ReplenishmentItem,
-        )
-        from apps.purchases.models import Purchase, PurchaseDocument, PurchaseItem
-        from apps.sales.models import (
-            Contract,
-            ContractApproval,
-            ContractItem,
-            ContractPayment,
-            Lead,
-        )
-
-        ordered = [
-            Notification, ActivityLog,
-            StockReservation,
-            CashTransaction, ExpenseRequest,
-            ReplenishmentEvent, ReplenishmentApproval, ReplenishmentItem, Replenishment,
-            Loan,
-            PurchaseDocument, PurchaseItem,
-            ContractPayment, ContractApproval, ContractItem,
-            Lead,
-            ConfigurationRequest, ConfigurationApproval, ConfigurationRemoval,
-            ConfigurationItem, Configuration,
-            Contract, Purchase,
-            Act,
-            StockMovement, Stock, ProductSpec, Product,
-            Warehouse, Client,
-        ]
-        for model in ordered:
-            model.objects.all().delete()
+        """Barcha biznes ma'lumotni o'chiradi — mantiq bitta joyda (wipe_data)."""
+        call_command('wipe_data', '--yes', stdout=StringIO())
         self.stdout.write(self.style.WARNING(
             "Baza tozalandi (foydalanuvchi akkauntlari saqlab qolindi)."
         ))
