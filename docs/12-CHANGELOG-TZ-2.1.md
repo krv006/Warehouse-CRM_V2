@@ -1153,6 +1153,31 @@ Testlar: `apps/core/tests/test_resync_reservations.py` (2).
 
 ---
 
+## 8.38 Eslatmalar endi tozalanadi 🔔
+
+4-to'plam §4. Jonli bazada hech kimning eslatmasi hech qachon
+yopilmagan (sales1: 28/28 o'qilmagan) — qo'ng'iroqchadagi son "sizga
+N marta xabar berilgan" degan ma'nosiz raqam edi. Ikkita mustaqil qism:
+
+- **A.** `POST /notifications/mark-all-read/` — o'zining barcha
+  o'qilmaganlarini bittada yopadi (`{"updated": N}`); queryset o'z
+  eslatmalari bilan cheklangan, bitta UPDATE;
+- **B.** ish bitganda eslatma o'zi yopiladi:
+  `resolve_notifications(entity, object_id, user=...)` har bir o'tish
+  amalida chaqiriladi — `contract.approve/reject/confirm-payment/ship`,
+  `configuration.approve/reject/assemble/finalize`,
+  `replenishment.approve/pay/receive`. Faqat **ishni bajargan odamning**
+  eslatmasi yopiladi — o'sha hujjat haqida boshqalarga ketgani turadi;
+- bonus: `/notifications/` da `object_id` filtri — "shu hujjat bo'yicha
+  xabarlar" ko'rinishini chizish mumkin.
+
+Front hujjat ochilganda o'zi yopa olmasdi: hujjatni ochish ishni
+bajarish degani emas, filtrda `object_id` ham yo'q edi.
+
+Testlar: `apps/core/tests/test_notifications_cleanup.py` (5).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -1181,7 +1206,7 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **105** |
+| REST endpoint | 70 | **106** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **33** |
 | Testlar | 66 | **365** |

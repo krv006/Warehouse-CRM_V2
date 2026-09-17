@@ -239,6 +239,10 @@ def approve(replenishment, user, comment=''):
         raise ValidationError('Hisob tasdiqlash bosqichida emas.')
 
     replenishment.save()
+    # 4-to'plam §4: bosqich egasi qaror qildi — uning eslatmasi yopiladi
+    from apps.core.services import resolve_notifications
+
+    resolve_notifications('Replenishment', replenishment.pk, user=user)
     ReplenishmentApproval.objects.create(
         replenishment=replenishment,
         step=step,
@@ -439,6 +443,11 @@ def pay(replenishment, user, *, debt_amount=None):
     replenishment.status = Replenishment.Status.ORDERED
     replenishment.save()
 
+    # 4-to'plam §4: "to'lovni amalga oshiring" vazifasi bajarildi
+    from apps.core.services import resolve_notifications
+
+    resolve_notifications('Replenishment', replenishment.pk, user=user)
+
     ReplenishmentEvent.objects.create(
         replenishment=replenishment,
         stage=ReplenishmentEvent.Stage.ORDERED,
@@ -634,6 +643,10 @@ def receive(replenishment, user):
         replenishment.debt.save()
 
     replenishment.save()
+    # 4-to'plam §4: "kirim qiling" vazifasi bajarildi — qilgan odamniki yopiladi
+    from apps.core.services import resolve_notifications
+
+    resolve_notifications('Replenishment', replenishment.pk, user=user)
     ReplenishmentEvent.objects.create(
         replenishment=replenishment,
         stage=ReplenishmentEvent.Stage.ARRIVED,

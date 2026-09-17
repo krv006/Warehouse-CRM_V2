@@ -212,6 +212,10 @@ def approve_contract(contract, user, comment='', didox_number=''):
         raise ValidationError('Shartnoma tasdiqlash bosqichida emas.')
 
     contract.save()
+    # 4-to'plam §4: qaror qabul qilindi — bajargan odamning eslatmasi yopiladi
+    from apps.core.services import resolve_notifications
+
+    resolve_notifications('Contract', contract.pk, user=user)
     ContractApproval.objects.create(
         contract=contract,
         step=step,
@@ -294,6 +298,10 @@ def reject_contract(contract, user, comment=''):
 
     contract.status = Contract.Status.REJECTED
     contract.save()
+    # 4-to'plam §4: qaror qabul qilindi — bajargan odamning eslatmasi yopiladi
+    from apps.core.services import resolve_notifications
+
+    resolve_notifications('Contract', contract.pk, user=user)
     ContractApproval.objects.create(
         contract=contract,
         step=step,
@@ -442,6 +450,10 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
     if contract.balance <= 0 and contract.delivered_at:
         contract.status = Contract.Status.COMPLETED
     contract.save()
+    # 4-to'plam §4: "to'lovni qabul qiling" vazifasi bajarildi
+    from apps.core.services import resolve_notifications
+
+    resolve_notifications('Contract', contract.pk, user=user)
     return payment
 
 
@@ -475,6 +487,11 @@ def ship_contract(contract, user):
     if contract.balance <= 0:
         contract.status = Contract.Status.COMPLETED
     contract.save()
+
+    # 4-to'plam §4: "yetkazing" vazifasi bajarildi — yetkazgan odamniki yopiladi
+    from apps.core.services import resolve_notifications
+
+    resolve_notifications('Contract', contract.pk, user=user)
 
     if contract.created_by:
         Notification.objects.create(

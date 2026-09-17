@@ -715,6 +715,20 @@ Yangi endpoint: `POST /configurations/{id}/change-quantity/` —
 
 ---
 
+## 25. "Hammasini o'qildi qilish" (4-to'plam §4) 🟠
+
+- `POST /notifications/mark-all-read/` — javob `{"updated": N}`;
+  tugmani eslatmalar sahifasida va qo'ng'iroqcha ostidagi ro'yxatda
+  ko'rsating (faqat o'qilmagani bo'lsa);
+- Ish bitganda eslatma endi backendda o'zi yopiladi (tasdiq/to'lov/
+  yetkazish/yig'ish amallarida) — qo'ng'iroqchadagi son haqiqiy
+  ma'noga ega bo'ldi, qo'shimcha front ishi yo'q;
+- `/notifications/?entity=Contract&object_id=36` — endi ishlaydi:
+  hujjat sahifasida "shu hujjat bo'yicha xabarlar" bo'limini chizish
+  mumkin (ixtiyoriy).
+
+---
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

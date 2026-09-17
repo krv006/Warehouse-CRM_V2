@@ -827,7 +827,8 @@ Javobda shu maydonlar + `updated_at`. Sales/bugalter yozsa — `403`.
 | Metod | Manzil | Kim |
 |---|---|---|
 | GET | `/activity-logs/` | faqat admin |
-| GET | `/notifications/` | o'ziniki + umumiy |
+| GET | `/notifications/` | faqat o'ziniki; filtr: `is_read`, `level`, `entity`, `object_id` (§4: "shu hujjat bo'yicha xabarlar") |
 | POST | `/notifications/{id}/mark-read/` | egasi |
+| POST | `/notifications/mark-all-read/` | 4-to'plam §4: o'zining BARCHA o'qilmaganlarini bittada yopadi — javob `{"updated": N}`; bitta UPDATE, birovnikiga tegmaydi |
 
 Audit filtri: `?user=3&action=approve&entity=Contract`.

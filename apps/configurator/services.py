@@ -172,6 +172,10 @@ def approve_configuration(configuration, user, comment=''):
     )
     configuration.status = Configuration.Status.APPROVED
     configuration.save()
+    # 4-to'plam §4: "ko'rib chiqing" vazifasi bajarildi — salesniki yopiladi
+    from apps.core.services import resolve_notifications
+
+    resolve_notifications('Configuration', configuration.pk, user=user)
     # Zayavka holati ergashadi: texnik yechim qabul qilindi
     configuration.requests.filter(
         status=ConfigurationRequest.Status.IN_PROGRESS,
@@ -202,6 +206,10 @@ def reject_configuration(configuration, user, comment=''):
     )
     configuration.status = Configuration.Status.DRAFT
     configuration.save()
+    # 4-to'plam §4: qaror qabul qilindi — salesning eslatmasi yopiladi
+    from apps.core.services import resolve_notifications
+
+    resolve_notifications('Configuration', configuration.pk, user=user)
 
     if configuration.created_by:
         Notification.objects.create(
@@ -388,6 +396,10 @@ def assemble_configuration(configuration, user, *, removals=None, strict=True):
 
     if assembled:
         configuration.assembled_at = now()
+        # 4-to'plam §4: "yig'ing" vazifasi bajarildi — engineerniki yopiladi
+        from apps.core.services import resolve_notifications
+
+        resolve_notifications('Configuration', configuration.pk, user=user)
     configuration.save()
     return assembled, missing
 

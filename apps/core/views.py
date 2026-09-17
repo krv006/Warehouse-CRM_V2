@@ -185,7 +185,8 @@ class NotificationViewSet(ReadOnlyModelViewSet):
     """Foydalanuvchining eslatmalari."""
 
     serializer_class = NotificationSerializer
-    filterset_fields = ['is_read', 'level', 'entity']
+    # 4-to'plam §4: object_id — "shu hujjat bo'yicha xabarlar" ko'rinishi uchun
+    filterset_fields = ['is_read', 'level', 'entity', 'object_id']
 
     def get_queryset(self):
         # §4.4: faqat o'ziniki — user=None "e'lon taxtasi" endi mavjud emas
@@ -199,3 +200,12 @@ class NotificationViewSet(ReadOnlyModelViewSet):
         notification.is_read = True
         notification.save()
         return Response(self.get_serializer(notification).data)
+
+    def mark_all_read(self, request):
+        """POST /notifications/mark-all-read/ — hammasini bittada (4-to'plam §4).
+
+        Queryset o'z eslatmalari bilan cheklangan — birovnikiga tegilmaydi;
+        bitta UPDATE, sikl yo'q.
+        """
+        updated = self.get_queryset().filter(is_read=False).update(is_read=True)
+        return Response({'updated': updated})

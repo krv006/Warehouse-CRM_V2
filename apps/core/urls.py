@@ -33,4 +33,8 @@ urlpatterns = [
     path('notifications/<int:pk>/mark-read/', NotificationViewSet.as_view({
         'post': 'mark_read',
     }), name='notification-mark-read'),
+    # 4-to'plam §4: hammasini bittada o'qildi qilish
+    path('notifications/mark-all-read/', NotificationViewSet.as_view({
+        'post': 'mark_all_read',
+    }), name='notification-mark-all-read'),
 ]

@@ -307,6 +307,11 @@ class ConfigurationViewSet(BaseModelViewSet):
             configuration.status = Configuration.Status.READY
             configuration.save()
 
+            # 4-to'plam §4: "yakunlang" vazifasi bajarildi — engineerniki yopiladi
+            from apps.core.services import resolve_notifications
+
+            resolve_notifications('Configuration', configuration.pk, user=request.user)
+
             # §11.4: yumshoq bron bo'shaydi; shartnoma ochilsa uning qattiq
             # broni o'z o'rnini egallaydi (bitta bron ko'chadi)
             from apps.inventory.services import sync_configuration_reservations

@@ -29,6 +29,25 @@ SLA_SECTIONS = {
 }
 
 
+def resolve_notifications(entity, object_id, *, user=None):
+    """Hujjat bosqichdan o'tdi — vazifa-eslatmalar yopiladi (4-to'plam §4).
+
+    Eslatma — vazifa ("tasdiqlang", "to'lang", "yig'ing"); ish bajarilgach
+    u eskirgan. Har bir o'tish amali shu funksiyani chaqiradi, chunki holat
+    o'zgarishini faqat o'sha joy biladi. `user` berilsa faqat ISHNI BAJARGAN
+    odamning eslatmasi yopiladi — bitta hujjat bo'yicha bir nechta odamga
+    xabar ketgan bo'lishi mumkin, boshqalarniki turadi.
+    """
+    from apps.core.models import Notification
+
+    qs = Notification.objects.filter(
+        entity=entity, object_id=str(object_id), is_read=False,
+    )
+    if user is not None:
+        qs = qs.filter(user=user)
+    return qs.update(is_read=True)
+
+
 def _sla_settings():
     from apps.core.models import CompanyProfile
 

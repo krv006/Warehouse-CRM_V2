@@ -164,6 +164,17 @@ hamda "Keyingi aloqa" sanasi kelgan yoki o'tib ketgan kelishuvlar (`Lead`) uchun
 bugun/ertaga — sariq, o'tib ketgan — qizil; sana kiritilmagan bo'lsa eslatma yo'q.
 Takroran ishga tushirilsa dublikat yaratmaydi (idempotent).
 
+**Eslatma — vazifa, arxiv emas (4-to'plam §4).** Hujjat bosqichdan o'tishi
+bilan o'sha bosqich eslatmasi eskiradi, shuning uchun har bir o'tish amali
+(`contract.approve/reject/confirm-payment/ship`,
+`configuration.approve/reject/assemble/finalize`,
+`replenishment.approve/pay/receive`) **ishni bajargan odamning** shu hujjat
+bo'yicha o'qilmagan eslatmalarini avtomatik yopadi
+(`resolve_notifications(entity, object_id, user=...)`, `apps/core/services.py`).
+Boshqa odamlarniki turadi. Shunda qo'ng'iroqchadagi son "sizda N ta ish bor"
+degan haqiqiy ma'noga ega bo'ladi. Qo'lda tozalash:
+`POST /notifications/mark-all-read/`.
+
 ### QQS (NDS)
 
 Sotuv qatorida narx **QQS'siz** kiritiladi, QQS foizi qatorda alohida turadi:
