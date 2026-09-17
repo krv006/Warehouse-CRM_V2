@@ -482,7 +482,7 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | GET | `/contracts/{id}/print/` | **faqat sales, admin** — chop etish shakli (qator narxlari bor) |
 | GET | `/contracts/deadlines/` | hamma |
 | GET/POST | `/contract-items/` | admin, sales |
-| GET/POST | `/contract-payments/` | admin, bugalter; POST `confirm-payment` bilan bir xil yo'ldan o'tadi: `paid_at` ixtiyoriy (default: hozir), kassaga kirim, balans yopilsa `completed` |
+| GET/POST | `/contract-payments/` | admin, bugalter; POST `confirm-payment` bilan bir xil yo'ldan o'tadi: `paid_at` ixtiyoriy (default: hozir), kassaga kirim, balans yopilsa `completed`; §3: summa qoldiqdan oshsa yoki ≤0 bo'lsa `400` |
 | GET | `/contract-approvals/` | faqat o'qish |
 
 **Shartnoma yaratish:**
@@ -564,14 +564,22 @@ POST /api/contracts/7/approve/
 POST /api/contracts/7/confirm-payment/
 {"amount": "150000000", "method": "transfer"}
 ```
-Natija: `status = active`, `start_date = bugun`, kassaga `sale` kirimi tushadi,
-**sotilgan mahsulotlar ombordan chiqim qilinadi** (birinchi to'lovda, TZ 9).
-Omborda yetarli bo'lmasa — `400`:
+Natija: `status = active`, `start_date = bugun`, kassaga `sale` kirimi
+tushadi. Mol bu yerda **chiqmaydi** — chiqim alohida `ship` hodisasi (§8.30);
+balans yopilib mol YETKAZILGAN bo'lsa shartnoma `completed` bo'ladi.
+
+**Summa chegarasi (4-to'plam §3):** nol/manfiy summa yoki qoldiqdan katta
+summa — `400`, kassaga hech nima yozilmaydi:
 
 ```json
-{"detail": "Omborda sotish uchun mahsulot yetarli emas.",
- "items": ["HP 880 (kerak: 5, omborda: 3)"]}
+{"amount": "To'lov qoldiqdan ko'p: qoldiq 9296000.00 UZS. Ortiqcha to'lov
+shartnomaga yozilmaydi — qaytarish yoki avans alohida hujjat bilan
+rasmiylashtiriladi."}
 ```
+
+`amount` yuborilmasa oldindan to'lov summasi olinadi; ANIQ `0` yuborilsa
+esa default olinmaydi — `400`. Balansi manfiy eski shartnomada chegara `0`
+deb olinadi (`400`, `500` emas).
 
 **Timeline javobi:**
 ```json

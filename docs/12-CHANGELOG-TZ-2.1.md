@@ -1084,6 +1084,27 @@ ro'yxati ham):
 
 ---
 
+## 8.35 To'lov qoldiqdan oshmaydi — kassaga yo'q pul yozilmaydi 💰
+
+4-to'plam §3 (2-to'plam §1 bilan bir turdagi xato). To'lov summasida
+yuqori chegara yo'q edi: jonli SHT-00036 da 9 296 000 lik shartnomaga
+653 508 800 yozilib, kassa yolg'on kirim bilan oshgan, balans manfiyga
+tushgan edi. Endi `confirm_payment` da (ikkala yo'l — `confirm-payment`
+va `POST /contract-payments/` — shu servisdan o'tadi):
+
+- `amount <= 0` — 400;
+- `amount > balance` — 400, kassaga hech nima yozilmaydi; ortiqcha
+  to'lov shartnomaning ishi emas (qaytarish/avans alohida hujjat);
+- balansi manfiy eski shartnomalarda chegara `max(balance, 0)` —
+  ular 500 emas, tushunarli 400 oladi;
+- `confirm-payment` da ANIQ `0` yuborilsa endi default (oldindan
+  to'lov) olinmaydi — 400 (avval `amount or ...` nolni "yuborilmagan"
+  deb chalkashtirardi).
+
+Testlar: `apps/sales/tests/test_payment_limit.py` (5).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

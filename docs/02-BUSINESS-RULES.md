@@ -127,6 +127,17 @@ total >= 1_000_000_000 →  15%
 - Qo'lda o'zgartirilsa, o'zgartirilgan foiz saqlanadi
 - `prepayment_amount = total_amount * percent / 100`
 
+### To'lov summasi chegarasi (4-to'plam §3)
+
+To'lov **qoldiqdan oshmaydi** va **noldan katta** bo'lishi shart — ikkala
+yo'lda ham (`confirm-payment` va `POST /contract-payments/`, ular bitta
+servisdan o'tadi). Aks holda kassaga haqiqatda kelmagan pul kirim bo'lib,
+balans manfiyga tushar va hisobot yolg'on bo'lardi (jonli SHT-00036:
+9,3 mln lik shartnomaga 653,5 mln yozilgan edi). Ortiqcha to'lov
+shartnomaning ishi emas — qaytarish yoki avans alohida hujjat bilan.
+Balansi allaqachon manfiy eski shartnomalarda chegara 0 deb olinadi —
+ular 500 emas, tushunarli 400 oladi.
+
 ### Muddat sanog'i va ranglar
 
 Sanoq **pul kelgani bugalter tomonidan tasdiqlangan kundan** boshlanadi (`start_date`).

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db.models import Sum
 from django.db.transaction import atomic
 from django.utils.timezone import localdate, now
@@ -367,6 +369,24 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
     _require_role(user, bugalter=True)
     if contract.status not in {Contract.Status.APPROVED, Contract.Status.ACTIVE}:
         raise ValidationError('Avval shartnoma admin tomonidan tasdiqlanishi kerak.')
+
+    # 4-to'plam §3: summa chegarasi — kassaga yo'q pul yozilmasin.
+    # /contract-payments/ ham shu yo'ldan o'tadi, ya'ni himoya bitta joyda.
+    amount = Decimal(str(amount))
+    if amount <= 0:
+        raise ValidationError({
+            'amount': "To'lov summasi noldan katta bo'lishi kerak.",
+        })
+    # Eski manfiy balansli shartnoma 500 emas, tushunarli 400 olsin
+    balance = max(contract.balance, Decimal('0'))
+    if amount > balance:
+        raise ValidationError({
+            'amount': (
+                f"To'lov qoldiqdan ko'p: qoldiq {balance} {contract.currency}. "
+                "Ortiqcha to'lov shartnomaga yozilmaydi — qaytarish yoki avans "
+                "alohida hujjat bilan rasmiylashtiriladi."
+            ),
+        })
 
     paid_at = paid_at or now()
     first_payment = contract.status == Contract.Status.APPROVED

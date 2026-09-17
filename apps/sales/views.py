@@ -144,11 +144,17 @@ class ContractViewSet(BaseModelViewSet):
 
         contract = self.get_object()
         # Satr/float kelsa ham 500 bo'lmaydi — noto'g'ri format 400 qaytaradi
-        amount = parse_amount(request.data.get('amount'), 'amount')
+        raw_amount = request.data.get('amount')
+        amount = parse_amount(raw_amount, 'amount')
+        # §3: summa yuborilmasa — oldindan to'lov; ANIQ 0 yuborilsa esa
+        # default olinmaydi, servis uni rad etadi (`amount or ...` nolni
+        # "yuborilmagan" deb chalkashtirardi)
+        if raw_amount in (None, ''):
+            amount = contract.prepayment_amount
         payment = confirm_payment(
             contract,
             request.user,
-            amount=amount or contract.prepayment_amount,
+            amount=amount,
             method=request.data.get('method', ContractPayment.Method.TRANSFER),
         )
         contract.refresh_from_db()
