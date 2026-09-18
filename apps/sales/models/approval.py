@@ -15,6 +15,8 @@ class ContractApproval(TimeStampedModel):
 
     class Step(TextChoices):
         BUGALTER = 'bugalter', 'Bugalter'
+        # B3: Didox qadamlari ham tarixda — zanjir uzilmasin
+        DIDOX = 'didox', 'Didox'
         ADMIN = 'admin', 'Admin'
         PAYMENT = 'payment', "To'lov tasdig'i"
 

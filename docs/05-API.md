@@ -212,7 +212,7 @@ Holatlar: `new` → `in_progress` (take) → `done` (complete). Raqam: `ZVK-0000
 
 `items[]` qatori: `{section, entity, id, number, reason, amount, currency,
 level}`. Havolani front `entity`+`id` dan quradi, ko'rsatma matnini `reason`
-kodidan yozadi (`awaiting_didox`, `awaiting_payment`, `client_approval`,
+kodidan yozadi (`send_to_didox`, `didox_confirm`, `awaiting_payment`, `client_approval`,
 `draft_to_submit`, `fix_and_resubmit`, `contact_due`, `take_request`,
 `configure`, `assemble`, `track_delivery`, `decide_expense`, `loan_due`,
 `awaiting_admin_approve`, `awaiting_client_payment`, `awaiting_check`,
@@ -480,7 +480,9 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | GET/POST | `/leads/` | admin, sales |
 | GET/POST | `/contracts/` | admin, sales; filtr: `status`, `client`, `currency`, `configuration` |
 | POST | `/contracts/{id}/submit/` | sales; bugalterga bildirishnoma tushadi |
-| POST | `/contracts/{id}/approve/` | bugalter (§11.2 — Didox qabuli, tanada `didox_number` yuborilsa saqlanadi, `signed_at` avtomatik to'ladi) → keyin admin; §11.3: summa chegaradan kichik (UZS) bo'lsa admin bosqichi o'tkazib yuboriladi (tarixda avtomatik yozuv); har bosqichda keyingi bosqich egasiga bildirishnoma |
+| POST | `/contracts/{id}/send-didox/` | B3: **bugalter** — «Didoxga yubordim»; `didox_number` majburiy, `pending_bugalter` → `pending_didox`, `didox_sent_at`/`signed_at` to'ladi |
+| POST | `/contracts/{id}/confirm-didox/` | B3: **bugalter** — «Didox tasdiqladi (mijoz imzoladi)»; `didox_accepted_at` yoziladi, keyin §11.3 chegara mantig'i: `pending_admin` yoki `approved`; Didox rad javobi kiritilmaydi — `pending_didox`dan orqaga yo'l yo'q |
+| POST | `/contracts/{id}/approve/` | admin bosqichi (`pending_admin` → `approved`); B11 mosligi: `pending_bugalter`dan eski bitta qadamli yo'l ham qabul qilinadi (tanada `didox_number`); har bosqichda keyingi bosqich egasiga bildirishnoma |
 | POST | `/contracts/{id}/reject/` | bugalter / admin |
 | POST | `/contracts/{id}/ship/` | #2: **yetkazish** — mol shu yerda chiqadi (buyurtmachi/bugalter, admin); `delivered_at` yoziladi, bron chiqimga aylanadi, balans yopiq bo'lsa `completed` |
 | POST | `/contracts/{id}/request-procurement/` | #2: **sales (egasi)** — band qilinmagan qismidan TLD ochadi (`contract` FK, `owner_sales`); bitta ochiq TLD qoidasi |

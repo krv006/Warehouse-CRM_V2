@@ -143,7 +143,7 @@ Bitta model, ikki tur: `individual` (F.I.SH, passport, JSHSHIR — unique) va
   `draft → pending_bugalter → pending_admin → approved → active → completed`
   (`rejected` — tahrirlanib qayta submit bo'ladi, `cancelled`).
   - `POST /contracts/{id}/submit/` — sales yuboradi; shundan keyin shartnoma va qatorlari **qulflanadi** (faqat admin o'zgartiradi), qator o'zgarganda `total_amount` avtomatik qayta yig'iladi
-  - `POST /contracts/{id}/approve/` — avval bugalter (**Didox qabuli**, §11.2 — tanada `didox_number`), keyin admin; `CompanyProfile.admin_approval_threshold` dan kichik UZS summada admin bosqichi o'tkazib yuboriladi (§11.3, tarixda avtomatik yozuv)
+  - **B3 — Didox ikki qadam**: `POST /contracts/{id}/send-didox/` (bugalter, `didox_number` majburiy, `pending_bugalter` → `pending_didox`) va `POST /contracts/{id}/confirm-didox/` (mijoz imzoladi — `pending_admin` yoki chegara ostida `approved`, §11.3); Didox rad javobi kiritilmaydi — orqaga yo'l yo'q. Eski bitta qadamli `approve` (pending_bugalter'dan) B11 mosligi uchun qabul qilinaveradi
   - `POST /contracts/{id}/confirm-payment/` — bugalter; shu kundan **muddat sanog'i** boshlanadi; tarixga `payment` qadami yoziladi; konfiguratsiya `sold` bo'ladi
   - `GET /contracts/{id}/timeline/` — line chart nuqtalari va rang
 - Shartnoma tuzilganda mahsulot **bron** qilinadi (§11.4, `StockReservation`): qattiq bron sotuvni to'sadi, konfiguratsiya chernovigi yumshoq bron (ogohlantiradi); to'lovda bron chiqimga aylanadi, muddati o'tganini `check_deadlines` bo'shatadi; mijozning ochiq `Lead`i shartnomaga avtomatik bog'lanadi

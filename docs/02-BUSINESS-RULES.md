@@ -106,7 +106,8 @@ Bugalter o'z so'rovini tasdiqlay olmaydi (403). Barcha so'rovlar hisobot sifatid
 | Status | Kim harakat qiladi | Keyingi holat |
 |---|---|---|
 | `draft` | Sales shartnoma tuzadi | `submit` → `pending_bugalter` |
-| `pending_bugalter` | Bugalter bandlarni ko'radi | `approve` → `pending_admin` |
+| `pending_bugalter` | Bugalter bandlarni ko'radi | `send-didox` → `pending_didox` (B3; eski `approve` ham qabul qilinadi) |
+| `pending_didox` | Mijoz Didoxda imzolashi kutilmoqda | `confirm-didox` → `pending_admin` / `approved` (chegara); orqaga yo'l yo'q |
 | `pending_admin` | Admin (oxirgi etap) | `approve` → `approved` |
 | `approved` | Bugalter pulni kutadi | `confirm-payment` → `active` |
 | `active` | Muddat sanog'i ketmoqda | to'liq to'lansa → `completed` |

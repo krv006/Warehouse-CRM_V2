@@ -19,15 +19,19 @@ from apps.sales.serializers import (
 )
 from apps.sales.services import (
     approve_contract,
+    confirm_didox,
     confirm_payment,
     reject_contract,
     send_contract_missing_to_procurement,
+    send_didox,
     ship_contract,
     submit_contract,
 )
 
 # Bu amallarni bugalter (va admin) bajaradi, sales emas
-BUGALTER_ACTIONS = {'approve', 'reject', 'confirm_payment'}
+BUGALTER_ACTIONS = {
+    'approve', 'reject', 'confirm_payment', 'send_didox', 'confirm_didox',
+}
 # #2: yetkazishni mol bilan ishlaydigan odam bosadi — buyurtmachi/bugalter
 SHIP_ACTIONS = {'ship'}
 
@@ -136,6 +140,29 @@ class ContractViewSet(BaseModelViewSet):
             didox_number=str(request.data.get('didox_number', '') or ''),
         )
         self.log_action(ActivityLog.Action.APPROVE, contract, contract.get_status_display())
+        return Response(self.get_serializer(contract).data)
+
+    def send_didox(self, request, pk=None):
+        """POST /contracts/{id}/send-didox/ — bugalter Didoxga yubordi (B3)."""
+        contract = send_didox(
+            self.get_object(), request.user,
+            didox_number=str(request.data.get('didox_number', '') or ''),
+        )
+        self.log_action(
+            ActivityLog.Action.UPDATE, contract,
+            f'Didoxga yuborildi: {contract.didox_number}',
+        )
+        return Response(self.get_serializer(contract).data)
+
+    def confirm_didox(self, request, pk=None):
+        """POST /contracts/{id}/confirm-didox/ — Didox tasdiqlandi (B3)."""
+        contract = confirm_didox(
+            self.get_object(), request.user, request.data.get('comment', ''),
+        )
+        self.log_action(
+            ActivityLog.Action.APPROVE, contract,
+            'Didox tasdiqlandi — mijoz imzoladi',
+        )
         return Response(self.get_serializer(contract).data)
 
     def reject(self, request, pk=None):

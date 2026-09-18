@@ -108,14 +108,14 @@ class ContractSerializer(ModelSerializer):
             'status_display', 'created_by_name', 'currency', 'items_total', 'vat_total',
             'items_total_with_vat', 'total_amount', 'prepayment_percent',
             'prepayment_amount', 'term_days', 'signed_at', 'start_date',
-            'delivered_at', 'didox_number', 'didox_accepted_at', 'note',
+            'delivered_at', 'didox_number', 'didox_sent_at', 'didox_accepted_at', 'note',
             'items', 'approvals', 'payments', 'paid', 'balance', 'days_left', 'color',
             'created_by', 'created_at',
         ]
-        # Didox maydonlari faqat bugalter approve bosqichida yoziladi (§11.2)
+        # Didox maydonlari faqat bugalter bosqichlarida yoziladi (§11.2/B3)
         read_only_fields = [
             'number', 'created_by', 'status', 'start_date',
-            'delivered_at', 'didox_number', 'didox_accepted_at',
+            'delivered_at', 'didox_number', 'didox_sent_at', 'didox_accepted_at',
         ]
 
     def _sync_total(self, contract):
@@ -135,6 +135,22 @@ class ContractSerializer(ModelSerializer):
         return self._sync_total(contract)
 
     def update(self, instance, validated_data):
+        # B14: oldindan to'lov foizi faqat `draft` oynasida tuziladi —
+        # bugalterga ketgandan keyin (admin ham) o'zgartira olmaydi
+        if 'prepayment_percent' in validated_data:
+            new_percent = validated_data['prepayment_percent']
+            if (
+                new_percent != instance.prepayment_percent
+                and instance.status not in {
+                    Contract.Status.DRAFT, Contract.Status.REJECTED,
+                }
+            ):
+                raise ValidationError({
+                    'prepayment_percent': (
+                        "Oldindan to'lov foizi faqat qoralamada o'zgartiriladi — "
+                        'shartnoma tasdiqqa ketgan.'
+                    ),
+                })
         items = validated_data.pop('items', None)
         manual_total = 'total_amount' in validated_data
         for attr, value in validated_data.items():

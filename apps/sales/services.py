@@ -244,21 +244,31 @@ def approve_contract(contract, user, comment='', didox_number=''):
         decided_by=user,
     )
     if admin_skipped:
-        # Tarix jim qolmasin: nega admin ko'rmagani yozib qo'yiladi
-        from apps.core.models import CompanyProfile
+        _record_admin_skip(contract)
+    _notify_after_bugalter_stage(contract, admin_skipped)
+    return contract
 
-        threshold = CompanyProfile.load().admin_approval_threshold
-        ContractApproval.objects.create(
-            contract=contract,
-            step=ContractApproval.Step.ADMIN,
-            decision=ContractApproval.Decision.APPROVED,
-            comment=(
-                f'Summa {contract.total_amount} {contract.currency} — '
-                f'chegara {threshold} dan past, admin tasdig\'i talab qilinmadi.'
-            ),
-            decided_by=None,
-        )
 
+def _record_admin_skip(contract):
+    """§11.3: tarix jim qolmasin — nega admin ko'rmagani yozib qo'yiladi."""
+    from apps.core.models import CompanyProfile
+
+    threshold = CompanyProfile.load().admin_approval_threshold
+    ContractApproval.objects.create(
+        contract=contract,
+        step=ContractApproval.Step.ADMIN,
+        decision=ContractApproval.Decision.APPROVED,
+        comment=(
+            f'Summa {contract.total_amount} {contract.currency} — '
+            f'chegara {threshold} dan past, admin tasdig\'i talab qilinmadi.'
+        ),
+        decided_by=None,
+    )
+
+
+def _notify_after_bugalter_stage(contract, admin_skipped):
+    """Bugalter bosqichidan keyingi bildirishnomalar — approve va confirm-didox
+    ikkalasi ham shu yerdan (bitta matn, ikki xil haqiqat bo'lmasin)."""
     from apps.accounts.models import User
 
     if contract.status == Contract.Status.PENDING_ADMIN:
@@ -301,6 +311,91 @@ def approve_contract(contract, user, comment='', didox_number=''):
                 entity='Contract',
                 object_id=str(contract.pk),
             )
+    return contract
+
+
+@atomic
+def send_didox(contract, user, didox_number):
+    """Bugalter shartnomani Didoxga yubordi (B3, 1-qadam).
+
+    Uch harakatning ikkinchisi: ko'rdi → **Didoxga yubordi** → Didox
+    tasdiqladi. Raqam majburiy; holat `pending_didox` — mijoz imzosi
+    kutilmoqda. Orqaga yo'l yo'q: Didox rad etsa bu bizning omilimiz emas,
+    mijoz Didoxning o'zida qayta yuboradi.
+    """
+    _require_role(user, bugalter=True)
+    if contract.status != Contract.Status.PENDING_BUGALTER:
+        raise ValidationError({
+            'detail': 'Didoxga yuborish bugalter tekshiruvi bosqichida bo\'ladi.',
+        })
+    didox_number = (didox_number or '').strip()
+    if not didox_number:
+        raise ValidationError({'didox_number': 'Didox raqami majburiy.'})
+
+    contract.didox_number = didox_number
+    contract.didox_sent_at = now()
+    # Chop etish shaklida sana bo'sh qolmasin — yuborish kuni imzo sanasi
+    if not contract.signed_at:
+        contract.signed_at = localdate()
+    contract.status = Contract.Status.PENDING_DIDOX
+    contract.save()
+
+    from apps.core.services import resolve_notifications
+
+    resolve_notifications('Contract', contract.pk, user=user)
+    ContractApproval.objects.create(
+        contract=contract,
+        step=ContractApproval.Step.DIDOX,
+        decision=ContractApproval.Decision.APPROVED,
+        comment=f'Didoxga yuborildi: {didox_number}',
+        decided_by=user,
+    )
+    if contract.created_by:
+        Notification.objects.create(
+            user=contract.created_by,
+            title=f'{contract.number}: Didoxga yuborildi',
+            message=f'Raqam: {didox_number}. Mijoz imzosi kutilmoqda.',
+            level=Notification.Level.INFO,
+            entity='Contract',
+            object_id=str(contract.pk),
+        )
+    return contract
+
+
+@atomic
+def confirm_didox(contract, user, comment=''):
+    """Didox tasdiqlandi — mijoz imzoladi (B3, 2-qadam), bugalter belgilaydi.
+
+    Keyin hozirgi chegara mantig'i (§11.3) ishlaydi: `pending_admin`
+    yoki (summa chegaradan past bo'lsa) to'g'ridan `approved`.
+    """
+    _require_role(user, bugalter=True)
+    if contract.status != Contract.Status.PENDING_DIDOX:
+        raise ValidationError({
+            'detail': 'Shartnoma Didox tasdig\'ini kutish bosqichida emas.',
+        })
+
+    contract.didox_accepted_at = now()
+    admin_skipped = _admin_threshold_skip(contract)
+    contract.status = (
+        Contract.Status.APPROVED if admin_skipped
+        else Contract.Status.PENDING_ADMIN
+    )
+    contract.save()
+
+    from apps.core.services import resolve_notifications
+
+    resolve_notifications('Contract', contract.pk, user=user)
+    ContractApproval.objects.create(
+        contract=contract,
+        step=ContractApproval.Step.DIDOX,
+        decision=ContractApproval.Decision.APPROVED,
+        comment=comment or 'Didox tasdiqlandi — mijoz imzoladi.',
+        decided_by=user,
+    )
+    if admin_skipped:
+        _record_admin_skip(contract)
+    _notify_after_bugalter_stage(contract, admin_skipped)
     return contract
 
 

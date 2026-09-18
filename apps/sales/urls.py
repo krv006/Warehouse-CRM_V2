@@ -40,6 +40,13 @@ urlpatterns = [
     path('contracts/<int:pk>/cancel/', ContractViewSet.as_view({
         'post': 'cancel',
     }), name='contract-cancel'),
+    # B3: Didox ikki qadam — yubordim / Didox tasdiqladi (bugalter)
+    path('contracts/<int:pk>/send-didox/', ContractViewSet.as_view({
+        'post': 'send_didox',
+    }), name='contract-send-didox'),
+    path('contracts/<int:pk>/confirm-didox/', ContractViewSet.as_view({
+        'post': 'confirm_didox',
+    }), name='contract-confirm-didox'),
     path('contracts/<int:pk>/request-procurement/', ContractViewSet.as_view({
         'post': 'request_procurement',
     }), name='contract-request-procurement'),

@@ -78,7 +78,10 @@ def _contract_sources(user):
         reasons = {Contract.Status.PENDING_ADMIN: ('awaiting_admin_approve', 'warning')}
     elif user.is_bugalter:
         reasons = {
-            Contract.Status.PENDING_BUGALTER: ('awaiting_didox', 'warning'),
+            # B3: bugalter ko'rib Didoxga yuboradi — endi bu alohida qadam
+            Contract.Status.PENDING_BUGALTER: ('send_to_didox', 'warning'),
+            # Mijoz imzosi kutilmoqda — tashqi kutish, shoshilinch emas (info)
+            Contract.Status.PENDING_DIDOX: ('didox_confirm', 'info'),
             Contract.Status.APPROVED: ('awaiting_payment', 'warning'),
         }
     elif user.is_sales:

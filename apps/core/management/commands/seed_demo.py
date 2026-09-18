@@ -238,15 +238,16 @@ class Command(BaseCommand):
         # YANGI OQIM B4: mol to'lovdan keyin — avval pul zanjiri yuriladi
         from apps.sales.services import (
             approve_contract as approve_sht,
+            confirm_didox as confirm_didox_sht,
             confirm_payment as pay_sht,
+            send_didox as send_didox_sht,
             submit_contract as submit_sht,
         )
 
         submit_sht(contract_a, users['sales'])
-        approve_sht(
-            contract_a, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
-            didox_number='DDX-2026-0055',
-        )
+        # B3: Didox ikki qadam — yubordim / Didox tasdiqladi
+        send_didox_sht(contract_a, users['bugalter'], 'DDX-2026-0055')
+        confirm_didox_sht(contract_a, users['bugalter'])
         contract_a.refresh_from_db()
         if contract_a.status == contract_a.Status.PENDING_ADMIN:
             approve_sht(contract_a, users['admin'], 'Ma\'qul')
@@ -308,16 +309,16 @@ class Command(BaseCommand):
         # D shartnomasi tez yo'l bilan to'lovgacha yuriladi
         from apps.sales.services import (
             approve_contract as _approve_contract,
+            confirm_didox as _confirm_didox,
             confirm_payment as _confirm_payment,
+            send_didox as _send_didox,
             submit_contract as _submit_contract,
         )
 
         contract_d = config_d.active_contract
         _submit_contract(contract_d, users['sales'])
-        _approve_contract(
-            contract_d, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
-            didox_number='DDX-2026-0077',
-        )
+        _send_didox(contract_d, users['bugalter'], 'DDX-2026-0077')
+        _confirm_didox(contract_d, users['bugalter'])
         contract_d.refresh_from_db()
         if contract_d.status == contract_d.Status.PENDING_ADMIN:
             _approve_contract(contract_d, users['admin'], 'Ma\'qul')
@@ -366,10 +367,17 @@ class Command(BaseCommand):
         from apps.sales.models import Contract, ContractItem
         from apps.sales.services import (
             approve_contract,
+            confirm_didox,
             confirm_payment,
+            send_didox,
             ship_contract,
             submit_contract,
         )
+
+        def didox(contract, number):
+            """B3: bugalterning ikki qadami — yubordim / Didox tasdiqladi."""
+            send_didox(contract, users['bugalter'], number)
+            confirm_didox(contract, users['bugalter'])
 
         clients = list(Client.objects.order_by('id'))
         hp = products['HP-880']
@@ -400,19 +408,13 @@ class Command(BaseCommand):
         # 3) Katta summa — chegaradan oshadi, ADMINGA boradi (§11.3 demo)
         c3 = build(clients[2], 3, '75 mln + QQS — chegaradan katta, admin ko\'radi')
         submit_contract(c3, users['sales'])
-        approve_contract(
-            c3, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
-            didox_number='DDX-2026-0031',
-        )
+        didox(c3, 'DDX-2026-0031')
 
         # 4) Kichik summa — chegaradan past, ADMIN CHETLAB O'TILADI (§11.3 demo):
         # bugalter tasdig'i bilan to'g'ri approved, tarixda avtomatik yozuv
         c4 = build(clients[3], 1, 'Kichik summa — admin tasdig\'i talab qilinmadi')
         submit_contract(c4, users['sales'])
-        approve_contract(
-            c4, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
-            didox_number='DDX-2026-0044',
-        )
+        didox(c4, 'DDX-2026-0044')
 
         # 5) Faol, YETKAZILMAGAN — A-hikoya shartnomasi (YANGI OQIM: pul zanjiri
         # hikoyaning o'zida yurilgan — to'lov yig'ishdan OLDIN keladi, B4).
@@ -426,10 +428,7 @@ class Command(BaseCommand):
         # 6) Yetkazilgan va yopilgan — to'liq hayot yo'li (#2: ship)
         c6 = build(clients[3], 1, 'Yetkazilgan va yopilgan shartnoma')
         submit_contract(c6, users['sales'])
-        approve_contract(
-            c6, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
-            didox_number='DDX-2026-0066',
-        )
+        didox(c6, 'DDX-2026-0066')
         confirm_payment(c6, users['bugalter'], amount=c6.total_amount)
         c6.refresh_from_db()
         ship_contract(c6, users['buyurtmachi'])

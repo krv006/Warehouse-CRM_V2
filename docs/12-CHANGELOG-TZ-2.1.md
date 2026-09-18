@@ -1270,6 +1270,32 @@ Testlar: test_request_loop.py (5), test_cancel_chain.py (5).
 
 ---
 
+## 8.42 YANGI OQIM 4-bosqich: Didox ikki qadam + foiz quli 📝
+
+YANGI-OQIM B3, B14.
+
+- **B3**: Didox endi uch harakat — ko'rdi → **Didoxga yubordi**
+  (`POST /contracts/{id}/send-didox/`, `didox_number` majburiy, yangi
+  holat `pending_didox`, yangi maydon `didox_sent_at`) → **Didox
+  tasdiqladi** (`POST /contracts/{id}/confirm-didox/`,
+  `didox_accepted_at` o'z haqiqiy ma'nosini oldi — mijoz imzoladi);
+  keyin §11.3 chegara mantig'i (`pending_admin`/`approved`).
+  `ContractApproval.Step`ga `didox` qo'shildi — tarix uzilmaydi.
+  Didox rad javobi ataylab kiritilmagan (kelishuv): mijoz Didoxning
+  o'zida qayta yuboradi, `pending_didox`dan orqaga yo'l yo'q.
+  B11 mosligi: eski bitta qadamli `approve` (pending_bugalter'dan)
+  ishlayveradi. Bugalter navbatida ikkita yangi qator: `send_to_didox`
+  (warning) va `didox_confirm` (info — tashqi kutish);
+- **B14**: `prepayment_percent` faqat `draft`/`rejected` da
+  o'zgartiriladi — bugalterga ketgach (admin ham) 400. Default avval
+  qo'yiladi (30%/15%), sales qoralama oynasida tuzatadi;
+- seed_demo Didox qadamlarini ikki qadam bilan yuradi.
+
+Migratsiya: sales.0006. Endpoint: 112 → 114.
+Testlar: `apps/sales/tests/test_didox_steps.py` (6).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -1298,7 +1324,7 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **112** |
+| REST endpoint | 70 | **114** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **34** |
 | Testlar | 66 | **365** |

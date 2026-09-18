@@ -259,7 +259,7 @@ Property: `items_total`, `total_amount`, `progress`, `days_left`, `color`.
 | `number` | `SHT-00001` (avtomatik) |
 | `client` | FK Client (PROTECT) |
 | `configuration` | FK Configuration (SET_NULL, null) |
-| `status` | `draft` / `pending_bugalter` / `pending_admin` / `approved` / `active` / `completed` / `rejected` / `cancelled` |
+| `status` | `draft` / `pending_bugalter` / `pending_didox` (B3) / `pending_admin` / `approved` / `active` / `completed` / `rejected` / `cancelled` |
 | `currency` | default `UZS` |
 | `total_amount` | Decimal(18,2) |
 | `prepayment_percent` | Decimal(5,2), bo'sh bo'lsa avtomatik 30/15 |
@@ -407,7 +407,8 @@ SLA muddati shu maydondan. `CompanyProfile.sla_cutoff_hour` (16),
 `sla_working_days` (1), `replenishment_approval_threshold` (TLD chegarasi).
 
 Boshqa yangi maydonlar (shu bosqichda): `Contract.didox_number`,
-`Contract.didox_accepted_at` (§11.2); `CompanyProfile.admin_approval_threshold`,
+`Contract.didox_sent_at` (B3 — Didoxga yuborilgan vaqt),
+`Contract.didox_accepted_at` (§11.2/B3 — mijoz imzolagani; `ContractApproval.Step`ga `didox` qo'shildi); `CompanyProfile.admin_approval_threshold`,
 `contract_reservation_days`, `configuration_reservation_days` (§11.3/§11.4);
 `Replenishment.exchange_rate`, `Replenishment.debt_amount` (muzlatilgan qarz,
 §10.5); `CashTransaction.replenishment` FK (§10.9); `Purchase.replenishment` FK

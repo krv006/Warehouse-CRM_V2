@@ -747,7 +747,14 @@ bilib turish uchun:
 - zayavka ekrani (B15/F11): `new`/`in_progress` da "Rad etish" (izoh majburiy),
   `returned` sales ro'yxatida ajralib turadi + "Qayta yuborish"; tarix —
   javobdagi `events[]` (TLD timeline ko'rinishida);
-- keyingi bosqichlarda: Didox ikki qadam (B3), roadmap (B8).
+- Didox ikki qadam (B3/F3): shartnoma chizig'i endi
+  `Qoralama → Bugalter → Didox → Admin → To'lov → Yetkazish → Yakun`;
+  bitta tasdiq oynasi ikkiga bo'linadi — "Didoxga yuborildi" (raqam
+  kiritiladigan oyna, `POST …/send-didox/`) va "Didox tasdiqladi"
+  (`POST …/confirm-didox/`); yangi holat `pending_didox` uchun yorliq/rang;
+- oldindan to'lov foizi (B14): input faqat `draft`/`rejected` da faol —
+  keyin backend 400 beradi;
+- keyingi bosqichda: roadmap (B8).
 
 ---
 

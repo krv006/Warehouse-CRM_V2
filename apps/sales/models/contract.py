@@ -38,6 +38,9 @@ class Contract(StatusTrackedModel):
     class Status(TextChoices):
         DRAFT = 'draft', 'Qoralama'
         PENDING_BUGALTER = 'pending_bugalter', 'Bugalter tasdig\'i kutilmoqda'
+        # B3: bugalter Didoxga yubordi — mijoz imzosi kutilmoqda. Orqaga yo'l
+        # yo'q: Didox rad etsa mijoz Didoxning o'zida qayta yuboradi
+        PENDING_DIDOX = 'pending_didox', 'Didox tasdig\'i kutilmoqda'
         PENDING_ADMIN = 'pending_admin', 'Admin tasdig\'i kutilmoqda'
         APPROVED = 'approved', 'Tasdiqlandi, pul kutilmoqda'
         ACTIVE = 'active', 'Pul keldi, muddat ketmoqda'
@@ -63,8 +66,10 @@ class Contract(StatusTrackedModel):
     # TOPSHIRIQ-2 #2: yetkazib berish — alohida hodisa (`ship`), to'lov emas.
     # 90 kunlik muddat endi haqiqiy narsani o'lchaydi: to'lovdan yetkazishgacha
     delivered_at = DateField(null=True, blank=True)
-    # §11.2: bugalterning 1-bosqichi — rasmiy shartnomani Didoxdan qabul qilish
+    # §11.2/B3: Didox endi ikki qadam — "yubordim" (`didox_sent_at`) va
+    # "Didox tasdiqladi, mijoz imzoladi" (`didox_accepted_at`)
     didox_number = CharField('Didox raqami', max_length=64, blank=True)
+    didox_sent_at = DateTimeField(null=True, blank=True)
     didox_accepted_at = DateTimeField(null=True, blank=True)
     note = TextField(blank=True)
     created_by = ForeignKey(
