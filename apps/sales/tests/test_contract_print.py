@@ -83,18 +83,23 @@ class AutoContractOnFinalizeTests(APITestCase):
         # 5 000 000 + 12% QQS = 5 600 000 — mijoz to'laydigan summa
         self.assertEqual(contract.total_amount, Decimal('5600000.00'))
 
-    def test_contract_created_with_client_in_body(self):
-        """ZVK bo'lmasa ham finalize tanasida mijoz berilsa shartnoma ochiladi."""
-        response = self._finalize(client=self.mijoz.id)
+    def test_contract_created_with_configuration_client(self):
+        """ZVK bo'lmasa ham konfiguratsiyada mijoz bo'lsa shartnoma ochiladi."""
+        self.configuration.client = self.mijoz
+        self.configuration.save()
+        response = self._finalize()
         self.assertEqual(response.status_code, 200, response.data)
         contract_id = response.data['contract']['id']
         self.assertEqual(Contract.objects.get(pk=contract_id).client, self.mijoz)
 
-    def test_no_client_no_contract(self):
-        """Mijoz aniqlanmasa finalize baribir o'tadi, shartnoma ochilmaydi."""
-        response = self._finalize()
-        self.assertEqual(response.status_code, 200, response.data)
-        self.assertIsNone(response.data['contract'])
+    def test_no_client_no_approve(self):
+        """YANGI OQIM B10: mijoz aniqlanmasa tasdiq o'tmaydi — shartnoma majburiy."""
+        url = f'/api/configurations/{self.configuration.id}'
+        self.client.force_authenticate(self.engineer)
+        self.client.post(f'{url}/submit/')
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f'{url}/approve/')
+        self.assertEqual(response.status_code, 400)
         self.assertFalse(Contract.objects.exists())
 
     def test_unknown_client_is_400(self):

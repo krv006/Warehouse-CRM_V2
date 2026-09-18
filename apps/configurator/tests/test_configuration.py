@@ -30,8 +30,16 @@ class ConfigurationTests(APITestCase):
             product=self.ssd, warehouse=self.warehouse,
             type=StockMovement.Type.IN, quantity=Decimal('5'),
         )
+        from apps.clients.models import Client
+
+        # YANGI OQIM B10: approve mijozsiz o'tmaydi — shartnoma ochiladi
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
         self.configuration = Configuration.objects.create(
-            base_product=self.base, warehouse=self.warehouse, created_by=self.engineer,
+            base_product=self.base, warehouse=self.warehouse,
+            created_by=self.engineer, client=self.mijoz,
         )
         ConfigurationItem.objects.create(
             configuration=self.configuration, component=self.ssd,

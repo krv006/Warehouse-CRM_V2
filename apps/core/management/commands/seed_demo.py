@@ -214,7 +214,6 @@ class Command(BaseCommand):
         )
         from apps.procurement import services as procurement
         from apps.procurement.models import Replenishment
-        from apps.sales.services import create_contract_from_configuration
 
         clients = list(Client.objects.order_by('id'))
 
@@ -232,15 +231,22 @@ class Command(BaseCommand):
         config_a.items.filter(component=products['SSD-1TB']).update(quantity=2)
         config_a.items.filter(component=products['RAM-16']).delete()
         submit_configuration(config_a, users['engineer'])
+        # YANGI OQIM B1: tasdiq bilan draft shartnoma AVTOMATIK ochiladi
         approve_configuration(config_a, users['sales'], 'Mijoz tarkibga rozi')
+        contract_a = config_a.active_contract
         assemble_configuration(config_a, users['engineer'])
         config_a.act = act
         config_a.status = config_a.Status.READY
         config_a.save()
-        sync_configuration_reservations(config_a)
-        contract_a = create_contract_from_configuration(
-            config_a, users['engineer'], None,
+        # finalize'dagi B6: shartnoma qatori yig'ilgan variantga ko'chadi
+        # (son va narx tegilmaydi), bron esa shartnomaga o'tadi
+        contract_a.items.filter(product=products['HP-880']).update(
+            product=config_a.variant,
         )
+        sync_configuration_reservations(config_a)
+        from apps.inventory.services import sync_contract_reservations
+
+        sync_contract_reservations(contract_a)
         state['contract_active'] = contract_a
         state['config_a'] = config_a
 

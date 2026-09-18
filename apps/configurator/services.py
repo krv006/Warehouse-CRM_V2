@@ -123,6 +123,22 @@ def submit_configuration(configuration, user):
     if not configuration.items.exists():
         raise ValidationError({'detail': 'Konfiguratsiya qatorlari kiritilmagan.'})
 
+    # YANGI-OQIM B2: shartnoma endi sales tasdig'ida ochiladi va summasi shu
+    # narxlardan yig'iladi — narxsiz qator ko'rikka o'tmaydi. Buyurtmachi
+    # narxni keyin kiritgan bo'lishi mumkin: nol qatorlar avval ombordan
+    # qayta o'qiladi (save() narxni o'zi to'ldiradi), keyin tekshiriladi.
+    for item in configuration.items.filter(unit_price=0):
+        item.save()
+    no_price = configuration.items_without_price
+    if no_price:
+        raise ValidationError({
+            'detail': (
+                "Narxsiz qator bilan ko'rikka yuborilmaydi — avval buyurtmachidan "
+                'narx so\'rang (request-prices).'
+            ),
+            'items': [item.component.name for item in no_price],
+        })
+
     configuration.status = Configuration.Status.PENDING_SALES
     configuration.save()
 
@@ -145,6 +161,108 @@ def submit_configuration(configuration, user):
     return configuration
 
 
+def request_prices(configuration, user):
+    """Narxsiz qatorlar uchun buyurtmachidan narx so'raydi (YANGI-OQIM B2).
+
+    Bu TLD EMAS: hech narsa buyurtma qilinmaydi, pul to'lanmaydi — buyurtmachi
+    shunchaki tannarxni mahsulot kartasida kiritib beradi (§6-B ustamasi bilan
+    sotuv narxiga aylanadi). §2.1 aylanmasi bir necha bor aylanishi mumkin,
+    shuning uchun bu amal necha marta ham chaqiriladi; takrorida buyurtmachining
+    eski o'qilmagan eslatmasi yangilanadi — yangisi qo'shilmaydi.
+    """
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.accounts.models import User
+    from apps.core.models import Notification
+
+    if not (user.is_admin or user.is_engineer):
+        raise PermissionDenied('Narx so\'rovini Engineer yuboradi.')
+
+    # Buyurtmachi allaqachon kiritgan narxlar nol qatorlarga tushsin
+    for item in configuration.items.filter(unit_price=0):
+        item.save()
+    no_price = configuration.items_without_price
+    if not no_price:
+        raise ValidationError({
+            'detail': 'Barcha qatorlarda narx bor — so\'rov shart emas.',
+        })
+
+    names = ', '.join(item.component.name for item in no_price)
+    title = f'{configuration.number}: narx kerak — {len(no_price)} ta mahsulot'
+    message = (
+        f'{names} — tannarxni mahsulot kartasida kiriting. Bu buyurtma emas: '
+        'narx kiritilgach sales mijoz bilan kelishadi.'
+    )
+    for supplier in User.objects.filter(role=User.Role.SUPPLIER, is_active=True):
+        existing = Notification.objects.filter(
+            user=supplier, entity='Configuration',
+            object_id=str(configuration.pk), is_read=False,
+        ).order_by('-id').first()
+        if existing:
+            existing.title = title
+            existing.message = message
+            existing.save(update_fields=['title', 'message'])
+        else:
+            Notification.objects.create(
+                user=supplier, title=title, message=message,
+                level=Notification.Level.WARNING,
+                entity='Configuration', object_id=str(configuration.pk),
+            )
+    return [item.component.name for item in no_price]
+
+
+def price_arrived(product, user):
+    """Mahsulotga narx kiritildi — kutayotgan konfiguratsiyalar yangilanadi (B2.3).
+
+    Nol narxli qatorlar to'ldiriladi; konfiguratsiyada narxsiz qator qolmasa
+    buyurtmachining "narx kerak" eslatmasi yopiladi va narx SALES'GA qaytadi
+    (engineerga emas — kelishuv shunday): sales mijoz bilan kelishadi.
+    """
+    from apps.accounts.models import User
+    from apps.configurator.models import Configuration, ConfigurationItem
+    from apps.core.models import Notification
+    from apps.core.services import resolve_notifications
+
+    if not product.stock_price:
+        return
+
+    waiting = (
+        Configuration.objects
+        .filter(
+            status__in=[
+                Configuration.Status.DRAFT, Configuration.Status.PENDING_SALES,
+            ],
+            items__component=product, items__unit_price=0,
+        )
+        .distinct()
+    )
+    suppliers = list(User.objects.filter(role=User.Role.SUPPLIER, is_active=True))
+    for configuration in waiting:
+        for item in ConfigurationItem.objects.filter(
+            configuration=configuration, component=product, unit_price=0,
+        ):
+            item.save()  # save() ombor narxini o'zi to'ldiradi
+        if configuration.items_without_price:
+            continue  # hali boshqa narxsiz qatorlar bor — so'rov ochiq turadi
+        for supplier in suppliers:
+            resolve_notifications(
+                'Configuration', configuration.pk, user=supplier,
+            )
+        owner = _configuration_owner_sales(configuration)
+        if owner:
+            Notification.objects.create(
+                user=owner,
+                title=f'{configuration.number}: narx keldi',
+                message=(
+                    'Buyurtmachi narxni kiritdi — mijoz bilan kelishing. '
+                    'Ma\'qul bo\'lsa engineer ko\'rikka yuboradi.'
+                ),
+                level=Notification.Level.INFO,
+                entity='Configuration',
+                object_id=str(configuration.pk),
+            )
+
+
 def _decide_configuration(configuration, user, decision, comment):
     from rest_framework.exceptions import PermissionDenied, ValidationError
 
@@ -162,10 +280,38 @@ def _decide_configuration(configuration, user, decision, comment):
     )
 
 
+def _configuration_client(configuration):
+    """Zanjir mijozi: konfiguratsiyada, bo'lmasa zayavkada ko'rsatilgani."""
+    if configuration.client_id:
+        return configuration.client
+    request_obj = (
+        configuration.requests.filter(client__isnull=False)
+        .order_by('-created_at').first()
+    )
+    return request_obj.client if request_obj else None
+
+
 def approve_configuration(configuration, user, comment=''):
-    """Sales texnik yechimni tasdiqlaydi — endi ta'minot/yig'ish mumkin."""
+    """Sales texnik yechimni tasdiqlaydi — SHU YERDA shartnoma ochiladi (B1).
+
+    YANGI OQIM: zanjir `CFG → SHT → pul → mol`. Tasdiq bilan draft shartnoma
+    avtomatik ochiladi (egasi — zayavka sales'i), sales uni bugalterga
+    yuboradi; ta'minot va yig'ish esa boshlang'ich to'lovdan keyin boshlanadi.
+    """
     from apps.configurator.models import Configuration, ConfigurationApproval, ConfigurationRequest
     from apps.core.models import Notification
+    from rest_framework.exceptions import ValidationError
+
+    # B10: shartnoma — zanjirning majburiy bo'g'ini; mijozsiz ochilmaydi,
+    # jimgina o'tkazib yuborilsa konfiguratsiya to'lov kutishda abadiy qotardi
+    client = _configuration_client(configuration)
+    if client is None:
+        raise ValidationError({
+            'detail': (
+                'Zayavkada mijoz ko\'rsatilmagan — shartnoma ochib bo\'lmaydi. '
+                'Avval zayavka yoki konfiguratsiyaga mijozni bog\'lang.'
+            ),
+        })
 
     _decide_configuration(
         configuration, user, ConfigurationApproval.Decision.APPROVED, comment,
@@ -181,13 +327,22 @@ def approve_configuration(configuration, user, comment=''):
         status=ConfigurationRequest.Status.IN_PROGRESS,
     ).update(status=ConfigurationRequest.Status.DONE)
 
+    # B1: shartnoma zanjir boshida ochiladi (qaytadan tasdiqlashda mavjudi olinadi)
+    if configuration.active_contract is None:
+        from apps.sales.services import create_contract_from_configuration
+
+        create_contract_from_configuration(configuration, user, client)
+
+    contract = configuration.active_contract
     if configuration.created_by:
         Notification.objects.create(
             user=configuration.created_by,
             title=f'{configuration.number}: texnik yechim tasdiqlandi',
             message=(
-                'Sales mijoz bilan kelishdi. Yetishmagani bo\'lsa buyurtmachiga '
-                'yuboring, mol to\'liq bo\'lgach yig\'ib yakunlang.'
+                f'Sales mijoz bilan kelishdi — {contract.number} shartnomasi '
+                'ochildi. Ta\'minot va yig\'ish boshlang\'ich to\'lovdan keyin '
+                'boshlanadi.'
+                if contract else 'Sales mijoz bilan kelishdi.'
             ),
             level=Notification.Level.INFO,
             entity='Configuration',

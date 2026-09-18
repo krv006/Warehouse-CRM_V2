@@ -55,7 +55,8 @@ class ChainClosureTests(APITestCase):
         self.assertEqual(lead.contract_id, response.data['id'])
 
     def test_configuration_sold_and_request_archived(self):
-        """Finalize -> shartnoma -> to'lov: CFG `sold`, ZVK `archived`."""
+        """YANGI OQIM: approve'da SHT -> to'lov -> yig'ish -> finalize (`sold`)
+        -> yetkazish (`completed`) — ZVK faqat shu yerda `archived`."""
         configuration = Configuration.objects.create(
             base_product=Product.objects.create(
                 sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
@@ -72,32 +73,50 @@ class ChainClosureTests(APITestCase):
         )
         act = Act.objects.create(number='ACT-1', title='ACT', issued_at=date.today())
 
-        # #4 zanjiri: engineer submit -> sales approve -> assemble -> finalize
+        # Engineer submit -> sales approve — SHU YERDA shartnoma ochiladi (B1)
         url = f'/api/configurations/{configuration.id}'
         self.client.force_authenticate(self.engineer)
         self.client.post(f'{url}/submit/')
         self.client.force_authenticate(self.sales)  # zayavka egasi tasdiqlaydi
-        self.client.post(f'{url}/approve/')
-        self.client.force_authenticate(self.engineer)
-        self.client.post(f'{url}/assemble/')
-        response = self.client.post(f'{url}/finalize/', {'act': act.id}, format='json')
+        response = self.client.post(f'{url}/approve/')
         self.assertEqual(response.status_code, 200, response.data)
         contract_id = response.data['contract']['id']
 
-        # ZVK darhol arxivga o'tdi — sales navbatini band qilmaydi
+        # ZVK hali arxivda EMAS — u zanjir umurtqasi (B7, §3.5)
         request_obj.refresh_from_db()
-        self.assertEqual(request_obj.status, ConfigurationRequest.Status.ARCHIVED)
+        self.assertEqual(request_obj.status, ConfigurationRequest.Status.DONE)
 
-        # Zanjir oxiri: sales submit -> bugalter -> admin -> to'lov
-        self.client.force_authenticate(self.sales)
+        # Pul: sales submit -> bugalter -> admin -> to'liq to'lov
         self.client.post(f'/api/contracts/{contract_id}/submit/')
         self.client.force_authenticate(self.bugalter)
         self.client.post(f'/api/contracts/{contract_id}/approve/')
         self.client.force_authenticate(self.admin)
         self.client.post(f'/api/contracts/{contract_id}/approve/')
         self.client.force_authenticate(self.bugalter)
-        response = self.client.post(f'/api/contracts/{contract_id}/confirm-payment/')
+        total = Contract.objects.get(pk=contract_id).total_amount
+        response = self.client.post(
+            f'/api/contracts/{contract_id}/confirm-payment/',
+            {'amount': str(total)}, format='json',
+        )
         self.assertEqual(response.status_code, 200, response.data)
 
+        # Mol endi tayyorlanadi: yig'ish -> finalize — CFG `sold` (B7)
+        self.client.force_authenticate(self.engineer)
+        self.client.post(f'{url}/assemble/')
+        response = self.client.post(f'{url}/finalize/', {'act': act.id}, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
         configuration.refresh_from_db()
         self.assertEqual(configuration.status, Configuration.Status.SOLD)
+
+        # B6: shartnoma qatori yig'ilgan variantga ko'chdi
+        contract = Contract.objects.get(pk=contract_id)
+        self.assertEqual(contract.items.get().product, configuration.variant)
+
+        # Yetkazish — shartnoma yopiladi, ZVK endi arxivga o'tadi (B7)
+        self.client.force_authenticate(self.bugalter)
+        response = self.client.post(f'/api/contracts/{contract_id}/ship/')
+        self.assertEqual(response.status_code, 200, response.data)
+        contract.refresh_from_db()
+        self.assertEqual(contract.status, Contract.Status.COMPLETED)
+        request_obj.refresh_from_db()
+        self.assertEqual(request_obj.status, ConfigurationRequest.Status.ARCHIVED)

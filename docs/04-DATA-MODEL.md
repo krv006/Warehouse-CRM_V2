@@ -406,4 +406,8 @@ Boshqa yangi maydonlar (shu bosqichda): `Contract.didox_number`,
 §10.5); `CashTransaction.replenishment` FK (§10.9); `Purchase.replenishment` FK
 (§4.3); `Configuration.status`ga `sold` (terminal), `ConfigurationRequest`ga
 `archived` qo'shildi; `Configuration.purchase` FK va `attached` holati olib
-tashlandi (§10.7).
+tashlandi (§10.7). YANGI-OQIM: `CompanyProfile.markup_percent` (§6-B —
+sotuv narxi yo'q mahsulotda tannarx ustiga avtomatik ustama, 0 = o'chiq);
+`Configuration.active_contract` / `is_paid` xossalari (zanjirdagi tirik
+shartnoma va "boshlang'ich to'lov keldimi" belgisi — serializer `contract`
+maydoni shulardan, B9).

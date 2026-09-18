@@ -17,6 +17,13 @@ class ConfigurationQuantityTests(APITestCase):
         self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
         self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
         self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
+        from apps.clients.models import Client
+
+        # YANGI OQIM B10: approve mijozsiz o'tmaydi — shartnoma ochiladi
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
         self.base = Product.objects.create(
             sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
         )
@@ -32,7 +39,7 @@ class ConfigurationQuantityTests(APITestCase):
     def _make_config(self, quantity, ram_qty=1):
         configuration = Configuration.objects.create(
             base_product=self.base, warehouse=self.warehouse,
-            created_by=self.engineer, quantity=quantity,
+            created_by=self.engineer, quantity=quantity, client=self.mijoz,
         )
         ConfigurationItem.objects.create(
             configuration=configuration, component=self.ram,
@@ -116,19 +123,13 @@ class ConfigurationQuantityTests(APITestCase):
             type=StockMovement.Type.IN, quantity=Decimal('10'),
         )
         configuration = self._make_config(quantity=3)
-        from apps.clients.models import Client
-
-        mijoz = Client.objects.create(
-            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
-            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
-        )
         act = Act.objects.create(number='ACT-1', title='ACT', issued_at=date.today())
         url = f'/api/configurations/{configuration.id}'
         self.client.post(f'{url}/submit/')
         self.client.post(f'{url}/approve/')
         self.client.post(f'{url}/assemble/')
         response = self.client.post(
-            f'{url}/finalize/', {'act': act.id, 'client': mijoz.id}, format='json',
+            f'{url}/finalize/', {'act': act.id}, format='json',
         )
         self.assertEqual(response.status_code, 200, response.data)
 
@@ -157,6 +158,7 @@ class ConfigurationQuantityTests(APITestCase):
         configuration = Configuration.objects.create(
             base_product=self.base, warehouse=self.warehouse,
             created_by=self.engineer, quantity=2, mode=Configuration.Mode.MODIFY,
+            client=self.mijoz,
         )
         ConfigurationItem.objects.create(
             configuration=configuration, component=self.ram, label='RAM', quantity=1,

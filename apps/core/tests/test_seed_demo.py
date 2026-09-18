@@ -22,7 +22,8 @@ class SeedDemoTests(APITestCase):
     def test_counts_per_module(self):
         # 5 asosiy mahsulot + engineer configuratordan qo'shgan Wi-Fi modul
         self.assertEqual(Product.objects.filter(base_model__isnull=True).count(), 6)
-        self.assertEqual(Contract.objects.count(), 6)
+        # YANGI OQIM B1: D-hikoya tasdig'i ham avtomatik shartnoma ochadi
+        self.assertEqual(Contract.objects.count(), 7)
         self.assertEqual(Lead.objects.count(), 5)
         # 5 ta qo'lda + 1 ta TLD receive'da avtomatik ochilgan KIR (§4.3)
         self.assertEqual(Purchase.objects.count(), 6)
@@ -175,7 +176,8 @@ class SeedDemoTests(APITestCase):
 
     def test_second_run_does_not_duplicate(self):
         call_command('seed_demo', stdout=StringIO())
-        self.assertEqual(Contract.objects.count(), 6)
+        # YANGI OQIM B1: D-hikoya tasdig'i ham avtomatik shartnoma ochadi
+        self.assertEqual(Contract.objects.count(), 7)
         self.assertEqual(Purchase.objects.count(), 6)
 
     def test_dashboard_is_rich_after_seed(self):
@@ -213,7 +215,8 @@ class SeedDemoResetTests(APITestCase):
         self.assertFalse(Product.objects.filter(sku='JUNK-1').exists())
         self.assertFalse(Loan.objects.filter(lender_name='test').exists())
         self.assertEqual(Loan.objects.count(), 2)
-        self.assertEqual(Contract.objects.count(), 6)
+        # YANGI OQIM B1: D-hikoya tasdig'i ham avtomatik shartnoma ochadi
+        self.assertEqual(Contract.objects.count(), 7)
         self.assertTrue(User.objects.filter(username='mening_akkauntim').exists())
         self.assertTrue(User.objects.filter(username='engineer').exists())
 

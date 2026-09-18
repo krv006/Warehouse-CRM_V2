@@ -32,7 +32,7 @@
 | `ProductSpecAccess` | barcha login qilganlar | admin, engineer, buyurtmachi |
 | `IsOwnerOrAdmin` | aralashmaydi (ko'rinish — `get_queryset()`) | **egasi + admin** — shartnoma/kelishuv/konfiguratsiya va qatorlari (EGALIK §3.4) |
 | `UserDirectoryAccess` | **admin, bugalter** — xodimlar ro'yxati (`GET /users/`); yozish bu sinfda umuman yo'q |
-| `ProductPricingAccess` | barcha login qilganlar | **admin, bugalter** — katalog narx siyosati: `PATCH /products/{id}/` (`sale_price`, `cost_price`, `reorder_level`, `is_active`) |
+| `ProductPricingAccess` | barcha login qilganlar | **admin, bugalter, buyurtmachi** — katalog narx siyosati: `PATCH /products/{id}/` (`sale_price`, `cost_price`, `reorder_level`, `is_active`); buyurtmachi YANGI-OQIM B2 narx so'roviga javoban tannarx kiritadi (§6-B: sotuv narxi yo'q bo'lsa tannarx + `markup_percent` ustama) |
 | `ConfigurationRequestAccess` | barcha login qilganlar | admin, sales, engineer |
 
 Hammasi `RoleAccess` asosida: `read_roles` / `write_roles` ro'yxatlari, admin esa doim o'tadi.

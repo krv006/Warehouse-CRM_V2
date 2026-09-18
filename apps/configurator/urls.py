@@ -45,6 +45,10 @@ urlpatterns = [
     path('configurations/<int:pk>/request-procurement/', ConfigurationViewSet.as_view({
         'post': 'request_procurement',
     }), name='configuration-request-procurement'),
+    # YANGI-OQIM B2: narx so'rovi — buyurtma emas, buyurtmachi narx kiritib beradi
+    path('configurations/<int:pk>/request-prices/', ConfigurationViewSet.as_view({
+        'post': 'request_prices',
+    }), name='configuration-request-prices'),
     path('configurations/<int:pk>/export-excel/', ConfigurationViewSet.as_view({
         'get': 'export_excel',
     }), name='configuration-export-excel'),

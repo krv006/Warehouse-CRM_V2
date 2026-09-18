@@ -84,18 +84,22 @@ def reserved_quantity(product, warehouse=None, *, kind=None,
     return qs.aggregate(t=Sum('quantity'))['t'] or 0
 
 
-def sellable_quantity(product, warehouse=None, *, for_contract=None):
+def sellable_quantity(product, warehouse=None, *, for_contract=None,
+                      for_configuration=None):
     """Erkin qoldiq = Jami − qattiq bron. Sotish uchun ochiq raqam.
 
     Umumiy qoida (§11.4): har qanday amal O'ZINING bronini o'ziga ochiq deb
-    hisoblaydi — `for_contract` bering, aks holda shartnoma o'z broni bilan
-    o'zini bloklab qo'yadi.
+    hisoblaydi — `for_contract`/`for_configuration` bering, aks holda hujjat
+    o'z broni bilan o'zini bloklab qo'yadi. YANGI-OQIM B5 da to'langan
+    konfiguratsiyaning broni ham QATTIQ — yig'ishda o'ziga ochiq bo'lsin.
     """
     from apps.inventory.models import StockReservation
 
     return available_quantity(product, warehouse) - reserved_quantity(
         product, warehouse,
-        kind=StockReservation.Kind.HARD, exclude_contract=for_contract,
+        kind=StockReservation.Kind.HARD,
+        exclude_contract=for_contract,
+        exclude_configuration=for_configuration,
     )
 
 
@@ -104,12 +108,18 @@ def plannable_quantity(product, warehouse=None, *, for_configuration=None):
 
     Engineer konfiguratsiyada shu raqamni ko'radi — boshqa hujjatlarga va'da
     qilingan mol "bor" bo'lib ko'rinmaydi (o'z rejasi hisobga olinmaydi).
+    YANGI-OQIM B5: o'z broni QATTIQ bo'lib qolgan (to'lov kelgan) bo'lsa ham
+    o'ziga ochiq — aks holda konfiguratsiya o'z moliga o'zi yetisholmay qolardi.
     """
     from apps.inventory.models import StockReservation
 
     return (
         available_quantity(product, warehouse)
-        - reserved_quantity(product, warehouse, kind=StockReservation.Kind.HARD)
+        - reserved_quantity(
+            product, warehouse,
+            kind=StockReservation.Kind.HARD,
+            exclude_configuration=for_configuration,
+        )
         - reserved_quantity(
             product, warehouse,
             kind=StockReservation.Kind.SOFT,
@@ -195,6 +205,16 @@ def sync_contract_reservations(contract):
     if contract.status == Contract.Status.ACTIVE:
         return  # chiqim bo'lib bo'lgan — bron shipped holatda turadi
 
+    # YANGI-OQIM B5.1: konfiguratsiyaga bog'langan shartnoma, konfiguratsiya
+    # tayyor bo'lmaguncha (`ready`/`sold`), O'Z bronini qo'ymaydi — molni
+    # ushlab turish CFG ning ishi. Aks holda bitta zanjir uchun ombordan
+    # ikki marta mol band bo'lardi (§3.2): butlovchilar ham, model ham.
+    configuration = contract.configuration
+    if configuration is not None and configuration.status not in {
+        configuration.Status.READY, configuration.Status.SOLD,
+    }:
+        return
+
     warehouse = main_warehouse()
     StockReservation.objects.filter(
         contract=contract, status=StockReservation.Status.ACTIVE,
@@ -232,18 +252,27 @@ def sync_configuration_reservations(configuration):
         release_reservations(configuration=configuration)
         return
 
+    # YANGI-OQIM B5.2: boshlang'ich to'lov kelgan zanjirda bron endi "reja"
+    # emas — QATTIQ va muddatsiz (pul to'langan molni muddat o'tdi deb
+    # bo'shatib bo'lmaydi). Ungacha — yumshoq, muddati bilan.
+    kind = StockReservation.Kind.SOFT
+    expires_at = _reservation_expiry(kind)
+    if configuration.is_paid:
+        kind = StockReservation.Kind.HARD
+        expires_at = None
+
     warehouse = configuration.warehouse or main_warehouse()
     StockReservation.objects.filter(
         configuration=configuration, status=StockReservation.Status.ACTIVE,
     ).delete()
     for product, quantity in configuration.required_from_stock:
-        room = plannable_quantity(product, warehouse)
+        room = plannable_quantity(product, warehouse, for_configuration=configuration)
         take = min(quantity, max(room, 0))
         if take > 0:
             StockReservation.objects.create(
                 product=product, warehouse=warehouse, quantity=take,
-                kind=StockReservation.Kind.SOFT, configuration=configuration,
-                expires_at=_reservation_expiry(StockReservation.Kind.SOFT),
+                kind=kind, configuration=configuration,
+                expires_at=expires_at,
             )
 
 

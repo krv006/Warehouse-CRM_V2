@@ -47,6 +47,13 @@ class VariantPricingTests(APITestCase):
             sku='RAM-4', name='RAM 4', kind=Product.Kind.COMPONENT,
         )
         self.act = Act.objects.create(number='ACT-001', title='ACT', issued_at=date.today())
+        # YANGI OQIM B10: tasdiq (approve) mijozsiz o'tmaydi — shartnoma ochiladi
+        from apps.clients.models import Client
+
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
         # Yig'ish (assemble) uchun butlovchilar omborda bo'lsin
         from apps.inventory.models import StockMovement, Warehouse
         from apps.inventory.services import apply_movement
@@ -63,7 +70,8 @@ class VariantPricingTests(APITestCase):
 
     def _configuration(self, components, act=True):
         configuration = Configuration.objects.create(
-            base_product=self.base, created_by=self.engineer, act=self.act if act else None,
+            base_product=self.base, created_by=self.engineer,
+            act=self.act if act else None, client=self.mijoz,
         )
         for component, quantity in components:
             ConfigurationItem.objects.create(
@@ -85,11 +93,12 @@ class VariantPricingTests(APITestCase):
         self.assertTrue(item.needs_price)
         self.assertEqual(len(configuration.items_without_price), 1)
 
-    def test_finalize_blocked_without_price(self):
+    def test_submit_blocked_without_price(self):
+        """YANGI OQIM B2: narx tekshiruvi endi submit'da — shartnoma undan keyin."""
         configuration = self._configuration([(self.ssd, 1), (self.no_price, 1)])
-        response = full_finalize(self.client, configuration.id)
+        response = self.client.post(f'/api/configurations/{configuration.id}/submit/')
         self.assertEqual(response.status_code, 400)
-        self.assertIn('RAM 4', response.data['items'])
+        self.assertIn('RAM 4', str(response.data['items']))
 
     def test_finalize_creates_reusable_variant(self):
         configuration = self._configuration([(self.ssd, 1), (self.gpu, 1)])
@@ -181,6 +190,12 @@ class BaseModelAsReadyPositionTests(APITestCase):
             product=self.base, warehouse=warehouse,
             type=StockMovement.Type.IN, quantity=Decimal('3'),
         )
+        from apps.clients.models import Client
+
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
         # Admin bilan: konfiguratsiya tahriri ham (engineer ishi), finalize ham
         # (sales bosqichi) bitta testda ketadi — rol chegaralari alohida testlarda
         self.client.force_authenticate(self.admin)
@@ -218,7 +233,7 @@ class BaseModelAsReadyPositionTests(APITestCase):
 
         act = Act.objects.create(number='ACT-01', title='ACT', issued_at=date.today())
         response = self.client.post('/api/configurations/', {
-            'base_product': self.base.id, 'act': act.id,
+            'base_product': self.base.id, 'act': act.id, 'client': self.mijoz.id,
         }, format='json')
         config_id = response.data['id']
 
@@ -258,6 +273,12 @@ class ModifyModeTests(APITestCase):
         self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
         self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
         self.act = Act.objects.create(number='ACT-01', title='ACT', issued_at=date.today())
+        from apps.clients.models import Client
+
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
 
         self.base = Product.objects.create(
             sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
@@ -293,7 +314,7 @@ class ModifyModeTests(APITestCase):
         """RAM 4 yechiladi, o'rniga RAM 8 qo'yiladi."""
         response = self.client.post('/api/configurations/', {
             'base_product': self.base.id, 'warehouse': self.warehouse.id,
-            'act': self.act.id, 'mode': 'modify',
+            'act': self.act.id, 'mode': 'modify', 'client': self.mijoz.id,
             'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 1}],
         }, format='json')
         return response.data['id']
@@ -371,6 +392,7 @@ class ModifyModeTests(APITestCase):
         """Biznesda bitta ombor — konfiguratsiyada tanlanmagan bo'lsa o'zi olinadi."""
         response = self.client.post('/api/configurations/', {
             'base_product': self.base.id, 'act': self.act.id, 'mode': 'modify',
+            'client': self.mijoz.id,
             'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 1}],
         }, format='json')
         config_id = response.data['id']
@@ -387,7 +409,7 @@ class ModifyModeTests(APITestCase):
         """
         response = self.client.post('/api/configurations/', {
             'base_product': self.base.id, 'warehouse': self.warehouse.id,
-            'act': self.act.id,  # mode default: build
+            'act': self.act.id, 'client': self.mijoz.id,  # mode default: build
             'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 1}],
         }, format='json')
         config_id = response.data['id']
@@ -411,7 +433,7 @@ class ModifyModeTests(APITestCase):
 
         response = self.client.post('/api/configurations/', {
             'base_product': self.base.id, 'warehouse': self.warehouse.id,
-            'act': self.act.id,
+            'act': self.act.id, 'client': self.mijoz.id,
             'items': [{'component': self.ram8.id, 'label': 'RAM', 'quantity': 10}],
         }, format='json')
         config_id = response.data['id']

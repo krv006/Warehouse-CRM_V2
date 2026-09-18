@@ -157,7 +157,8 @@ O'qish hammaga; **yozish faqat engineer** (admin). Sales matnli zayavka yuboradi
 `Configuration` + `ConfigurationItem`: har bir qator uchun `available` / `shortage` / `source`
 (`stock` yoki `purchase`) hisoblanadi.
 - `GET /configurations/{id}/stock-check/`
-- `POST /configurations/{id}/finalize/` — **ACT majburiy**; §11.1: ACT ham, yakunlash ham **engineer bosqichi** ("Yakunlash va salesga topshirish"), tanada `{"act": id, "client": id}` qabul qilinadi; build rejimida **yig'ish** ham shu yerda (§10.1: butlovchilar chiqadi, variant kiradi; yetmasa bloklamaydi — javobda `assembled`/`assembly_missing`); yakunda **draft shartnoma avtomatik ochiladi** (mijoz — tanadagi yoki ZVK'dagi), chop etish shakli: `GET /contracts/{id}/print/`
+- **YANGI OQIM**: zanjir `CFG → SHT → pul → mol`. Sales texnik yechimni tasdiqlashi (`approve`) bilanoq **draft shartnoma avtomatik ochiladi** (mijozsiz tasdiq 400); ta'minot va yig'ish **boshlang'ich to'lovdan keyin**. Narx `submit`dan oldin aniq bo'ladi (`request-prices` — buyurtmachi tannarx kiritadi, §6-B ustama `CompanyProfile.markup_percent`)
+- `POST /configurations/{id}/finalize/` — **ACT majburiy**; §11.1: yakunlash **engineer bosqichi**, shartlari `approved` + yig'ilgan; shartnoma bu yerda OCHILMAYDI — qatordagi bazaviy model **yig'ilgan variantga ko'chadi** (son/narx tegilmaydi), CFG `ready` (pul kelgan bo'lsa `sold`); chop etish shakli: `GET /contracts/{id}/print/`
 - `POST /configurations/{id}/assemble/` — keyinroq yig'ish (mol kelgach); to'lov oldidan ham avtomatik uriniladi
 - `GET /configurations/{id}/export-excel/` — chernovik Excel (openpyxl)
 - Narx ombordan avtomatik olinadi; narxsiz qator bo'lsa `finalize` bloklanadi

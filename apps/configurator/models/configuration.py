@@ -198,6 +198,27 @@ class Configuration(StatusTrackedModel):
         return rows
 
     @property
+    def active_contract(self):
+        """Zanjirdagi tirik shartnoma (YANGI-OQIM): rad/bekor qilinganlar emas.
+
+        Yangi oqimda shartnoma sales tasdig'ida ochiladi va zanjirning
+        umurtqasi bo'ladi — to'lov holati, bron turi va yig'ish ruxsati
+        shu shartnomadan o'qiladi.
+        """
+        return (
+            self.contracts
+            .exclude(status__in=['rejected', 'cancelled'])
+            .order_by('-id')
+            .first()
+        )
+
+    @property
+    def is_paid(self):
+        """Boshlang'ich to'lov keldimi — 13–16 qadamlar shu bilan ochiladi."""
+        contract = self.active_contract
+        return bool(contract and contract.status in ('active', 'completed'))
+
+    @property
     def last_replenishment(self):
         """Buyurtmachiga yuborilgan oxirgi to'ldirish hisobi (TLD) — flag manbai."""
         replenishments = list(self.replenishments.all())

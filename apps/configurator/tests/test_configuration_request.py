@@ -16,12 +16,20 @@ class ConfigurationRequestFlowTests(APITestCase):
         self.base = Product.objects.create(
             sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
         )
+        from apps.clients.models import Client
+
+        # YANGI OQIM B10: approve mijozsiz o'tmaydi — shartnoma ochiladi
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
 
     def _request(self, **extra):
         self.client.force_authenticate(self.sales)
         response = self.client.post('/api/configuration-requests/', {
             'text': 'Client kuchli kompyuter xohlaydi: SSD 2 TB, GPU zo\'r bo\'lsin.',
             'base_product': self.base.id,
+            'client': self.mijoz.id,
             **extra,
         }, format='json')
         self.assertEqual(response.status_code, 201, response.data)
@@ -53,10 +61,14 @@ class ConfigurationRequestFlowTests(APITestCase):
         self.assertEqual(configuration.base_product, self.base)
         self.assertEqual(configuration.status, Configuration.Status.DRAFT)
 
-        # Engineer yig'ib sales ko'rigiga yuboradi
+        # Engineer yig'ib sales ko'rigiga yuboradi (B2: narxli qator)
+        from decimal import Decimal
+
         ConfigurationItem.objects.create(
             configuration=configuration,
-            component=Product.objects.create(sku='SSD-2TB', name='SSD 2 TB'),
+            component=Product.objects.create(
+                sku='SSD-2TB', name='SSD 2 TB', sale_price=Decimal('2000000'),
+            ),
             label='SSD', quantity=1,
         )
         response = self.client.post(f'/api/configurations/{configuration.id}/submit/')
@@ -96,9 +108,13 @@ class ConfigurationRequestFlowTests(APITestCase):
         self.client.force_authenticate(self.engineer)
         take = self.client.post(f'/api/configuration-requests/{request_id}/take/')
         configuration_id = take.data['configuration']
+        from decimal import Decimal
+
         ConfigurationItem.objects.create(
             configuration_id=configuration_id,
-            component=Product.objects.create(sku='SSD-2TB', name='SSD 2 TB'),
+            component=Product.objects.create(
+                sku='SSD-2TB', name='SSD 2 TB', sale_price=Decimal('2000000'),
+            ),
             label='SSD', quantity=1,
         )
         self.client.post(f'/api/configurations/{configuration_id}/submit/')

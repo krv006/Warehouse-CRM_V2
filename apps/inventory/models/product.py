@@ -69,8 +69,26 @@ class Product(TimeStampedModel):
 
     @property
     def stock_price(self):
-        """Ombordagi narx: sotuv narxi, bo'lmasa tannarx (TZ 6.2)."""
-        return self.sale_price or self.cost_price
+        """Ombordagi narx: sotuv narxi, bo'lmasa tannarx + ustama (TZ 6.2, §6-B).
+
+        Yangi oqimda shartnoma shu narx bilan DARHOL tuziladi — buyurtmachi
+        faqat tannarx kiritgan bo'lsa, `CompanyProfile.markup_percent`
+        ustamasi qo'llanadi (0 bo'lsa eski xulq: tannarxning o'zi).
+        """
+        if self.sale_price:
+            return self.sale_price
+        if not self.cost_price:
+            return self.cost_price
+        from decimal import Decimal
+
+        from apps.core.models import CompanyProfile
+
+        markup = CompanyProfile.load().markup_percent
+        if not markup:
+            return self.cost_price
+        return (
+            self.cost_price * (Decimal('100') + markup) / Decimal('100')
+        ).quantize(Decimal('0.01'))
 
     @property
     def total_stock(self):

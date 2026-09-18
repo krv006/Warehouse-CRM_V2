@@ -146,6 +146,7 @@ class ConfigurationSerializer(ModelSerializer):
     variant_sku = ReadOnlyField(source='variant.sku')
     missing = SerializerMethodField()
     missing_count = SerializerMethodField()
+    contract = SerializerMethodField()
     ready_variant = SerializerMethodField()
     procurement = SerializerMethodField()
     sent_to_procurement = SerializerMethodField()
@@ -157,7 +158,8 @@ class ConfigurationSerializer(ModelSerializer):
             'warehouse', 'act', 'act_number', 'mode', 'mode_display',
             'quantity', 'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
-            'ready_variant', 'missing', 'missing_count', 'procurement', 'sent_to_procurement',
+            'ready_variant', 'missing', 'missing_count', 'contract',
+            'procurement', 'sent_to_procurement',
             'assembled_at', 'removals', 'approvals',
             'created_by', 'created_by_name', 'created_at',
         ]
@@ -186,6 +188,26 @@ class ConfigurationSerializer(ModelSerializer):
 
     def get_missing_count(self, obj):
         return len(obj.missing_items)
+
+    def get_contract(self, obj):
+        """Zanjirdagi shartnoma (YANGI-OQIM B9) — "to'lov keldimi?" javobi.
+
+        Front 13–16 qadamlarni (ta'minot, yig'ish) `is_paid` bilan qulflaydi:
+        tugmalar boshlang'ich to'lovdan keyingina chiqadi.
+        """
+        contract = obj.active_contract
+        if not contract:
+            return None
+        return {
+            'id': contract.id,
+            'number': contract.number,
+            'status': contract.status,
+            'status_display': contract.get_status_display(),
+            'total_amount': contract.total_amount,
+            'prepayment_amount': contract.prepayment_amount,
+            'paid': contract.paid,
+            'is_paid': contract.status in ('active', 'completed'),
+        }
 
     def get_procurement(self, obj):
         """Buyurtmachiga yuborilgan oxirgi TLD hisobi — front badge shu yerdan.

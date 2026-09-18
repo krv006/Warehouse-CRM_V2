@@ -54,6 +54,17 @@ class CompanyProfile(TimeStampedModel):
         default=1,
         help_text='Ishga beriladigan ish kunlari soni',
     )
+    # YANGI-OQIM §6-B: buyurtmachi har doim TANNARX kiritadi; sotuv narxi
+    # qo'yilmagan mahsulotda tannarx ustiga shu ustama qo'llanadi — aks holda
+    # shartnoma tannarxda tuzilib, mijozga foydasiz sotilardi. 0 = ustama yo'q
+    # (eski xulq: stock_price tannarxga teng bo'lib qoladi).
+    markup_percent = DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        help_text=(
+            "Sotuv narxi yo'q mahsulotda tannarx ustiga avtomatik ustama (%); "
+            "0 — ustama yo'q, tannarx ishlatiladi"
+        ),
+    )
     # §11.4: bron muddatlari (kun). 0 = muddat yo'q, qo'lda bo'shatilguncha turadi
     contract_reservation_days = PositiveIntegerField(
         default=7,

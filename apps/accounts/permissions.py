@@ -143,13 +143,16 @@ class UserDirectoryAccess(RoleAccess):
 class ProductPricingAccess(RoleAccess):
     """Katalog narx siyosati: sotuv narxi, minimal qoldiq, faollik.
 
-    O'qish hammaga; yozish — bugalter (admin). Shu orqali tizimda haqiqiy
-    prays-list paydo bo'ladi: sale_price 0 bo'lsa mahsulot tannarxda sotilardi.
+    O'qish hammaga; yozish — bugalter va buyurtmachi (admin). Buyurtmachi
+    YANGI-OQIM B2 bo'yicha narx so'roviga javoban tannarxni mahsulot
+    kartasida kiritadi; bugalter sotuv narx siyosatini yuritadi. Shu orqali
+    tizimda haqiqiy prays-list paydo bo'ladi: sale_price 0 bo'lsa mahsulot
+    tannarx + ustama (§6-B) bilan sotiladi.
     """
 
     read_roles = None
-    write_roles = (BUGALTER,)
-    message = 'Katalog narxlarini admin yoki bugalter o\'zgartiradi.'
+    write_roles = (BUGALTER, SUPPLIER)
+    message = 'Katalog narxlarini admin, bugalter yoki buyurtmachi o\'zgartiradi.'
 
 
 class ConfigurationRequestAccess(RoleAccess):

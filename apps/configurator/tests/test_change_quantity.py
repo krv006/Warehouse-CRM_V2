@@ -26,6 +26,13 @@ class ChangeQuantityTests(APITestCase):
         self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
         User.objects.create_user('buy', password='p', role=User.Role.SUPPLIER)
         self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
+        from apps.clients.models import Client
+
+        # YANGI OQIM B10: approve mijozsiz o'tmaydi — shartnoma ochiladi
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
         self.base = Product.objects.create(
             sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE,
         )
@@ -48,7 +55,7 @@ class ChangeQuantityTests(APITestCase):
         self.client.force_authenticate(self.sales)
         request_id = self.client.post('/api/configuration-requests/', {
             'text': f'{quantity} ta HP 880', 'base_product': self.base.id,
-            'quantity': quantity,
+            'quantity': quantity, 'client': self.mijoz.id,
         }, format='json').data['id']
         self.client.force_authenticate(self.engineer)
         response = self.client.post(f'/api/configuration-requests/{request_id}/take/')

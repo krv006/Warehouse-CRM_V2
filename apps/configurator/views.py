@@ -29,6 +29,7 @@ from apps.configurator.services import (
     change_quantity,
     notify_engineers_about_request,
     reject_configuration,
+    request_prices,
     send_missing_to_procurement,
     submit_configuration,
     take_request,
@@ -202,6 +203,19 @@ class ConfigurationViewSet(BaseModelViewSet):
         )
         return Response(self.get_serializer(configuration).data)
 
+    def request_prices(self, request, pk=None):
+        """POST /configurations/{id}/request-prices/ — narx so'rovi (YANGI-OQIM B2).
+
+        TLD emas: buyurtmachi shunchaki tannarxni mahsulot kartasida kiritadi.
+        Takrorida eski eslatma yangilanadi. Narx kelgach sales xabar oladi.
+        """
+        products = request_prices(self.get_object(), request.user)
+        self.log_action(
+            ActivityLog.Action.UPDATE, self.get_object(),
+            f"Narx so'raldi: {', '.join(products)}",
+        )
+        return Response({'requested': products})
+
     def change_quantity(self, request, pk=None):
         """POST /configurations/{id}/change-quantity/ — partiya soni (4-to'plam §2).
 
@@ -304,6 +318,9 @@ class ConfigurationViewSet(BaseModelViewSet):
             )
 
         with atomic():
+            # Tanadagi mijoz (eski oqim mosligi) — konfiguratsiyada bo'lmasa yoziladi
+            if client and not configuration.client_id:
+                configuration.client = client
             configuration.status = Configuration.Status.READY
             configuration.save()
 
@@ -312,28 +329,42 @@ class ConfigurationViewSet(BaseModelViewSet):
 
             resolve_notifications('Configuration', configuration.pk, user=request.user)
 
-            # §11.4: yumshoq bron bo'shaydi; shartnoma ochilsa uning qattiq
-            # broni o'z o'rnini egallaydi (bitta bron ko'chadi)
-            from apps.inventory.services import sync_configuration_reservations
+            # §11.4/B5: konfiguratsiya broni bo'shaydi — endi shartnomaning
+            # qattiq broni o'z o'rnini egallaydi (bitta bron ko'chadi)
+            from apps.inventory.services import (
+                sync_configuration_reservations,
+                sync_contract_reservations,
+            )
+
+            # YANGI OQIM: shartnoma allaqachon bor (B1, approve'da ochilgan).
+            # B6: qatordagi bazaviy model yig'ilgan VARIANTGA ko'chadi — son va
+            # narx tegilmaydi (imzolangan pul o'zgarmaydi), faqat SKU aniqlashadi.
+            # Aks holda ship bazaviy modelni chiqim qilib omborni buzardi (§3.1).
+            contract = configuration.active_contract
+            if contract and configuration.variant_id:
+                moved = contract.items.filter(
+                    product=configuration.base_product,
+                ).update(product=configuration.variant)
+                if moved:
+                    self.log_action(
+                        ActivityLog.Action.UPDATE, contract,
+                        f'{contract.number} qatori variantga ko\'chdi: '
+                        f'{configuration.variant.sku}',
+                    )
+            # B7: pul allaqachon kelgan bo'lsa zanjir yopildi — sold
+            if contract and contract.status in ('active', 'completed'):
+                configuration.status = Configuration.Status.SOLD
+                configuration.save()
 
             sync_configuration_reservations(configuration)
-
-            from apps.sales.services import create_contract_from_configuration
-
-            contract = create_contract_from_configuration(
-                configuration, request.user, client,
-            )
+            if contract:
+                sync_contract_reservations(contract)
         self.log_action(
             ActivityLog.Action.UPDATE, configuration,
             f'Yakunlandi ({configuration.get_mode_display()}), variant: '
             f'{configuration.variant.sku}'
             + (f', shartnoma: {contract.number}' if contract else ''),
         )
-        if contract:
-            self.log_action(
-                ActivityLog.Action.CREATE, contract,
-                f'{configuration.number} dan avtomatik ochildi',
-            )
         data = self.get_serializer(configuration).data
         data['contract'] = (
             {'id': contract.id, 'number': contract.number, 'status': contract.status}

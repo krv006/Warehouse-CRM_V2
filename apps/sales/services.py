@@ -35,17 +35,23 @@ def link_lead_to_contract(contract):
 
 @atomic
 def create_contract_from_configuration(configuration, user, client=None):
-    """Yakunlangan konfiguratsiyadan avtomatik draft shartnoma ochadi.
+    """Konfiguratsiyadan avtomatik draft shartnoma ochadi.
 
-    Sales finalize qilganda chaqiriladi — bugalterga yuborishdan oldin
-    shartnoma (chop etish shakli bilan) tayyor turadi. Mijoz: berilgan
-    `client`, bo'lmasa zayavkadagi (ZVK) mijoz. Mijoz aniqlanmasa shartnoma
-    ochilmaydi (None qaytadi) — sales qo'lda ochishi mumkin.
+    YANGI OQIM (B1): sales texnik yechimni tasdiqlaganda chaqiriladi —
+    shartnoma zanjir BOSHIDA ochiladi, mol esa to'lovdan keyin tayyorlanadi.
+    Mijoz: berilgan `client`, bo'lmasa konfiguratsiyadagi, bo'lmasa
+    zayavkadagi (ZVK) mijoz. Mijoz aniqlanmasa shartnoma ochilmaydi (None) —
+    approve bosqichi buni 400 bilan ushlaydi (B10).
 
-    Qator: tayyor variant (yo'q bo'lsa bazaviy model), narxi konfiguratsiya
-    narxidan (QQS'siz), QQS esa default foiz bilan qo'shiladi.
+    Qator: tayyor variant (odatda hali yo'q — bazaviy model), narxi
+    konfiguratsiya narxidan (QQS'siz), QQS default foiz bilan. `finalize`
+    da qator yig'ilgan variantga ko'chadi (B6) — son va narx tegilmaydi.
     """
-    existing = Contract.objects.filter(configuration=configuration).first()
+    existing = (
+        Contract.objects.filter(configuration=configuration)
+        .exclude(status__in=[Contract.Status.REJECTED, Contract.Status.CANCELLED])
+        .first()
+    )
     if existing:
         return existing
 
@@ -53,6 +59,8 @@ def create_contract_from_configuration(configuration, user, client=None):
         configuration.requests.filter(created_by__isnull=False)
         .order_by('-created_at').first()
     )
+    if client is None and configuration.client_id:
+        client = configuration.client
     if client is None:
         client_request = (
             configuration.requests.filter(client__isnull=False)
@@ -84,21 +92,33 @@ def create_contract_from_configuration(configuration, user, client=None):
     contract.prepayment_percent = None
     contract.save()
 
-    # §11.4: konfiguratsiyaning yumshoq broni shartnomaning qattiq broniga
-    # aylanadi — endi bu mol sotilgan hisoblanadi
+    # §11.4/B5: bron sinxroni — konfiguratsiya tayyor bo'lmaguncha bu
+    # chaqiruv hech narsa qilmaydi (molni CFG ushlab turadi), keyin esa
+    # variantni qattiq band qiladi
     from apps.inventory.services import sync_contract_reservations
 
     sync_contract_reservations(contract)
 
-    # §10.8: zanjir yopilib boradi — kelishuv shartnomaga bog'lanadi,
-    # bajarilgan zayavka arxivga o'tadi (sales navbatini band qilmaydi)
+    # §10.8: mijozning ochiq kelishuvi shartnomaga bog'lanadi. Zayavka esa
+    # ARXIVLANMAYDI (B7): u zanjir umurtqasi — shartnoma yakunlanganda
+    # (`completed`) arxivga o'tadi, 12 qadam oldin emas (§3.5).
     link_lead_to_contract(contract)
+    return contract
+
+
+def archive_completed_chain(contract):
+    """SHT yakunlandi — zayavka endi arxivga o'tadi (B7, §3.5).
+
+    Zanjir 18-qadamda tugaydi; ungacha ZVK ro'yxatlarda ko'rinib, roadmap
+    umurtqasi bo'lib turadi.
+    """
     from apps.configurator.models import ConfigurationRequest
 
-    configuration.requests.filter(
+    if contract.status != Contract.Status.COMPLETED or not contract.configuration_id:
+        return
+    contract.configuration.requests.filter(
         status=ConfigurationRequest.Status.DONE,
     ).update(status=ConfigurationRequest.Status.ARCHIVED)
-    return contract
 
 
 def _notify_role(role, contract, title, message, level=Notification.Level.WARNING):
@@ -450,6 +470,28 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
     if contract.balance <= 0 and contract.delivered_at:
         contract.status = Contract.Status.COMPLETED
     contract.save()
+
+    # YANGI-OQIM B5.3: pul keldi — konfiguratsiya broni yumshoqdan qattiqqa
+    # ko'chadi (endi "rejada" emas, "band") va ish boshlanish signali beriladi
+    if first_payment and contract.configuration_id:
+        from apps.inventory.services import sync_configuration_reservations
+
+        sync_configuration_reservations(contract.configuration)
+        if contract.configuration.created_by:
+            Notification.objects.create(
+                user=contract.configuration.created_by,
+                title=f'{contract.configuration.number}: to\'lov keldi — ish boshlanadi',
+                message=(
+                    f'{contract.number} bo\'yicha boshlang\'ich to\'lov qabul '
+                    'qilindi. Endi yetishmaganini buyurtmachiga yuborish va '
+                    'yig\'ish ochiq.'
+                ),
+                level=Notification.Level.INFO,
+                entity='Configuration',
+                object_id=str(contract.configuration.pk),
+            )
+
+    archive_completed_chain(contract)
     # 4-to'plam §4: "to'lovni qabul qiling" vazifasi bajarildi
     from apps.core.services import resolve_notifications
 
@@ -487,6 +529,7 @@ def ship_contract(contract, user):
     if contract.balance <= 0:
         contract.status = Contract.Status.COMPLETED
     contract.save()
+    archive_completed_chain(contract)
 
     # 4-to'plam §4: "yetkazing" vazifasi bajarildi — yetkazgan odamniki yopiladi
     from apps.core.services import resolve_notifications

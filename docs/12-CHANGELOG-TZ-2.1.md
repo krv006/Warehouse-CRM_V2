@@ -1178,6 +1178,43 @@ Testlar: `apps/core/tests/test_notifications_cleanup.py` (5).
 
 ---
 
+## 8.39 YANGI OQIM 1-bosqich: shartnoma zanjir boshida 🔄
+
+YANGI-OQIM hujjati (B1, B2, B5, B6, B9, B10, §6-B). Zanjir yo'nalishi
+teskari bo'ldi: `CFG → mol → SHT → pul` o'rniga **`CFG → SHT → pul → mol`**.
+
+- **B1**: `approve_configuration` da draft SHT avtomatik ochiladi (egasi —
+  zayavka sales'i); `finalize` endi shartnoma ochmaydi;
+- **B10**: mijoz aniqlanmasa tasdiq 400 — shartnoma majburiy bo'g'in;
+- **B2**: narxsiz qator `submit`dan o'tmaydi (nol qatorlar avval ombordan
+  qayta o'qiladi); yangi `POST /configurations/{id}/request-prices/` —
+  buyurtmachiga eslatma (TLD emas), takrorida yangilanadi; buyurtmachi
+  endi mahsulot kartasida narx kirita oladi (`ProductPricingAccess` +
+  SUPPLIER); narx kirgach qatorlar to'ladi, eslatma yopiladi va **sales**
+  xabar oladi;
+- **§6-B (ochiq savolga tavsiya bo'yicha B varianti)**:
+  `CompanyProfile.markup_percent` — sotuv narxi yo'q mahsulotda
+  `stock_price = tannarx + ustama`; default 0 (xulq o'zgarmagan, admin
+  Sozlamalarda yoqadi) — mijozga tannarxda sotilmasin;
+- **B5**: konfiguratsiyaga bog'langan SHT, CFG `ready`/`sold`
+  bo'lmaguncha bron qo'ymaydi (ikki marta band yo'q, §3.2); to'lov
+  kelgach CFG broni **HARD** va muddatsiz; `plannable`/`sellable` o'z
+  qattiq bronini o'ziga ochiq hisoblaydi;
+- **B6**: `finalize` shartnoma qatorini yig'ilgan variantga ko'chiradi
+  (son/narx tegilmaydi) + `ActivityLog`;
+- **B7 (qisman)**: ZVK endi SHT `completed` bo'lganda arxivlanadi;
+  finalize'da SHT `active` bo'lsa CFG `sold`;
+- **B9**: `ConfigurationSerializer.contract` — {id, number, status,
+  total_amount, prepayment_amount, paid, **is_paid**};
+- to'lovda engineerga "ish boshlanadi" xabari (B5.3).
+
+Migratsiya: `core.0007` (markup_percent). Endpoint: 106 → 107.
+Testlar: `test_contract_first.py` (7) + eski oqim testlari yangi zanjirga
+moslandi. **Diqqat: ta'minot/yig'ishning to'lov qulfi (B4/B13) keyingi
+bosqichda** — servergacha 2-bosqich bilan birga chiqariladi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -1206,7 +1243,7 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **106** |
+| REST endpoint | 70 | **107** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **33** |
 | Testlar | 66 | **365** |

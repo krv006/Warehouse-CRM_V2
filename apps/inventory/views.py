@@ -52,6 +52,20 @@ class ProductViewSet(BaseModelViewSet):
     filterset_fields = ['is_active', 'kind', 'base_model']
     ordering_fields = ['name', 'sale_price', 'created_at']
 
+    def perform_update(self, serializer):
+        """YANGI-OQIM B2.3: narx kiritildi — kutayotgan konfiguratsiyalar uyg'onadi.
+
+        Buyurtmachi (yoki bugalter) narxsiz mahsulotga narx qo'ysa: nol
+        qatorlar to'ldiriladi, "narx kerak" eslatmasi yopiladi, sales'ga
+        "narx keldi — mijoz bilan kelishing" xabari boradi.
+        """
+        had_price = bool(serializer.instance.stock_price)
+        super().perform_update(serializer)
+        if not had_price and serializer.instance.stock_price:
+            from apps.configurator.services import price_arrived
+
+            price_arrived(serializer.instance, self.request.user)
+
 
 class ProductSpecViewSet(BaseModelViewSet):
     """Tayyor model tarkibi (ichidagi configlar).

@@ -729,6 +729,21 @@ Yangi endpoint: `POST /configurations/{id}/change-quantity/` —
 
 ---
 
+## 26. YANGI OQIM — shartnoma zanjir boshida (bosqichma-bosqich) 🔴🔴
+
+Katta o'zgarish keldi: zanjir endi `CFG → SHT → pul → mol`. Front ishlari
+(F1–F11) **backend 5-bosqichi (roadmap B8) tugagach** boshlanadi — hozircha
+bilib turish uchun:
+
+- `approve` javobida va konfiguratsiya detalida `contract` maydoni bor:
+  `{id, number, status, total_amount, prepayment_amount, paid, is_paid}`;
+- `submit` narxsiz qatorda 400; yangi `request-prices` endpointi;
+- buyurtmachi mahsulot kartasida narx kirita oladi (PATCH /products/{id}/);
+- keyingi bosqichlarda: ta'minot/yig'ish to'lovdan keyin (B4), Didox ikki
+  qadam (B3), bekor qilish (B12), zayavka rad etish (B15), roadmap (B8).
+
+---
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

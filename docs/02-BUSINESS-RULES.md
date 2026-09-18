@@ -379,6 +379,27 @@ Shartnoma zanjirida ham xuddi shunday.
 **Bitta konfiguratsiya — bitta ochiq TLD:** ochiq (bekor/kirim qilinmagan)
 hisob turganda `request-procurement` qayta chaqirilsa 400 qaytadi — ikkita
 parallel hisob ochilib ketmaydi. Konfiguratsiya javobidagi
+**YANGI OQIM: shartnoma zanjir boshida.** Zanjir endi `CFG → SHT → pul →
+mol` (avval `CFG → mol → SHT → pul` edi):
+
+1. Sales texnik yechimni tasdiqlashi (`approve`) bilanoq **draft shartnoma
+   avtomatik ochiladi** (B1; egasi — zayavka sales'i, qator — bazaviy model ×
+   partiya, narx — konfiguratsiya narxi). Mijoz aniqlanmasa tasdiq 400 (B10).
+2. **Narx shartnomadan oldin** (B2): narxsiz qator `submit`dan o'tmaydi;
+   engineer `request-prices` bilan buyurtmachidan narx so'raydi (TLD emas!),
+   buyurtmachi tannarxni mahsulot kartasida kiritadi, narx **sales'ga**
+   qaytadi. Sotuv narxi yo'q mahsulotda tannarx + `markup_percent` ustama
+   (§6-B) qo'llanadi — mijozga tannarxda sotilib ketmaydi.
+3. **Bron qoidalari** (B5): molni konfiguratsiya ushlab turadi — unga
+   bog'langan shartnoma CFG `ready`/`sold` bo'lmaguncha o'z bronini
+   qo'ymaydi (ikki marta band bo'lmasin). Boshlang'ich to'lov kelgach CFG
+   broni **yumshoqdan qattiqqa** o'tadi va muddatsiz bo'ladi.
+4. `finalize` endi shartnoma ochmaydi — qatordagi bazaviy modelni
+   **yig'ilgan variantga ko'chiradi** (B6; son va narx tegilmaydi) va CFG
+   `ready` (pul kelgan bo'lsa `sold`) bo'ladi; bron shartnomaga o'tadi.
+5. ZVK endi shartnoma `completed` bo'lgandagina arxivlanadi (B7, §3.5) —
+   u zanjir umurtqasi bo'lib ro'yxatlarda turadi.
+
 **Partiya o'zgarishi (4-to'plam §2).** Mijoz sonni o'zgartirsa zanjir
 qaytadan boshlanmaydi: `POST /configurations/{id}/change-quantity/` (engineer,
 admin; sales so'raydi — §3.4 egalik). Son yangilanadi, bron yangi partiyaga
