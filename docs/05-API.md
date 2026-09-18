@@ -165,6 +165,9 @@ Engineer configuratorda tayyorlab, konfiguratsiyani zayavkaga biriktiradi
 | POST | `/configuration-requests/` | sales (admin) — engineerlarga notification tushadi |
 | GET/PUT/PATCH/DELETE | `/configuration-requests/{id}/` | sales, engineer, admin |
 | ~~complete~~ | — olib tashlandi (#4): endi engineer konfiguratsiyani `submit` qiladi, zayavka sales `approve`sida `done` bo'ladi |
+| GET | `/configuration-requests/{id}/roadmap/` | B8: **zanjir ko'zgusi** — 18 qadam, uch kirish nuqtasi bir xil javob; barcha rollar to'liq ko'radi, **pul yo'q**; `label`/`state`/`tone`/`waiting_days`/`deadline`/`can_open`/`repeats`/`current_key` tayyor keladi |
+| GET | `/configurations/{id}/roadmap/` | B8: xuddi shu roadmap — konfiguratsiya tomonidan |
+| GET | `/contracts/{id}/roadmap/` | B8: xuddi shu roadmap — shartnoma tomonidan |
 | POST | `/configuration-requests/{id}/reject/` | B15: **engineer** izoh bilan qaytaradi (`comment` majburiy); `new` va `in_progress` da; ishga olinganida CFG `cancelled` bo'lib broni bo'shaydi; `returned` — faqat sales'da (hovuzdan chiqadi) |
 | POST | `/configuration-requests/{id}/resend/` | B15: **sales (egasi)** tuzatib qayta yuboradi — `returned` → `new`, engineerlar hovuziga qaytadi |
 | POST | `/configuration-requests/{id}/cancel/` | B17: zanjirni bekor qilish — eng ko'p ishlatiladigan kirish nuqtasi (shartnoma hali ochilmagan payt) |
@@ -310,6 +313,38 @@ emas — **"Buyurtmachiga yuborish · {missing.length}"** ("Yig'ish" umuman
 ko'rsatilmaydi: u baribir 400 beradi). `missing_count` — shu ro'yxat uzunligi.
 `shortage` teshikni ham yopadi: boshqa hujjatlarga ortiqcha va'da qilingan
 bo'lsa `needed` dan ko'p chiqishi mumkin.
+
+**Roadmap (B8)** — javob chizishga tayyor keladi, front hech narsani qayta
+hisoblamaydi:
+```json
+GET /api/configuration-requests/12/roadmap/
+{
+  "request": {"id": 12, "number": "ZVK-00012", "status": "in_progress"},
+  "client_name": "Sof Mebel MChJ",
+  "current_key": "prepayment",
+  "steps": [
+    {"key": "sales_review", "label": "Sales ko'rigi", "state": "done",
+     "tone": "success",
+     "actor": {"id": 4, "full_name": "Dilshod Rahimov", "role": "sales",
+               "role_label": "Sales"},
+     "at": "2026-09-20T09:12:00Z", "waiting_days": null, "deadline": null,
+     "document": {"type": "configuration", "id": 45, "number": "CFG-00045"},
+     "can_open": true, "repeats": 3},
+    {"key": "assemble", "label": "Yig'ish", "state": "blocked", "tone": "muted",
+     "actor": {"id": null, "full_name": null, "role": "engineer",
+               "role_label": "Engineer"},
+     "at": null, "waiting_days": null, "deadline": null,
+     "document": null, "can_open": false, "repeats": 0}
+  ]
+}
+```
+`state`: `done` / `current` / `pending` / `blocked` (13–16 to'lovgacha) /
+`skipped` (chegara tufayli admin, Didox'siz eski yo'l) / `cancelled`.
+`tone`: `success` / `warning` / `danger` (SLA — mavjud `sla_deadline`dan) /
+`muted` / `cancelled` (qizil + chizilgan matn — `danger` bilan
+adashtirilmasin). `steps` doim 18 ta va tartibda; `repeats` — aylanma
+necha marta aylangani; `can_open` — kim qaysi hujjat ichiga kira olishi
+(§3.13 matritsasi backendda). **Javobda pulga oid maydon yo'q.**
 
 **`available` manfiy chiqmaydi** (3-to'plam §3) — ham `missing` da, ham
 tarkib qatorlarida (`items[].available`): manfiy o'rniga `0` va alohida

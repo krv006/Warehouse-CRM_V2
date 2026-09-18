@@ -1296,6 +1296,37 @@ Testlar: `apps/sales/tests/test_didox_steps.py` (6).
 
 ---
 
+## 8.43 YANGI OQIM 5-bosqich: roadmap + ma'lumot ko'chirish 🗺️
+
+YANGI-OQIM B8, B11 — hujjatdagi oxirgi backend bosqichi.
+
+- **B8 — roadmap**: `GET /configuration-requests/{id}/roadmap/`,
+  `GET /configurations/{id}/roadmap/`, `GET /contracts/{id}/roadmap/` —
+  uchchalasi ham BIR XIL javob (zayavka topiladi, butun zanjir chiziladi).
+  18 qadam doim to'liq va tartibda; har qadamda `label`, `state`, `tone`
+  (SLA — mavjud `sla_deadline`/`working_days_since`dan, yangi hisob yo'q),
+  `actor` (ism+rol; kelajak qadamda faqat rol), `waiting_days`/`deadline`
+  tayyor, `document` raqami, `can_open` (§3.13 matritsasi backendda),
+  `repeats` (aylanma). Ko'rinish qoidasi hujjatlarnikiga bo'ysunmaydi —
+  beshala rol ham to'liq ko'radi; evaziga **javobda pul yo'q** (qat'iy
+  chegara). Manba: statuslar + `ContractApproval`/`ConfigurationApproval` +
+  `ConfigurationRequestEvent` (B15) + Didox maydonlari (B3);
+- **B11 — ko'chirish**: `python manage.py migrate_to_contract_first
+  [--dry-run]` — shartnomasiz `approved` konfiguratsiyalarga draft SHT
+  ochib beradi (mijozsizlarini ro'yxatlab beradi — sales qo'lda
+  bog'laydi); `pending_bugalter` shartnomalar eski bitta qadamli
+  `approve` bilan o'taveradi. Makefile: `make contract-first` /
+  `make docker-contract-first`.
+
+**Serverda deploydan keyin bir marta:** `make docker-contract-first`
+(va 4-to'plamdagi `make docker-resync` hali yurgizilmagan bo'lsa — u ham).
+
+Endpoint: 114 → 117. Testlar: `apps/core/tests/test_roadmap.py` (7).
+Shu bilan YANGI-OQIM hujjatining B1–B17 backend topshiriqlari TO'LIQ
+yopildi — front ishlari (F1–F11) endi boshlanishi mumkin.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -1324,7 +1355,7 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **114** |
+| REST endpoint | 70 | **117** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **34** |
 | Testlar | 66 | **365** |

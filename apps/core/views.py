@@ -22,6 +22,34 @@ from apps.purchases.models import Purchase
 from apps.sales.models import Contract, Lead
 
 
+class RoadmapView(APIView):
+    """GET …/roadmap/ — zanjir ko'zgusi (YANGI-OQIM B8).
+
+    Uch kirish nuqtasi (ZVK/CFG/SHT) bir xil javob qaytaradi. Hujjat
+    ko'rinish qoidalariga BO'YSUNMAYDI — zanjirdagi beshta rol ham to'liq
+    ko'radi (aks holda bugalter ZVK roadmapida 404 olardi, §3.13); evaziga
+    javobda pulga oid hech narsa yo'q. Qadam ichiga kirishni `can_open`
+    aytadi — front ruxsat matritsasini takrorlamaydi.
+    """
+
+    kind = None  # 'request' | 'configuration' | 'contract'
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request, pk):
+        from django.shortcuts import get_object_or_404
+
+        from apps.configurator.models import Configuration, ConfigurationRequest
+        from apps.core.roadmap import build_roadmap
+
+        model = {
+            'request': ConfigurationRequest,
+            'configuration': Configuration,
+            'contract': Contract,
+        }[self.kind]
+        document = get_object_or_404(model, pk=pk)
+        return Response(build_roadmap(document, request.user))
+
+
 class DashboardView(APIView):
     """Umumiy hisobot: kassa, kirim, chiqim, sotuv va muddatlar.
 

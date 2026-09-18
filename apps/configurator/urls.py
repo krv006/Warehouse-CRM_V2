@@ -9,6 +9,7 @@ from apps.configurator.views import (
     ConfigurationRequestViewSet,
 )
 from apps.core.routing import DETAIL, LIST
+from apps.core.views import RoadmapView
 
 urlpatterns = [
     path('acts/', ActViewSet.as_view(LIST), name='act-list'),
@@ -56,6 +57,10 @@ urlpatterns = [
     path('configurations/<int:pk>/cancel/', ConfigurationViewSet.as_view({
         'post': 'cancel',
     }), name='configuration-cancel'),
+    # B8: roadmap — zanjir ko'zgusi (o'z ruxsati, pul yo'q)
+    path('configurations/<int:pk>/roadmap/', RoadmapView.as_view(
+        kind='configuration',
+    ), name='configuration-roadmap'),
 
     path('configuration-requests/', ConfigurationRequestViewSet.as_view(LIST), name='configurationrequest-list'),
     path('configuration-requests/<int:pk>/', ConfigurationRequestViewSet.as_view(DETAIL), name='configurationrequest-detail'),
@@ -73,6 +78,9 @@ urlpatterns = [
     path('configuration-requests/<int:pk>/cancel/', ConfigurationRequestViewSet.as_view({
         'post': 'cancel',
     }), name='configurationrequest-cancel'),
+    path('configuration-requests/<int:pk>/roadmap/', RoadmapView.as_view(
+        kind='request',
+    ), name='configurationrequest-roadmap'),
 
     path('configuration-items/', ConfigurationItemViewSet.as_view(LIST), name='configurationitem-list'),
     path('configuration-items/<int:pk>/', ConfigurationItemViewSet.as_view(DETAIL), name='configurationitem-detail'),

@@ -84,6 +84,10 @@ deadlines: ## Muddat eslatmalarini tekshiradi
 resync: ## Konfiguratsiya bronlarini yagona ta'rifdan qayta quradi
 	$(MANAGE) resync_reservations
 
+.PHONY: contract-first
+contract-first: ## Eski approved konfiguratsiyalarga shartnoma ochadi (B11)
+	$(MANAGE) migrate_to_contract_first
+
 .PHONY: static
 static: ## Static fayllarni yig'adi
 	$(MANAGE) collectstatic --noinput
@@ -184,6 +188,10 @@ docker-deadlines: ## Konteyner ichida muddat eslatmalari
 .PHONY: docker-resync
 docker-resync: ## Serverda konfiguratsiya bronlarini qayta quradi
 	$(COMPOSE) exec web python manage.py resync_reservations
+
+.PHONY: docker-contract-first
+docker-contract-first: ## Serverda eski approved konfiguratsiyalarga SHT ochadi (B11)
+	$(COMPOSE) exec web python manage.py migrate_to_contract_first
 
 .PHONY: docker-dbcheck
 docker-dbcheck: ## Konteyner qaysi bazani ishlatayotganini ko'rsatadi

@@ -3,6 +3,7 @@
 from django.urls import path
 
 from apps.core.routing import DETAIL, LIST, READ_DETAIL, READ_LIST
+from apps.core.views import RoadmapView
 from apps.sales.views import (
     ContractViewSet,
     ContractItemViewSet,
@@ -40,6 +41,10 @@ urlpatterns = [
     path('contracts/<int:pk>/cancel/', ContractViewSet.as_view({
         'post': 'cancel',
     }), name='contract-cancel'),
+    # B8: roadmap — zanjir ko'zgusi (o'z ruxsati, pul yo'q)
+    path('contracts/<int:pk>/roadmap/', RoadmapView.as_view(
+        kind='contract',
+    ), name='contract-roadmap'),
     # B3: Didox ikki qadam — yubordim / Didox tasdiqladi (bugalter)
     path('contracts/<int:pk>/send-didox/', ContractViewSet.as_view({
         'post': 'send_didox',
