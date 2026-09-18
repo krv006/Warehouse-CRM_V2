@@ -4,6 +4,7 @@ from apps.configurator.models.configuration import Configuration
 from apps.configurator.models.configuration_item import ConfigurationItem
 from apps.configurator.models.removal import ConfigurationRemoval
 from apps.configurator.models.request import ConfigurationRequest
+from apps.configurator.models.request_event import ConfigurationRequestEvent
 
 __all__ = [
     'Act',
@@ -12,4 +13,5 @@ __all__ = [
     'ConfigurationItem',
     'ConfigurationRemoval',
     'ConfigurationRequest',
+    'ConfigurationRequestEvent',
 ]

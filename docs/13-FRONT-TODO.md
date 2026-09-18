@@ -739,8 +739,15 @@ bilib turish uchun:
   `{id, number, status, total_amount, prepayment_amount, paid, is_paid}`;
 - `submit` narxsiz qatorda 400; yangi `request-prices` endpointi;
 - buyurtmachi mahsulot kartasida narx kirita oladi (PATCH /products/{id}/);
-- keyingi bosqichlarda: ta'minot/yig'ish to'lovdan keyin (B4), Didox ikki
-  qadam (B3), bekor qilish (B12), zayavka rad etish (B15), roadmap (B8).
+- ta'minot/yig'ish endi to'lovdan keyin (B4): `configuration.contract.is_paid`
+  false bo'lsa engineer tugmalari o'rniga "SHT-… · to'lov kutilmoqda" qatori;
+- bekor qilish (B12/F9): uchala detalda "Zanjirni bekor qilish" tugmasi —
+  `POST …/cancel/ {"reason": "..."}` (sabab majburiy); javobdagi `warnings`
+  toast bo'lib chiqadi; to'lov bo'lgan shartnomada tugma chizilmaydi;
+- zayavka ekrani (B15/F11): `new`/`in_progress` da "Rad etish" (izoh majburiy),
+  `returned` sales ro'yxatida ajralib turadi + "Qayta yuborish"; tarix —
+  javobdagi `events[]` (TLD timeline ko'rinishida);
+- keyingi bosqichlarda: Didox ikki qadam (B3), roadmap (B8).
 
 ---
 

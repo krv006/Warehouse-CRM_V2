@@ -411,6 +411,18 @@ mol` (avval `CFG → mol → SHT → pul` edi):
 8. **Zayavka miqdori sinxron** (B16): ZVK `quantity` faqat ochiq
    holatlarda o'zgaradi va o'zgarishi `change_quantity` orqali o'tadi —
    konfiguratsiya, bron va (pul kelmagan) shartnoma birga yangilanadi.
+9. **Aylanma (B15)**: engineer zayavkani izoh bilan qaytara oladi
+   (`reject`, izoh majburiy) — `returned` faqat sales'da turadi, hovuzga
+   tushmaydi; sales tuzatib `resend` qiladi. Ishga olingan zayavka
+   qaytarilsa ochilgan CFG bekor bo'lib broni bo'shaydi. Har bir qadam
+   `ConfigurationRequestEvent` tarixida.
+10. **Bekor qilish ≠ rad etish (B12/B17)**: `cancel_chain` — zanjir
+    O'LADI: SHT/CFG/ZVK `cancelled`, bronlar bo'shaydi, to'lanmagan TLD
+    bekor, to'langani ogohlantirish bilan ochiq qoladi (mol baribir
+    keladi). Sabab (`reason`) majburiy, tarix va bildirishnomalar
+    yoziladi. **Pul qabul qilingan shartnoma bekor qilinmaydi** —
+    qaytarish alohida rasmiylashtiriladigan ish. Kim: zanjir egasi
+    (sales) yoki admin. Uch kirish nuqtasi — natija bitta.
 
 **Partiya o'zgarishi (4-to'plam §2).** Mijoz sonni o'zgartirsa zanjir
 qaytadan boshlanmaydi: `POST /configurations/{id}/change-quantity/` (engineer,

@@ -36,6 +36,10 @@ urlpatterns = [
     path('contracts/<int:pk>/ship/', ContractViewSet.as_view({
         'post': 'ship',
     }), name='contract-ship'),
+    # B12: zanjirni bekor qilish — sales (egasi) yoki admin
+    path('contracts/<int:pk>/cancel/', ContractViewSet.as_view({
+        'post': 'cancel',
+    }), name='contract-cancel'),
     path('contracts/<int:pk>/request-procurement/', ContractViewSet.as_view({
         'post': 'request_procurement',
     }), name='contract-request-procurement'),

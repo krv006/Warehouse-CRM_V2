@@ -171,6 +171,26 @@ class ContractViewSet(BaseModelViewSet):
         )
         return Response(self.get_serializer(contract).data)
 
+    def cancel(self, request, pk=None):
+        """POST /contracts/{id}/cancel/ — butun zanjirni to'xtatish (B12).
+
+        SHT, CFG, ZVK `cancelled`, bronlar bo'shaydi; to'lanmagan TLD bekor,
+        to'langani ogohlantirish bilan ochiq qoladi. Pul qabul qilingan
+        shartnoma bekor qilinmaydi (400).
+        """
+        from apps.configurator.services import cancel_chain
+
+        contract = self.get_object()
+        result = cancel_chain(
+            contract, request.user,
+            reason=str(request.data.get('reason', '') or ''),
+        )
+        self.log_action(
+            ActivityLog.Action.UPDATE, contract,
+            f"Zanjir bekor qilindi: {result['reason']}",
+        )
+        return Response(result)
+
     def ship(self, request, pk=None):
         """POST /contracts/{id}/ship/ — yetkazib berish (#2): mol shu yerda chiqadi."""
         contract = ship_contract(self.get_object(), request.user)

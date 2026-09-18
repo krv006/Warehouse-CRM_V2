@@ -14,6 +14,7 @@ from apps.configurator.models import (
     ConfigurationItem,
     ConfigurationRemoval,
     ConfigurationRequest,
+    ConfigurationRequestEvent,
 )
 from apps.configurator.services import copy_factory_spec
 from apps.inventory.models import Product
@@ -284,9 +285,25 @@ class ConfigurationSerializer(ModelSerializer):
         return instance
 
 
+class ConfigurationRequestEventSerializer(ModelSerializer):
+    """Zayavka tarixi qadami (B15) — TLD timeline'i bilan bir xil shakl."""
+
+    stage_display = ReadOnlyField(source='get_stage_display')
+    created_by_name = ReadOnlyField(source='created_by.display_name')
+
+    class Meta:
+        model = ConfigurationRequestEvent
+        fields = [
+            'id', 'request', 'stage', 'stage_display', 'comment',
+            'created_by', 'created_by_name', 'created_at',
+        ]
+        read_only_fields = fields
+
+
 class ConfigurationRequestSerializer(ModelSerializer):
     """Sales'dan Engineerga boradigan matnli zayavka."""
 
+    events = ConfigurationRequestEventSerializer(many=True, read_only=True)
     status_display = ReadOnlyField(source='get_status_display')
     client_name = ReadOnlyField(source='client.display_name')
     base_product_name = ReadOnlyField(source='base_product.name')
@@ -302,6 +319,6 @@ class ConfigurationRequestSerializer(ModelSerializer):
             'base_product', 'base_product_name', 'warehouse', 'status',
             'status_display', 'configuration', 'configuration_number',
             'taken_by', 'taken_by_name', 'created_by', 'created_by_name',
-            'created_at',
+            'events', 'created_at',
         ]
         read_only_fields = ['number', 'status', 'configuration', 'taken_by', 'created_by']

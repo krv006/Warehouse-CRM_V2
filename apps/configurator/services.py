@@ -208,6 +208,13 @@ def request_prices(configuration, user):
                 level=Notification.Level.WARNING,
                 entity='Configuration', object_id=str(configuration.pk),
             )
+    # B15: aylanma qadam tarixga tushadi
+    from apps.configurator.models import ConfigurationRequestEvent
+
+    log_request_event(
+        configuration.requests.order_by('-created_at').first(),
+        ConfigurationRequestEvent.Stage.PRICE_ASKED, user, names,
+    )
     return [item.component.name for item in no_price]
 
 
@@ -261,6 +268,12 @@ def price_arrived(product, user):
                 entity='Configuration',
                 object_id=str(configuration.pk),
             )
+        from apps.configurator.models import ConfigurationRequestEvent
+
+        log_request_event(
+            configuration.requests.order_by('-created_at').first(),
+            ConfigurationRequestEvent.Stage.PRICE_GIVEN, user, product.name,
+        )
 
 
 def _decide_configuration(configuration, user, decision, comment):
@@ -893,6 +906,10 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
         request_obj.taken_by = user
         request_obj.configuration = configuration
         request_obj.save()
+        # B15: zayavka tarixi — roadmap (B8) aylanma qadamlarni shundan o'qiydi
+        from apps.configurator.models import ConfigurationRequestEvent
+
+        log_request_event(request_obj, ConfigurationRequestEvent.Stage.TAKEN, user)
 
     return request_obj
 
@@ -1004,6 +1021,265 @@ def send_missing_to_procurement(configuration, user):
             object_id=str(replenishment.pk),
         )
     return replenishment
+
+
+def log_request_event(request_obj, stage, user=None, comment=''):
+    """Zayavka tarixiga qadam yozadi (B15) — aylanma faqat shu yerda iz qoldiradi."""
+    from apps.configurator.models import ConfigurationRequestEvent
+
+    if request_obj is None:
+        return None
+    return ConfigurationRequestEvent.objects.create(
+        request=request_obj, stage=stage, comment=comment, created_by=user,
+    )
+
+
+def reject_request(request_obj, user, comment):
+    """Engineer zayavkani izoh bilan sales'ga qaytaradi (B15, §3.11).
+
+    Rad etish (`returned`) — "muammo bor, tuzating": zanjir tirik, sales
+    tuzatib qayta yuboradi. Bekor qilish (`cancel_chain`) emas! `new` ga
+    qaytarilmaydi — boshqa engineer olib qo'yib, izoh o'qilmay qolardi.
+    Ishga olingan zayavkada ochilgan konfiguratsiya bekor bo'ladi va
+    broni bo'shaydi — mol behuda qulflanib qolmasin.
+    """
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import (
+        Configuration,
+        ConfigurationRequest,
+        ConfigurationRequestEvent,
+    )
+    from apps.core.models import Notification
+
+    if not (user.is_admin or user.is_engineer):
+        raise PermissionDenied('Zayavkani engineer (yoki admin) qaytaradi.')
+    if request_obj.status not in {
+        ConfigurationRequest.Status.NEW, ConfigurationRequest.Status.IN_PROGRESS,
+    }:
+        raise ValidationError({
+            'detail': 'Faqat yangi yoki ishga olingan zayavka qaytariladi.',
+        })
+    if not (comment or '').strip():
+        raise ValidationError({
+            'comment': 'Izoh majburiy — sales nimani tuzatishni bilishi kerak.',
+        })
+
+    configuration = request_obj.configuration
+    if configuration and configuration.status not in {
+        Configuration.Status.CANCELLED, Configuration.Status.SOLD,
+    }:
+        configuration.status = Configuration.Status.CANCELLED
+        configuration.save()
+        from apps.inventory.services import release_reservations
+
+        release_reservations(
+            configuration=configuration, user=user,
+            note=f'{request_obj.number} qaytarildi: {comment}',
+        )
+
+    request_obj.status = ConfigurationRequest.Status.RETURNED
+    request_obj.taken_by = None
+    request_obj.configuration = None
+    request_obj.save()
+    log_request_event(
+        request_obj, ConfigurationRequestEvent.Stage.RETURNED, user, comment,
+    )
+
+    if request_obj.created_by:
+        Notification.objects.create(
+            user=request_obj.created_by,
+            title=f'{request_obj.number}: zayavka qaytarildi',
+            message=comment,
+            level=Notification.Level.WARNING,
+            entity='ConfigurationRequest',
+            object_id=str(request_obj.pk),
+        )
+    return request_obj
+
+
+def resend_request(request_obj, user):
+    """Sales tuzatib qayta yuboradi (B15): `returned` → `new`, hovuzga qaytadi."""
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import ConfigurationRequest, ConfigurationRequestEvent
+
+    if not user.is_admin:
+        if not user.is_sales:
+            raise PermissionDenied('Qayta yuborishni sales (egasi) bajaradi.')
+        if request_obj.created_by_id and request_obj.created_by_id != user.id:
+            raise PermissionDenied('Bu zayavka sizniki emas.')
+    if request_obj.status != ConfigurationRequest.Status.RETURNED:
+        raise ValidationError({
+            'detail': 'Faqat qaytarilgan zayavka qayta yuboriladi.',
+        })
+
+    request_obj.status = ConfigurationRequest.Status.NEW
+    request_obj.save()
+    log_request_event(request_obj, ConfigurationRequestEvent.Stage.RESENT, user)
+    notify_engineers_about_request(request_obj)
+    return request_obj
+
+
+def cancel_chain(document, user, reason):
+    """Zanjirni butunlay to'xtatadi (B12/B17, §3.9): SHT, CFG, ZVK, bronlar.
+
+    Uch kirish nuqtasi (shartnoma, konfiguratsiya, zayavka) — natija bitta.
+    Boshlang'ich to'lov kelgan shartnoma BEKOR QILINMAYDI: pul qaytarish
+    alohida rasmiylashtiriladigan ish. To'langan/buyurtma qilingan TLD ham
+    tegilmaydi — mol baribir keladi, faqat ogohlantirish qaytadi.
+    """
+    from django.db.transaction import atomic
+    from django.utils.timezone import now
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import (
+        Configuration,
+        ConfigurationRequest,
+        ConfigurationRequestEvent,
+    )
+    from apps.core.models import Notification
+    from apps.core.services import resolve_notifications
+    from apps.inventory.services import release_reservations
+    from apps.procurement.models import Replenishment, ReplenishmentEvent
+    from apps.sales.models import Contract, ContractApproval
+
+    if not (reason or '').strip():
+        raise ValidationError({
+            'reason': 'Sabab majburiy — zanjir nima uchun to\'xtagani tarixda qolsin.',
+        })
+
+    # Kirish nuqtasidan zanjirni yig'amiz
+    configuration = contract = request_obj = None
+    if isinstance(document, Contract):
+        contract = document
+        configuration = document.configuration
+    elif isinstance(document, Configuration):
+        configuration = document
+    elif isinstance(document, ConfigurationRequest):
+        request_obj = document
+        configuration = document.configuration
+    if configuration is not None and request_obj is None:
+        request_obj = configuration.requests.order_by('-created_at').first()
+    if configuration is not None and contract is None:
+        contract = (
+            configuration.contracts
+            .exclude(status=Contract.Status.CANCELLED)
+            .order_by('-id')
+            .first()
+        )
+
+    # Kim: zanjir egasi (sales) yoki admin
+    if not user.is_admin:
+        owner_ids = {
+            request_obj.created_by_id if request_obj else None,
+            contract.created_by_id if contract else None,
+        }
+        if not (user.is_sales and user.id in owner_ids):
+            raise PermissionDenied(
+                'Zanjirni egasi (sales) yoki admin bekor qiladi.',
+            )
+
+    # §3.9: pul qabul qilingan zanjir bekor qilinmaydi
+    if contract is not None and contract.payments.exists():
+        raise ValidationError({
+            'detail': (
+                "Pul qabul qilingan — bekor qilib bo'lmaydi; qaytarish alohida "
+                'rasmiylashtiriladi.'
+            ),
+        })
+
+    warnings = []
+    cancelled = {'contract': None, 'configuration': None, 'request': None}
+    with atomic():
+        if contract is not None and contract.status != Contract.Status.CANCELLED:
+            step = (
+                ContractApproval.Step.ADMIN
+                if contract.status == Contract.Status.PENDING_ADMIN
+                else ContractApproval.Step.BUGALTER
+            )
+            contract.status = Contract.Status.CANCELLED
+            contract.save()
+            ContractApproval.objects.create(
+                contract=contract, step=step,
+                decision=ContractApproval.Decision.REJECTED,
+                comment=f'Zanjir bekor qilindi: {reason}',
+                decided_by=user,
+            )
+            release_reservations(contract=contract, user=user, note=reason)
+            cancelled['contract'] = contract.number
+
+        if configuration is not None and configuration.status != Configuration.Status.CANCELLED:
+            configuration.status = Configuration.Status.CANCELLED
+            configuration.save()
+            release_reservations(configuration=configuration, user=user, note=reason)
+            cancelled['configuration'] = configuration.number
+
+        if request_obj is not None and request_obj.status != ConfigurationRequest.Status.CANCELLED:
+            request_obj.status = ConfigurationRequest.Status.CANCELLED
+            request_obj.save()
+            log_request_event(
+                request_obj, ConfigurationRequestEvent.Stage.CANCELLED, user, reason,
+            )
+            cancelled['request'] = request_obj.number
+
+        # Ochiq TLD: hali to'lanmagani bekor bo'ladi; to'langani tegilmaydi
+        if configuration is not None:
+            for replenishment in configuration.replenishments.all():
+                if replenishment.status in {
+                    Replenishment.Status.DRAFT,
+                    Replenishment.Status.PENDING_SALES,
+                    Replenishment.Status.PENDING_BUGALTER,
+                    Replenishment.Status.PENDING_ADMIN,
+                    Replenishment.Status.REJECTED,
+                }:
+                    replenishment.status = Replenishment.Status.CANCELLED
+                    replenishment.save()
+                    ReplenishmentEvent.objects.create(
+                        replenishment=replenishment,
+                        stage=ReplenishmentEvent.Stage.NOTE,
+                        comment=f'Zanjir bekor qilindi: {reason}',
+                        happened_at=now(),
+                        created_by=user,
+                    )
+                elif replenishment.is_open:
+                    warnings.append(
+                        f'{replenishment.number} ochiq qoladi — mol baribir keladi.',
+                    )
+
+        # 4-to'plam §4: zanjirning barcha ochiq eslatmalari yopiladi
+        for entity, obj in (
+            ('Contract', contract),
+            ('Configuration', configuration),
+            ('ConfigurationRequest', request_obj),
+        ):
+            if obj is not None:
+                resolve_notifications(entity, obj.pk)
+
+        # Qatnashchilarga bitta xabar
+        recipients = {
+            request_obj.created_by if request_obj else None,
+            configuration.created_by if configuration else None,
+            contract.created_by if contract else None,
+        }
+        number = (
+            (request_obj and request_obj.number)
+            or (configuration and configuration.number)
+            or (contract and contract.number)
+        )
+        for recipient in recipients:
+            if recipient is None or recipient.pk == user.pk:
+                continue
+            Notification.objects.create(
+                user=recipient,
+                title=f'{number}: zanjir bekor qilindi',
+                message=f'{user.display_name}: {reason}',
+                level=Notification.Level.WARNING,
+                entity='ConfigurationRequest' if request_obj else 'Contract',
+                object_id=str((request_obj or contract or configuration).pk),
+            )
+
+    return {'cancelled': cancelled, 'warnings': warnings, 'reason': reason}
 
 
 def notify_engineers_about_request(request_obj):

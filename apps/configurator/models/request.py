@@ -23,8 +23,11 @@ class ConfigurationRequest(StatusTrackedModel):
     class Status(TextChoices):
         NEW = 'new', 'Yangi'
         IN_PROGRESS = 'in_progress', 'Engineer ishlamoqda'
+        # B15: engineer izoh bilan qaytardi — FAQAT sales'da, hovuzdan chiqadi
+        # (new'ga qaytarilsa boshqa engineer olib qo'yib, izoh o'qilmay qolardi)
+        RETURNED = 'returned', "Sales'ga qaytarildi"
         DONE = 'done', 'Konfiguratsiya tayyor'
-        # Shartnoma ochilgach zayavka arxivga o'tadi — navbatlarda ko'rinmaydi
+        # Shartnoma yakunlangach (completed) zayavka arxivga o'tadi (B7)
         ARCHIVED = 'archived', 'Arxivlangan'
         CANCELLED = 'cancelled', 'Bekor qilingan'
 

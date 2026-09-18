@@ -202,6 +202,13 @@ keyingi xavfsiz qoldiq — **0 dan past tushmaydi**, 3-to'plam §3),
 `shortage` (xom qoldiqdan — teshikni ham yopadi, `needed` dan ko'p
 chiqishi mumkin), `source` (`stock` / `purchase`).
 
+### `ConfigurationRequestEvent` — zayavka tarixi (YANGI-OQIM B15)
+`request` (CASCADE, `events`), `stage` (`created` / `taken` / `returned` /
+`resent` / `price_asked` / `price_given` / `cancelled` / `note`), `comment`,
+`created_by`. §2.1 aylanmasi statusda iz qoldirmaydi — rad etish, qayta
+yuborish va narx so'rovi shu yerda saqlanadi (TLD `ReplenishmentEvent` bilan
+bir xil shakl); roadmap (B8) aylanma qadamlarni shundan o'qiydi.
+
 ### `ConfigurationRequest` — Sales → Engineer zayavkasi
 | Maydon | Tur |
 |---|---|
@@ -210,7 +217,7 @@ chiqishi mumkin), `source` (`stock` / `purchase`).
 | `text` | Text — client xohishi, sales yozgan matn |
 | `base_product` | FK `inventory.Product` (PROTECT, null) — sales taxmin qilgan bazaviy model |
 | `warehouse` | FK `inventory.Warehouse` (PROTECT, null) |
-| `status` | `new` / `in_progress` / `done` / `cancelled` |
+| `status` | `new` / `in_progress` / `returned` (B15 — faqat sales'da, hovuzdan chiqadi) / `done` / `archived` / `cancelled` |
 | `configuration` | FK `configurator.Configuration` (SET_NULL, null) — `take` da avtomatik ochiladi |
 | `taken_by` | FK `accounts.User` (SET_NULL, null) — ishga olgan engineer |
 | `created_by` | FK `accounts.User` (SET_NULL, null) — yuborgan sales |

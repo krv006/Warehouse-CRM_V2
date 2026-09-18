@@ -26,7 +26,11 @@ from apps.configurator.services import (
     approve_configuration,
     assemble_configuration,
     build_configuration_workbook,
+    cancel_chain,
     change_quantity,
+    log_request_event,
+    reject_request,
+    resend_request,
     notify_engineers_about_request,
     reject_configuration,
     request_prices,
@@ -93,13 +97,26 @@ class ConfigurationViewSet(BaseModelViewSet):
         return qs.none()
 
     # §11.1: finalize engineerda (ConfiguratorAccess); #4: texnik tasdiq
-    # (approve/reject) esa sales bosqichi
+    # (approve/reject) esa sales bosqichi; B12: bekor qilish — sales/admin
     def get_permissions(self):
-        if self.action in ('approve', 'reject'):
+        if self.action in ('approve', 'reject', 'cancel'):
             from apps.accounts.permissions import IsAdminOrSales
 
             return [IsAdminOrSales()]
         return super().get_permissions()
+
+    def cancel(self, request, pk=None):
+        """POST /configurations/{id}/cancel/ — butun zanjirni to'xtatish (B12)."""
+        configuration = self.get_object()
+        result = cancel_chain(
+            configuration, request.user,
+            reason=str(request.data.get('reason', '') or ''),
+        )
+        self.log_action(
+            ActivityLog.Action.UPDATE, configuration,
+            f"Zanjir bekor qilindi: {result['reason']}",
+        )
+        return Response(result)
 
     def _check_draft(self, configuration):
         """Yakunlangan konfiguratsiya o'zgartirilmaydi — faqat chernovik (TZ 6.4)."""
@@ -463,6 +480,7 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
     queryset = (
         ConfigurationRequest.objects
         .select_related('client', 'configuration', 'taken_by', 'created_by')
+        .prefetch_related('events__created_by')
         .all()
     )
     serializer_class = ConfigurationRequestSerializer
@@ -492,6 +510,13 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
         super().perform_create(serializer)
         # Yangi zayavka haqida engineerlar darrov xabar oladi
         notify_engineers_about_request(serializer.instance)
+        # B15: tarix birinchi qadamdan boshlanadi
+        from apps.configurator.models import ConfigurationRequestEvent
+
+        log_request_event(
+            serializer.instance, ConfigurationRequestEvent.Stage.CREATED,
+            self.request.user, (serializer.instance.text or '')[:200],
+        )
 
     # YANGI-OQIM B16: miqdor faqat ochiq holatlarda o'zgaradi va
     # konfiguratsiya bilan SINXRON — ikki hujjatda ikki xil son qolmasin
@@ -554,6 +579,50 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
             f'Engineer ishga oldi — {request_obj.configuration.number} ochildi',
         )
         return Response(self.get_serializer(request_obj).data)
+
+    def reject(self, request, pk=None):
+        """POST /configuration-requests/{id}/reject/ — engineer qaytaradi (B15).
+
+        Izoh majburiy; `new` da ham, `in_progress` da ham ishlaydi. Ishga
+        olinganida ochilgan konfiguratsiya bekor bo'lib broni bo'shaydi.
+        """
+        request_obj = reject_request(
+            self.get_object(), request.user,
+            comment=str(request.data.get('comment', '') or ''),
+        )
+        self.log_action(
+            ActivityLog.Action.REJECT, request_obj,
+            f"Sales'ga qaytarildi: {request.data.get('comment')}",
+        )
+        # prefetch keshida yangi event yo'q — javob to'liq tarix bilan ketsin
+        request_obj.refresh_from_db()
+        return Response(self.get_serializer(request_obj).data)
+
+    def resend(self, request, pk=None):
+        """POST /configuration-requests/{id}/resend/ — sales tuzatib qayta yuboradi."""
+        request_obj = resend_request(self.get_object(), request.user)
+        self.log_action(
+            ActivityLog.Action.UPDATE, request_obj, 'Qayta yuborildi — hovuzga qaytdi',
+        )
+        request_obj.refresh_from_db()
+        return Response(self.get_serializer(request_obj).data)
+
+    def cancel(self, request, pk=None):
+        """POST /configuration-requests/{id}/cancel/ — zanjirni to'xtatish (B17).
+
+        Eng ko'p ishlatiladigan kirish nuqtasi: sales zayavkani bekor qiladi —
+        shartnoma hali ochilmagan payt (§2.1 aylanmasi ichida).
+        """
+        request_obj = self.get_object()
+        result = cancel_chain(
+            request_obj, request.user,
+            reason=str(request.data.get('reason', '') or ''),
+        )
+        self.log_action(
+            ActivityLog.Action.UPDATE, request_obj,
+            f"Zanjir bekor qilindi: {result['reason']}",
+        )
+        return Response(result)
 
     # `complete` olib tashlandi (#4): engineer endi konfiguratsiyani
     # `submit` bilan sales ko'rigiga yuboradi, zayavka holati esa sales

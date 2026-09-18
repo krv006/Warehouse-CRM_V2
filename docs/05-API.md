@@ -165,6 +165,11 @@ Engineer configuratorda tayyorlab, konfiguratsiyani zayavkaga biriktiradi
 | POST | `/configuration-requests/` | sales (admin) — engineerlarga notification tushadi |
 | GET/PUT/PATCH/DELETE | `/configuration-requests/{id}/` | sales, engineer, admin |
 | ~~complete~~ | — olib tashlandi (#4): endi engineer konfiguratsiyani `submit` qiladi, zayavka sales `approve`sida `done` bo'ladi |
+| POST | `/configuration-requests/{id}/reject/` | B15: **engineer** izoh bilan qaytaradi (`comment` majburiy); `new` va `in_progress` da; ishga olinganida CFG `cancelled` bo'lib broni bo'shaydi; `returned` — faqat sales'da (hovuzdan chiqadi) |
+| POST | `/configuration-requests/{id}/resend/` | B15: **sales (egasi)** tuzatib qayta yuboradi — `returned` → `new`, engineerlar hovuziga qaytadi |
+| POST | `/configuration-requests/{id}/cancel/` | B17: zanjirni bekor qilish — eng ko'p ishlatiladigan kirish nuqtasi (shartnoma hali ochilmagan payt) |
+| POST | `/configurations/{id}/cancel/` | B12: zanjirni bekor qilish (sales egasi / admin) |
+| POST | `/contracts/{id}/cancel/` | B12: zanjirni bekor qilish; **pul qabul qilingan bo'lsa 400** |
 | POST | `/configuration-requests/{id}/take/` | **engineer** — ishga oladi, chernovik konfiguratsiya avtomatik ochiladi |
 | POST | `/configuration-requests/{id}/complete/` | **engineer** — konfiguratsiyani biriktiradi |
 

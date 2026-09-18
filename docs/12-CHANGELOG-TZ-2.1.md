@@ -1243,6 +1243,33 @@ Testlar: `apps/configurator/tests/test_payment_gates.py` (8).
 
 ---
 
+## 8.41 YANGI OQIM 3-bosqich: aylanma va bekor qilish 🔁
+
+YANGI-OQIM B15, B12, B17. §2.1 aylanmasining kodda yo'q ikkita chiqish
+yo'li ochildi, "hammasini bekor qilish" esa birinchi marta paydo bo'ldi.
+
+- **B15**: `ConfigurationRequest.Status.RETURNED` + yangi model
+  `ConfigurationRequestEvent` (created/taken/returned/resent/price_asked/
+  price_given/cancelled/note — TLD timeline'i bilan bir xil shakl);
+  `POST /configuration-requests/{id}/reject/` (engineer, izoh majburiy,
+  `new` va `in_progress`da; CFG bekor bo'lib broni bo'shaydi) va
+  `POST .../resend/` (sales egasi — hovuzga qaytadi). `returned` faqat
+  sales ro'yxatida — boshqa engineer olib qo'yib izoh o'qilmay qolmasin;
+- **B12/B17**: `cancel_chain(document, user, reason)` — uch kirish
+  nuqtasi (`/contracts/{id}/cancel/`, `/configurations/{id}/cancel/`,
+  `/configuration-requests/{id}/cancel/`), natija bitta: SHT/CFG/ZVK
+  `cancelled`, bronlar `released`, to'lanmagan TLD bekor, to'langani
+  "ochiq qoladi — mol baribir keladi" ogohlantirishi bilan tegilmaydi;
+  zanjirning ochiq eslatmalari yopiladi, qatnashchilarga bitta xabar;
+  **pul qabul qilingan shartnoma bekor qilinmaydi (400)**; kim — zanjir
+  egasi (sales) yoki admin; sabab majburiy;
+- zayavka javobida `events[]` tarix keladi (front timeline chizadi).
+
+Migratsiya: configurator.0012. Endpoint: 107 → 112. Model: 33 → 34.
+Testlar: test_request_loop.py (5), test_cancel_chain.py (5).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -1271,8 +1298,8 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **107** |
+| REST endpoint | 70 | **112** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
-| Modellar | 23 | **33** |
+| Modellar | 23 | **34** |
 | Testlar | 66 | **365** |
 | Rollar | 3 | **5** |

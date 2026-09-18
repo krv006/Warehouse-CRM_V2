@@ -52,12 +52,27 @@ urlpatterns = [
     path('configurations/<int:pk>/export-excel/', ConfigurationViewSet.as_view({
         'get': 'export_excel',
     }), name='configuration-export-excel'),
+    # B12: zanjirni bekor qilish — sales (egasi) yoki admin
+    path('configurations/<int:pk>/cancel/', ConfigurationViewSet.as_view({
+        'post': 'cancel',
+    }), name='configuration-cancel'),
 
     path('configuration-requests/', ConfigurationRequestViewSet.as_view(LIST), name='configurationrequest-list'),
     path('configuration-requests/<int:pk>/', ConfigurationRequestViewSet.as_view(DETAIL), name='configurationrequest-detail'),
     path('configuration-requests/<int:pk>/take/', ConfigurationRequestViewSet.as_view({
         'post': 'take',
     }), name='configurationrequest-take'),
+    # B15: engineer izoh bilan qaytaradi, sales tuzatib qayta yuboradi
+    path('configuration-requests/<int:pk>/reject/', ConfigurationRequestViewSet.as_view({
+        'post': 'reject',
+    }), name='configurationrequest-reject'),
+    path('configuration-requests/<int:pk>/resend/', ConfigurationRequestViewSet.as_view({
+        'post': 'resend',
+    }), name='configurationrequest-resend'),
+    # B17: bekor qilish zayavkadan ham — eng ko'p ishlatiladigan kirish nuqtasi
+    path('configuration-requests/<int:pk>/cancel/', ConfigurationRequestViewSet.as_view({
+        'post': 'cancel',
+    }), name='configurationrequest-cancel'),
 
     path('configuration-items/', ConfigurationItemViewSet.as_view(LIST), name='configurationitem-list'),
     path('configuration-items/<int:pk>/', ConfigurationItemViewSet.as_view(DETAIL), name='configurationitem-detail'),
