@@ -51,12 +51,16 @@ class AutoContractOnFinalizeTests(APITestCase):
         )
 
     def _finalize(self, **extra):
-        # #4 zanjiri: engineer submit -> (admin) approve -> assemble -> finalize
+        # #4 zanjiri: submit -> approve (SHT ochiladi) -> [to'lov] -> assemble
         url = f'/api/configurations/{self.configuration.id}'
         self.client.force_authenticate(self.engineer)
         self.client.post(f'{url}/submit/')
         self.client.force_authenticate(self.admin)
         self.client.post(f'{url}/approve/')
+        # YANGI OQIM B4: testda to'lov o'rniga shartnoma faollashtiriladi
+        Contract.objects.filter(configuration=self.configuration).update(
+            status=Contract.Status.ACTIVE,
+        )
         self.client.force_authenticate(self.engineer)
         self.client.post(f'{url}/assemble/')
         return self.client.post(
@@ -74,7 +78,8 @@ class AutoContractOnFinalizeTests(APITestCase):
         self.assertIsNotNone(response.data['contract'])
 
         contract = Contract.objects.get(pk=response.data['contract']['id'])
-        self.assertEqual(contract.status, Contract.Status.DRAFT)
+        # Testda shartnoma to'lov o'rnida faollashtirilgan (B4 quli uchun)
+        self.assertEqual(contract.status, Contract.Status.ACTIVE)
         self.assertEqual(contract.client, self.mijoz)
         self.assertEqual(contract.configuration, self.configuration)
         item = contract.items.get()

@@ -77,10 +77,16 @@ class ConfigurationTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('texnik yechim', response.data['detail'])
 
-        # 2) submit -> sales/admin approve
+        # 2) submit -> sales/admin approve (YANGI OQIM: SHT ochiladi)
         self.assertEqual(self.client.post(f'{url}/submit/').status_code, 200)
         self.client.force_authenticate(self.admin)
         self.assertEqual(self.client.post(f'{url}/approve/').status_code, 200)
+        # B4: testda to'lov o'rniga shartnoma faollashtiriladi
+        from apps.sales.models import Contract
+
+        Contract.objects.filter(configuration=self.configuration).update(
+            status=Contract.Status.ACTIVE,
+        )
         self.client.force_authenticate(self.engineer)
 
         # 3) Yig'ilmagan — yakunlanmaydi
@@ -106,7 +112,8 @@ class ConfigurationTests(APITestCase):
         )
         response = self.client.post(f'{url}/finalize/', {'act': act.id}, format='json')
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data['status'], Configuration.Status.READY)
+        # B7: shartnoma faol (to'langan) — yakunlash zanjirni SOLD bilan yopadi
+        self.assertEqual(response.data['status'], Configuration.Status.SOLD)
 
     def test_export_excel(self):
         response = self.client.get(f'/api/configurations/{self.configuration.id}/export-excel/')

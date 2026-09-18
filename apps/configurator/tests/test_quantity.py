@@ -36,6 +36,15 @@ class ConfigurationQuantityTests(APITestCase):
     def _stock(self, product):
         return available_quantity(product, self.warehouse)
 
+    def _walk_to_paid(self, configuration):
+        """submit -> approve -> (test uchun) shartnomani faollashtirish (B4)."""
+        url = f'/api/configurations/{configuration.id}'
+        self.client.post(f'{url}/submit/')
+        self.client.post(f'{url}/approve/')
+        Contract.objects.filter(configuration=configuration).update(
+            status=Contract.Status.ACTIVE,
+        )
+
     def _make_config(self, quantity, ram_qty=1):
         configuration = Configuration.objects.create(
             base_product=self.base, warehouse=self.warehouse,
@@ -89,8 +98,7 @@ class ConfigurationQuantityTests(APITestCase):
         )
         configuration = self._make_config(quantity=3)
         url = f'/api/configurations/{configuration.id}'
-        self.client.post(f'{url}/submit/')
-        self.client.post(f'{url}/approve/')
+        self._walk_to_paid(configuration)
         response = self.client.post(f'{url}/assemble/')
         self.assertEqual(response.status_code, 200, response.data)
 
@@ -106,8 +114,7 @@ class ConfigurationQuantityTests(APITestCase):
         )
         configuration = self._make_config(quantity=3)
         url = f'/api/configurations/{configuration.id}'
-        self.client.post(f'{url}/submit/')
-        self.client.post(f'{url}/approve/')
+        self._walk_to_paid(configuration)
         response = self.client.post(f'{url}/assemble/')
         self.assertEqual(response.status_code, 400)
         self.assertIn('RAM 16', str(response.data['items']))
@@ -125,8 +132,7 @@ class ConfigurationQuantityTests(APITestCase):
         configuration = self._make_config(quantity=3)
         act = Act.objects.create(number='ACT-1', title='ACT', issued_at=date.today())
         url = f'/api/configurations/{configuration.id}'
-        self.client.post(f'{url}/submit/')
-        self.client.post(f'{url}/approve/')
+        self._walk_to_paid(configuration)
         self.client.post(f'{url}/assemble/')
         response = self.client.post(
             f'{url}/finalize/', {'act': act.id}, format='json',
@@ -164,8 +170,7 @@ class ConfigurationQuantityTests(APITestCase):
             configuration=configuration, component=self.ram, label='RAM', quantity=1,
         )
         url = f'/api/configurations/{configuration.id}'
-        self.client.post(f'{url}/submit/')
-        self.client.post(f'{url}/approve/')
+        self._walk_to_paid(configuration)
         response = self.client.post(f'{url}/assemble/')
         self.assertEqual(response.status_code, 200, response.data)
 

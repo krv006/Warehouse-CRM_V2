@@ -9,9 +9,18 @@ from apps.inventory.models import Product
 
 
 def walk_to_approved(client, config_id):
-    """#4 oqimi: engineer submit -> sales approve (testlarda admin bilan)."""
+    """#4 oqimi: engineer submit -> sales approve (testlarda admin bilan).
+
+    YANGI OQIM: approve'da SHT ochiladi, yig'ish esa to'lovdan keyin (B4) —
+    testda to'lov o'rniga shartnoma to'g'ridan-to'g'ri faollashtiriladi.
+    """
+    from apps.sales.models import Contract
+
     client.post(f'/api/configurations/{config_id}/submit/')
     client.post(f'/api/configurations/{config_id}/approve/')
+    Contract.objects.filter(configuration_id=config_id).update(
+        status=Contract.Status.ACTIVE,
+    )
 
 
 def full_finalize(client, config_id, body=None, removals=None):

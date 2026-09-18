@@ -202,7 +202,10 @@ def sync_contract_reservations(contract):
     if contract.status in closed:
         release_reservations(contract=contract)
         return
-    if contract.status == Contract.Status.ACTIVE:
+    # YANGI OQIM: `active` = pul keldi, hali YETKAZILMAGAN (chiqim `ship`da).
+    # Yetkazilganidan keyingina bron "shipped" bo'lib turadi; ungacha to'langan
+    # mol albatta band bo'lishi kerak — §3.2 dagi teshik shu yerda yopiladi
+    if contract.status == Contract.Status.ACTIVE and contract.delivered_at:
         return  # chiqim bo'lib bo'lgan — bron shipped holatda turadi
 
     # YANGI-OQIM B5.1: konfiguratsiyaga bog'langan shartnoma, konfiguratsiya
@@ -219,14 +222,20 @@ def sync_contract_reservations(contract):
     StockReservation.objects.filter(
         contract=contract, status=StockReservation.Status.ACTIVE,
     ).delete()
+    # B5: pul to'langan shartnomaning broni muddatsiz — muddat o'tdi deb
+    # bo'shatib bo'lmaydi (chernovik/tasdiq bosqichlarida esa muddat ishlaydi)
+    paid = contract.status == Contract.Status.ACTIVE
     for product, quantity in _contract_needs(contract, warehouse).items():
-        free = sellable_quantity(product, warehouse)
+        free = sellable_quantity(product, warehouse, for_contract=contract)
         take = min(quantity, max(free, 0))
         if take > 0:
             StockReservation.objects.create(
                 product=product, warehouse=warehouse, quantity=take,
                 kind=StockReservation.Kind.HARD, contract=contract,
-                expires_at=_reservation_expiry(StockReservation.Kind.HARD),
+                expires_at=(
+                    None if paid
+                    else _reservation_expiry(StockReservation.Kind.HARD)
+                ),
             )
 
 

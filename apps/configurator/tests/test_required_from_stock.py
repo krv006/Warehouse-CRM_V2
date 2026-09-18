@@ -64,6 +64,23 @@ class RequiredFromStockTests(APITestCase):
             created_by=self.engineer, mode=Configuration.Mode.MODIFY,
             quantity=quantity, status=status,
         )
+        if status == Configuration.Status.APPROVED:
+            # YANGI OQIM B4: ta'minot/yig'ish uchun to'langan shartnoma kerak
+            from apps.clients.models import Client
+            from apps.sales.models import Contract
+
+            mijoz, _ = Client.objects.get_or_create(
+                phone='+998900000001',
+                defaults=dict(
+                    type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+                    passport='AA1112223', jshshir='11112222333344',
+                ),
+            )
+            Contract.objects.create(
+                client=mijoz, configuration=configuration,
+                status=Contract.Status.ACTIVE,
+                total_amount=Decimal('1000000'), created_by=self.engineer,
+            )
         ConfigurationItem.objects.create(
             configuration=configuration, component=self.cpu, label='CPU', quantity=1,
         )

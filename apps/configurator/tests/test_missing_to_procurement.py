@@ -100,6 +100,21 @@ class MissingToProcurementTests(APITestCase):
             # #4: ta'minot faqat sales tasdiqlagan yechim uchun ishlaydi
             status=Configuration.Status.APPROVED,
         )
+        # YANGI OQIM B4: ta'minot faqat to'langan (active) shartnoma bilan
+        from decimal import Decimal as D
+
+        from apps.clients.models import Client
+        from apps.sales.models import Contract
+
+        mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
+        Contract.objects.create(
+            client=mijoz, configuration=self.configuration,
+            status=Contract.Status.ACTIVE, total_amount=D('1000000'),
+            created_by=self.sales,
+        )
         ConfigurationItem.objects.create(
             configuration=self.configuration, component=self.ssd,
             label='SSD', quantity=1,

@@ -1215,6 +1215,34 @@ bosqichda** — servergacha 2-bosqich bilan birga chiqariladi.
 
 ---
 
+## 8.40 YANGI OQIM 2-bosqich: hamma ish to'lovdan keyin 💳
+
+YANGI-OQIM B4, B13, B16 (§7 talabi: 1-bosqich bilan bitta relizda).
+
+- **B4**: `assemble` va `request-procurement` endi shartnoma
+  `active`/`completed` bo'lishini talab qiladi — 400 "Boshlang'ich to'lov
+  kutilmoqda — SHT-…" (rad etilgan/bekor qilinganida "zanjir to'xtadi");
+  engineer navbatida to'lov kutayotgan konfiguratsiya turmaydi, admin SLA
+  ham u bosqichni shartnoma qatorida (bugalterda) ko'radi;
+- **B13**: to'lovdan keyin HECH NARSA o'zgarmaydi — shartnoma/qatorlari
+  (`active`/`completed`da admin ham tahrirlay olmaydi), partiya
+  (`change-quantity` 400), zayavka miqdori. Pul kelmagan draft shartnoma
+  esa partiya o'zgarishiga ergashadi (qator soni + jami qayta yig'iladi);
+- **B16**: ZVK `quantity` faqat `new`/`in_progress` da o'zgaradi
+  (keyin 400); o'zgarish `change_quantity` orqali o'tadi — bitta mantiq:
+  konfiguratsiya, bron, shartnoma va ZVK birga yangilanadi (sales o'z
+  zayavkasida, engineer hammasida);
+- bron aniqliklari: `active`-yetkazilmagan shartnoma broni endi QO'YILADI
+  va muddatsiz (avval `active` umuman sync qilinmasdi — §3.2 dagi "pul
+  to'langan shartnoma omborni ushlamayapti" teshigi yopildi); yig'ish va
+  ship o'z zanjirining QATTIQ bronini o'ziga ochiq hisoblaydi;
+- seed_demo yangi tartibda: A-hikoya to'lovni yig'ishdan OLDIN oladi,
+  D-hikoya TLD'dan oldin to'lov zanjirini yuradi.
+
+Testlar: `apps/configurator/tests/test_payment_gates.py` (8).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

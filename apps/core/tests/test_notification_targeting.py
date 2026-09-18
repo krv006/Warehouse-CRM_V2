@@ -127,6 +127,19 @@ class OwnerSalesTargetingTests(APITestCase):
         ConfigurationItem.objects.create(
             configuration=self.configuration, component=gpu, label='GPU', quantity=1,
         )
+        # YANGI OQIM B4: ta'minot faqat to'langan (active) shartnoma bilan
+        from apps.clients.models import Client
+        from apps.sales.models import Contract
+
+        mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
+        Contract.objects.create(
+            client=mijoz, configuration=self.configuration,
+            status=Contract.Status.ACTIVE, total_amount=Decimal('1000000'),
+            created_by=self.owner,
+        )
 
     def test_request_procurement_notifies_owner_not_pool(self):
         self.client.force_authenticate(self.engineer)

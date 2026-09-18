@@ -79,9 +79,17 @@ class ContractViewSet(BaseModelViewSet):
         return super().get_permissions()
 
     def _check_editable(self, contract):
-        """Tasdiqqa yuborilgan shartnoma o'zgarmaydi (faqat admin) — §11.3 asosi."""
+        """Tasdiqqa yuborilgan shartnoma o'zgarmaydi (faqat admin) — §11.3 asosi.
+
+        YANGI-OQIM B13: boshlang'ich to'lovdan keyin esa HECH KIM (admin ham)
+        o'zgartira olmaydi — pul olingan hujjatning summasi o'zgarib ketmasin.
+        """
         from rest_framework.exceptions import PermissionDenied
 
+        if contract.status in {Contract.Status.ACTIVE, Contract.Status.COMPLETED}:
+            raise PermissionDenied(
+                "Boshlang'ich to'lov qabul qilingan — shartnoma endi o'zgarmaydi.",
+            )
         user = self._current_user()
         if user and user.is_admin:
             return
@@ -317,6 +325,11 @@ class ContractItemViewSet(BaseModelViewSet):
     def _check_editable(self, contract):
         from rest_framework.exceptions import PermissionDenied
 
+        # YANGI-OQIM B13: to'lovdan keyin qatorlar hech kimga ochiq emas
+        if contract.status in {Contract.Status.ACTIVE, Contract.Status.COMPLETED}:
+            raise PermissionDenied(
+                "Boshlang'ich to'lov qabul qilingan — qatorlar endi o'zgarmaydi.",
+            )
         user = self._current_user()
         if user and user.is_admin:
             return

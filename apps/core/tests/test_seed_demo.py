@@ -71,7 +71,11 @@ class SeedDemoTests(APITestCase):
 
     def test_active_contract_has_additional_payment(self):
         """Faol shartnomada 2 ta to'lov: 30% oldindan + qo'shimcha 5 mln."""
-        contract = Contract.objects.get(status=Contract.Status.ACTIVE)
+        # YANGI OQIM: D-hikoya to'lovi ham active — A-hikoyaniki birinchisi
+        contract = (
+            Contract.objects.filter(status=Contract.Status.ACTIVE)
+            .order_by('id').first()
+        )
         self.assertEqual(contract.payments.count(), 2)
         self.assertEqual(
             contract.paid, contract.prepayment_amount + Decimal('5000000'),
@@ -102,7 +106,10 @@ class SeedDemoTests(APITestCase):
 
     def test_active_contract_awaits_shipment(self):
         """#2 demo: faol shartnoma yetkazilmagan — buyurtmachi navbatida."""
-        active = Contract.objects.get(status=Contract.Status.ACTIVE)
+        active = (
+            Contract.objects.filter(status=Contract.Status.ACTIVE)
+            .order_by('id').first()
+        )
         self.assertIsNone(active.delivered_at)
         completed = Contract.objects.get(status=Contract.Status.COMPLETED)
         self.assertIsNotNone(completed.delivered_at)
@@ -147,7 +154,11 @@ class SeedDemoTests(APITestCase):
         self.assertEqual(stale[0]['holder_role'], 'bugalter')
 
     def test_active_contract_is_in_red_zone(self):
-        contract = Contract.objects.get(status=Contract.Status.ACTIVE)
+        # YANGI OQIM: D-hikoya to'lovi ham active — A-hikoyaniki birinchisi
+        contract = (
+            Contract.objects.filter(status=Contract.Status.ACTIVE)
+            .order_by('id').first()
+        )
         self.assertEqual(contract.color, 'red')
         self.assertGreater(contract.paid, 0)
 

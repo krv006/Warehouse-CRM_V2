@@ -378,7 +378,7 @@ def reject_configuration(configuration, user, comment=''):
     return configuration
 
 
-def change_quantity(configuration, user, *, quantity, comment=''):
+def change_quantity(configuration, user, *, quantity, comment='', via_request=False):
     """Partiya sonini o'zgartiradi (4-to'plam §2) — yon ta'sirlari bilan.
 
     Mijoz "10 emas, 100 kerak" desa zanjir qaytadan boshlanmaydi: son
@@ -394,7 +394,10 @@ def change_quantity(configuration, user, *, quantity, comment=''):
     from apps.inventory.services import sync_configuration_reservations
     from apps.procurement.models import Replenishment
 
-    if not (user.is_admin or user.is_engineer):
+    # B16: zayavka orqali kelganda rol tekshiruvi zayavkaning o'zida bo'lgan
+    # (sales o'z ZVK'sida, engineer — write_roles); to'g'ridan-to'g'ri
+    # konfiguratsiyada esa faqat engineer (hujjat egasi) va admin
+    if not via_request and not (user.is_admin or user.is_engineer):
         raise PermissionDenied(
             "Partiyani engineer (yoki admin) o'zgartiradi — sales so'raydi.",
         )
@@ -423,6 +426,15 @@ def change_quantity(configuration, user, *, quantity, comment=''):
             'detail': (
                 "Mahsulot allaqachon yig'ilgan — ombor harakatlari yozilgan, "
                 "partiya endi o'zgarmaydi."
+            ),
+        })
+    # YANGI-OQIM B13: boshlang'ich to'lovdan keyin HECH NARSA o'zgarmaydi —
+    # 10 taning puli olingan, 100 ta esa boshqa shartnoma
+    if configuration.is_paid:
+        raise ValidationError({
+            'detail': (
+                "Boshlang'ich to'lov qabul qilingan — partiya o'zgarmaydi. "
+                "O'zgarish kerak bo'lsa alohida rasmiylashtiriladi."
             ),
         })
 
@@ -455,6 +467,26 @@ def change_quantity(configuration, user, *, quantity, comment=''):
     sync_configuration_reservations(configuration)
     # Zayavka soni ergashadi — ikki hujjatda ikki xil son qolmasin
     configuration.requests.update(quantity=quantity)
+
+    # YANGI-OQIM B1 oqibati: shartnoma allaqachon ochilgan (pul hali yo'q —
+    # draft/rejected) — qatordagi son va jami ham ergashadi
+    from apps.sales.models import Contract
+
+    contract = (
+        configuration.contracts
+        .exclude(status=Contract.Status.CANCELLED)
+        .order_by('-id')
+        .first()
+    )
+    if contract and contract.status in {
+        Contract.Status.DRAFT, Contract.Status.REJECTED,
+    }:
+        contract.items.filter(product=configuration.base_product).update(
+            quantity=quantity,
+        )
+        contract.total_amount = contract.items_total_with_vat
+        contract.prepayment_percent = None  # foiz yangi summadan qayta olinadi
+        contract.save()
 
     change_text = f'Partiya {old_quantity} dan {quantity} ga o\'zgardi.'
     if comment:
@@ -509,6 +541,38 @@ def act_suggestion_text(configuration):
     return ' '.join(lines)
 
 
+def _require_paid_chain(configuration):
+    """YANGI-OQIM B4: ta'minot va yig'ish faqat boshlang'ich to'lovdan keyin.
+
+    Zanjir endi `CFG → SHT → pul → mol`: pul kelmaguncha mol buyurtma
+    qilinmaydi va yig'ilmaydi. Shartnoma rad etilgan/bekor qilingan bo'lsa —
+    zanjir to'xtagan, boshqa matn bilan 400.
+    """
+    from rest_framework.exceptions import ValidationError
+
+    from apps.sales.models import Contract
+
+    contract = configuration.contracts.order_by('-id').first()
+    if contract is None:
+        raise ValidationError({
+            'detail': (
+                'Shartnoma ochilmagan — avval sales texnik yechimni tasdiqlasin '
+                '(approve shartnomani o\'zi ochadi).'
+            ),
+        })
+    if contract.status in {Contract.Status.REJECTED, Contract.Status.CANCELLED}:
+        raise ValidationError({
+            'detail': f'Shartnoma rad etildi — zanjir to\'xtadi ({contract.number}).',
+            'contract': contract.pk,
+        })
+    if contract.status not in {Contract.Status.ACTIVE, Contract.Status.COMPLETED}:
+        raise ValidationError({
+            'detail': f"Boshlang'ich to'lov kutilmoqda — {contract.number}.",
+            'contract': contract.pk,
+        })
+    return contract
+
+
 def assemble_configuration(configuration, user, *, removals=None, strict=True):
     """Yig'ish — alohida qadam (TOPSHIRIQ-2 #4): faqat tasdiqlangan yechim.
 
@@ -529,6 +593,8 @@ def assemble_configuration(configuration, user, *, removals=None, strict=True):
         raise ValidationError({
             'detail': 'Avval texnik yechim sales tomonidan tasdiqlanishi kerak.',
         })
+    # B4: yig'ish — pul kelgandan keyingi qadam (13–16 qulfi)
+    _require_paid_chain(configuration)
     if configuration.assembled_at:
         return True, []
 
@@ -605,7 +671,10 @@ def assemble_variant(configuration, user, *, strict=True):
         item.component.name
         for item in configuration.items.select_related('component')
         if sellable_quantity(
-            item.component, warehouse, for_contract=own_contract,
+            item.component, warehouse,
+            for_contract=own_contract,
+            # B5: to'lovdan keyin o'z broni QATTIQ — yig'ishda o'ziga ochiq
+            for_configuration=configuration,
         ) < item.quantity * batch
     ]
     if missing:
@@ -857,6 +926,8 @@ def send_missing_to_procurement(configuration, user):
                 '(submit -> sales approve) — keyin buyurtmachiga yuboriladi.'
             ),
         })
+    # B4: ta'minot ham pul kelgandan keyingi qadam — mol pulga bog'lanadi
+    _require_paid_chain(configuration)
 
     # Bitta konfiguratsiya uchun bitta ochiq hisob: tugma ikki marta bosilsa
     # ikkinchi TLD ochilmaydi — front mavjudini `procurement` maydonidan ko'radi

@@ -234,12 +234,34 @@ class Command(BaseCommand):
         # YANGI OQIM B1: tasdiq bilan draft shartnoma AVTOMATIK ochiladi
         approve_configuration(config_a, users['sales'], 'Mijoz tarkibga rozi')
         contract_a = config_a.active_contract
+
+        # YANGI OQIM B4: mol to'lovdan keyin — avval pul zanjiri yuriladi
+        from apps.sales.services import (
+            approve_contract as approve_sht,
+            confirm_payment as pay_sht,
+            submit_contract as submit_sht,
+        )
+
+        submit_sht(contract_a, users['sales'])
+        approve_sht(
+            contract_a, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
+            didox_number='DDX-2026-0055',
+        )
+        contract_a.refresh_from_db()
+        if contract_a.status == contract_a.Status.PENDING_ADMIN:
+            approve_sht(contract_a, users['admin'], 'Ma\'qul')
+            contract_a.refresh_from_db()
+        pay_sht(contract_a, users['bugalter'], amount=contract_a.prepayment_amount)
+        pay_sht(contract_a, users['bugalter'], amount=Decimal('5000000'))
+        contract_a.refresh_from_db()
+
+        # Pul keldi — endi mol: yig'ish va yakunlash (finalize'dagi B6/B7)
         assemble_configuration(config_a, users['engineer'])
         config_a.act = act
-        config_a.status = config_a.Status.READY
+        # Shartnoma faol — finalize CFG'ni to'g'ri SOLD qiladi (B7)
+        config_a.status = config_a.Status.SOLD
         config_a.save()
-        # finalize'dagi B6: shartnoma qatori yig'ilgan variantga ko'chadi
-        # (son va narx tegilmaydi), bron esa shartnomaga o'tadi
+        # B6: shartnoma qatori yig'ilgan variantga ko'chadi (son/narx tegilmaydi)
         contract_a.items.filter(product=products['HP-880']).update(
             product=config_a.variant,
         )
@@ -282,6 +304,27 @@ class Command(BaseCommand):
         )
         submit_configuration(config_d, users['engineer'])
         approve_configuration(config_d, users['sales'], 'Wi-Fi bilan ma\'qul')
+        # YANGI OQIM B4: ta'minot faqat boshlang'ich to'lovdan keyin —
+        # D shartnomasi tez yo'l bilan to'lovgacha yuriladi
+        from apps.sales.services import (
+            approve_contract as _approve_contract,
+            confirm_payment as _confirm_payment,
+            submit_contract as _submit_contract,
+        )
+
+        contract_d = config_d.active_contract
+        _submit_contract(contract_d, users['sales'])
+        _approve_contract(
+            contract_d, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
+            didox_number='DDX-2026-0077',
+        )
+        contract_d.refresh_from_db()
+        if contract_d.status == contract_d.Status.PENDING_ADMIN:
+            _approve_contract(contract_d, users['admin'], 'Ma\'qul')
+        contract_d.refresh_from_db()
+        _confirm_payment(
+            contract_d, users['bugalter'], amount=contract_d.prepayment_amount,
+        )
         replenishment_d = send_missing_to_procurement(config_d, users['engineer'])
         # Buyurtmachi narxlarni kiritdi va yubordi -> sales (mijoz roziligi)
         for item in replenishment_d.items.select_related('product'):
@@ -371,16 +414,10 @@ class Command(BaseCommand):
             didox_number='DDX-2026-0044',
         )
 
-        # 5) Faol, YETKAZILMAGAN — A-hikoya shartnomasi: to'lov keldi, mol
-        # bron'da, buyurtmachining "Yetkazing" navbatida turadi (#2)
+        # 5) Faol, YETKAZILMAGAN — A-hikoya shartnomasi (YANGI OQIM: pul zanjiri
+        # hikoyaning o'zida yurilgan — to'lov yig'ishdan OLDIN keladi, B4).
+        # Buyurtmachining "Yetkazing" navbatida turadi (#2)
         c5 = state['contract_active']
-        submit_contract(c5, users['sales'])
-        approve_contract(
-            c5, users['bugalter'], 'Didoxdan qabul qilib tanishdim',
-            didox_number='DDX-2026-0055',
-        )
-        confirm_payment(c5, users['bugalter'], amount=c5.prepayment_amount)
-        confirm_payment(c5, users['bugalter'], amount=Decimal('5000000'))
         c5.refresh_from_db()
         # Muddat sanog'i ko'rinishi uchun boshlanishini orqaga suramiz (qizil zona)
         c5.start_date = localdate() - timedelta(days=82)

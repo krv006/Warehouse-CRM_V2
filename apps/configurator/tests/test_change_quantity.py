@@ -112,15 +112,18 @@ class ChangeQuantityTests(APITestCase):
         self.assertEqual(configuration.quantity, 10)
 
     def test_open_tld_beyond_draft_rejected_with_number(self):
-        """TLD chernovikdan o'tgan — mol yo'lda, xabar TLD raqamini aytadi."""
-        configuration = self._approved_config()  # RAM omborda yo'q
-        self.client.post(
-            f'/api/configurations/{configuration.id}/request-procurement/',
-        )
-        replenishment = Replenishment.objects.get()
-        replenishment.status = Replenishment.Status.PENDING_BUGALTER
-        replenishment.save()
+        """Eski-oqim merosi: TLD chernovikdan o'tgan — xabar TLD raqamini aytadi.
 
+        YANGI OQIMda TLD to'lovdan keyin ochiladi (u holda B13 quli oldinroq
+        ishlaydi); bu himoya eski ma'lumot uchun turadi — TLD to'g'ridan
+        yozib taqlid qilinadi.
+        """
+        configuration = self._approved_config()
+        replenishment = Replenishment.objects.create(
+            warehouse=self.warehouse, configuration=configuration,
+            status=Replenishment.Status.PENDING_BUGALTER,
+            created_by=self.engineer,
+        )
         response = self._change(configuration, 100)
         self.assertEqual(response.status_code, 400)
         self.assertIn(replenishment.number, str(response.data['detail']))
@@ -129,10 +132,10 @@ class ChangeQuantityTests(APITestCase):
     def test_open_draft_tld_allowed_and_supplier_notified(self):
         """Chernovik TLD to'smaydi — buyurtmachi qatorlarni o'zi moslaydi."""
         configuration = self._approved_config()
-        self.client.post(
-            f'/api/configurations/{configuration.id}/request-procurement/',
+        replenishment = Replenishment.objects.create(
+            warehouse=self.warehouse, configuration=configuration,
+            created_by=self.engineer,
         )
-        replenishment = Replenishment.objects.get()
         Notification.objects.all().delete()
 
         response = self._change(configuration, 100)

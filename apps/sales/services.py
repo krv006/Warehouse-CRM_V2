@@ -361,13 +361,21 @@ def _ship_contract_items(contract, user):
     if warehouse is None:
         return
 
-    # §11.4 eng nozik joy: erkin qoldiq + SHU shartnomaning o'z broni —
-    # aks holda shartnoma o'zi band qilgan molga o'zi yetisha olmay qolardi
+    # §11.4 eng nozik joy: erkin qoldiq + SHU zanjirning o'z broni —
+    # aks holda shartnoma o'zi (yoki konfiguratsiyasi) band qilgan molga
+    # o'zi yetisha olmay qolardi (B5: to'langan CFG broni ham QATTIQ)
+    def _open(product):
+        return sellable_quantity(
+            product, warehouse,
+            for_contract=contract,
+            for_configuration=contract.configuration,
+        )
+
     shortages = [
         f'{item.product.name} (kerak: {item.quantity}, '
-        f'sotuvga ochiq: {sellable_quantity(item.product, warehouse, for_contract=contract)})'
+        f'sotuvga ochiq: {_open(item.product)})'
         for item in contract.items.select_related('product')
-        if sellable_quantity(item.product, warehouse, for_contract=contract) < item.quantity
+        if _open(item.product) < item.quantity
     ]
     if shortages:
         raise ValidationError({

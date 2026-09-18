@@ -493,6 +493,39 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
         # Yangi zayavka haqida engineerlar darrov xabar oladi
         notify_engineers_about_request(serializer.instance)
 
+    # YANGI-OQIM B16: miqdor faqat ochiq holatlarda o'zgaradi va
+    # konfiguratsiya bilan SINXRON — ikki hujjatda ikki xil son qolmasin
+    QUANTITY_EDITABLE = (
+        ConfigurationRequest.Status.NEW,
+        ConfigurationRequest.Status.IN_PROGRESS,
+    )
+
+    def perform_update(self, serializer):
+        instance = serializer.instance
+        new_quantity = serializer.validated_data.get('quantity')
+        quantity_changed = (
+            new_quantity is not None and new_quantity != instance.quantity
+        )
+        if quantity_changed and instance.status not in self.QUANTITY_EDITABLE:
+            raise ValidationError({
+                'quantity': (
+                    f"'{instance.get_status_display()}' holatida miqdor "
+                    "o'zgartirilmaydi."
+                ),
+            })
+        if quantity_changed and instance.configuration_id:
+            # Bitta mantiq (4-to'plam §2): son, bron, shartnoma va holat
+            # birga o'zgaradi; to'lov kelgan/TLD yo'lga chiqqan bo'lsa 400
+            from apps.configurator.services import change_quantity
+
+            change_quantity(
+                instance.configuration, self.request.user,
+                quantity=new_quantity,
+                comment=f'{instance.number} zayavkasida son o\'zgartirildi',
+                via_request=True,
+            )
+        super().perform_update(serializer)
+
     def take(self, request, pk=None):
         """POST /configuration-requests/{id}/take/ — Engineer ishga oladi.
 

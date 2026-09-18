@@ -155,10 +155,20 @@ def _configuration_source(user):
     from apps.configurator.models import Configuration
 
     if user.is_engineer:
-        # #4: chernovik — yig'iladi; tasdiqlangan — yig'ish/yakunlash navbati
-        qs = Configuration.objects.filter(
-            created_by=user,
-            status__in=[Configuration.Status.DRAFT, Configuration.Status.APPROVED],
+        # #4: chernovik — yig'iladi; tasdiqlangan — yig'ish/yakunlash navbati.
+        # YANGI-OQIM B4/F8: to'lov kelmagan `approved` engineer navbatida
+        # TURMAYDI — bu uning ishi emas, "to'lov kutilmoqda" bosqichi
+        qs = (
+            Configuration.objects
+            .filter(created_by=user)
+            .filter(
+                Q(status=Configuration.Status.DRAFT)
+                | Q(
+                    status=Configuration.Status.APPROVED,
+                    contracts__status__in=['active', 'completed'],
+                )
+            )
+            .distinct()
         )
 
         def engineer_row(obj):
@@ -371,11 +381,19 @@ def _admin_stale_items(cutoff_hour, working_days):
         ),
         (
             'configurations', 'Configuration',
-            Configuration.objects.filter(status__in=[
-                Configuration.Status.DRAFT,
-                Configuration.Status.PENDING_SALES,
-                Configuration.Status.APPROVED,
-            ]).select_related('created_by').prefetch_related('requests__created_by'),
+            # YANGI-OQIM B4: to'lov kelmagan `approved` hech kimda "turib
+            # qolmagan" — o'sha bosqich SLA'si shartnoma qatorida (bugalterda)
+            Configuration.objects.filter(
+                Q(status__in=[
+                    Configuration.Status.DRAFT,
+                    Configuration.Status.PENDING_SALES,
+                ])
+                | Q(
+                    status=Configuration.Status.APPROVED,
+                    contracts__status__in=['active', 'completed'],
+                )
+            ).distinct()
+            .select_related('created_by').prefetch_related('requests__created_by'),
             configuration_holder,
             lambda obj: (obj.number, None, None),
         ),

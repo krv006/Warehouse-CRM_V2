@@ -399,6 +399,18 @@ mol` (avval `CFG → mol → SHT → pul` edi):
    `ready` (pul kelgan bo'lsa `sold`) bo'ladi; bron shartnomaga o'tadi.
 5. ZVK endi shartnoma `completed` bo'lgandagina arxivlanadi (B7, §3.5) —
    u zanjir umurtqasi bo'lib ro'yxatlarda turadi.
+6. **Ta'minot va yig'ish to'lovdan keyin** (B4): `assemble` ham,
+   `request-procurement` ham shartnoma `active`/`completed` bo'lmaguncha
+   400 beradi ("Boshlang'ich to'lov kutilmoqda — SHT-…"); shartnoma rad
+   etilgan bo'lsa — "zanjir to'xtadi". Engineer navbatida to'lov kutayotgan
+   konfiguratsiya TURMAYDI — bu uning ishi emas (F8).
+7. **Boshlang'ich to'lovdan keyin hech narsa o'zgarmaydi** (B13):
+   shartnoma va qatorlari (admin ham!), partiya soni (`change-quantity`),
+   zayavka miqdori — hammasi qulflanadi. Ochiq qoladigani: ACT, yig'ish,
+   TLD — ish aynan shulardan boshlanadi.
+8. **Zayavka miqdori sinxron** (B16): ZVK `quantity` faqat ochiq
+   holatlarda o'zgaradi va o'zgarishi `change_quantity` orqali o'tadi —
+   konfiguratsiya, bron va (pul kelmagan) shartnoma birga yangilanadi.
 
 **Partiya o'zgarishi (4-to'plam §2).** Mijoz sonni o'zgartirsa zanjir
 qaytadan boshlanmaydi: `POST /configurations/{id}/change-quantity/` (engineer,

@@ -153,6 +153,12 @@ class FrontFixesTests(APITestCase):
         self.client.post(f'{url}/submit/')
         self.client.force_authenticate(admin)
         self.client.post(f'{url}/approve/')
+        # YANGI OQIM B4: yig'ish to'lovdan keyin — testda shartnoma faollashtiriladi
+        from apps.sales.models import Contract
+
+        Contract.objects.filter(configuration=self.configuration).update(
+            status=Contract.Status.ACTIVE,
+        )
         self.client.force_authenticate(self.engineer)
         self.client.post(f'{url}/assemble/')
 
@@ -171,7 +177,8 @@ class FrontFixesTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.configuration.refresh_from_db()
         self.assertEqual(self.configuration.act, act)
-        self.assertEqual(self.configuration.status, Configuration.Status.READY)
+        # B7: shartnoma faol (to'langan) — yakunlash zanjirni SOLD bilan yopadi
+        self.assertEqual(self.configuration.status, Configuration.Status.SOLD)
 
     def test_finalize_with_unknown_act_is_400(self):
         self._walk_to_assembled()

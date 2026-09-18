@@ -159,7 +159,7 @@ O'qish hammaga; **yozish faqat engineer** (admin). Sales matnli zayavka yuboradi
 - `GET /configurations/{id}/stock-check/`
 - **YANGI OQIM**: zanjir `CFG → SHT → pul → mol`. Sales texnik yechimni tasdiqlashi (`approve`) bilanoq **draft shartnoma avtomatik ochiladi** (mijozsiz tasdiq 400); ta'minot va yig'ish **boshlang'ich to'lovdan keyin**. Narx `submit`dan oldin aniq bo'ladi (`request-prices` — buyurtmachi tannarx kiritadi, §6-B ustama `CompanyProfile.markup_percent`)
 - `POST /configurations/{id}/finalize/` — **ACT majburiy**; §11.1: yakunlash **engineer bosqichi**, shartlari `approved` + yig'ilgan; shartnoma bu yerda OCHILMAYDI — qatordagi bazaviy model **yig'ilgan variantga ko'chadi** (son/narx tegilmaydi), CFG `ready` (pul kelgan bo'lsa `sold`); chop etish shakli: `GET /contracts/{id}/print/`
-- `POST /configurations/{id}/assemble/` — keyinroq yig'ish (mol kelgach); to'lov oldidan ham avtomatik uriniladi
+- `POST /configurations/{id}/assemble/` — yig'ish; **B4: faqat boshlang'ich to'lovdan keyin** (shartnoma `active`), aks holda 400 "To'lov kutilmoqda — SHT-…"; ta'minot (`request-procurement`) ham xuddi shu qulf ostida
 - `GET /configurations/{id}/export-excel/` — chernovik Excel (openpyxl)
 - Narx ombordan avtomatik olinadi; narxsiz qator bo'lsa `finalize` bloklanadi
 - Bir xil tarkib `signature` orqali tanib olinadi va ombordagi tayyor variant narxi qo'llanadi

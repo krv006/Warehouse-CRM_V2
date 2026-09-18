@@ -36,6 +36,23 @@ class ApprovalFlowExtrasTests(APITestCase):
             status=ConfigurationRequest.Status.IN_PROGRESS, taken_by=self.engineer,
         )
 
+    def _approve_and_pay(self):
+        """YANGI OQIM B4: ta'minot/yig'ish uchun to'langan shartnoma kerak."""
+        from apps.clients.models import Client
+        from apps.sales.models import Contract
+
+        self.configuration.status = Configuration.Status.APPROVED
+        self.configuration.save()
+        mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
+        Contract.objects.create(
+            client=mijoz, configuration=self.configuration,
+            status=Contract.Status.ACTIVE, total_amount=Decimal('1000000'),
+            created_by=self.sales,
+        )
+
     def test_sales_queue_shows_configuration_review(self):
         """my-work: sales ko'rigidagi konfiguratsiya navbatga tushadi."""
         self.client.force_authenticate(self.engineer)
@@ -58,8 +75,7 @@ class ApprovalFlowExtrasTests(APITestCase):
 
     def test_receive_notifies_engineer_goods_arrived(self):
         """#4C: mol kelganda yig'adigan odam (engineer) xabar oladi."""
-        self.configuration.status = Configuration.Status.APPROVED
-        self.configuration.save()
+        self._approve_and_pay()
         self.client.force_authenticate(self.engineer)
         response = self.client.post(
             f'/api/configurations/{self.configuration.id}/request-procurement/',
@@ -82,8 +98,7 @@ class ApprovalFlowExtrasTests(APITestCase):
 
     def test_assemble_returns_act_suggestion(self):
         """#4D: ACT matni bajarilgan ishdan avtomatik taklif qilinadi."""
-        self.configuration.status = Configuration.Status.APPROVED
-        self.configuration.save()
+        self._approve_and_pay()
         apply_movement(
             product=self.ssd, warehouse=self.warehouse,
             type=StockMovement.Type.IN, quantity=Decimal('3'),
