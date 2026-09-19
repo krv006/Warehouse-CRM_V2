@@ -1507,6 +1507,25 @@ zanjir testlari yangilandi. Procurement: 51/51 OK.
 
 ---
 
+## 8.51 11-to'plam: bitta TLD — bitta zanjir; qoldiq to'lov bugalterniki 🚪
+
+- **§1**: "bitta ochiq TLD" qoidasi eshikni emas, ZANJIRNI qo'riqlaydi
+  — `chain_open_replenishment` konfiguratsiya va shartnoma tomonlarini
+  birga tekshiradi (engineer CFG'dan ochgan hisob turganda sales SHT'dan
+  ikkinchisini ocha olardi: bir xil mol ikki marta buyurtma bo'lardi).
+  Kuchliroq qoida ham qo'shildi: **konfiguratsiyadan tug'ilgan
+  shartnomada `request-procurement` umuman yopiq** (400) — nima
+  yetishmayotganini CFG biladi (`missing` o'sha yerda), shartnoma eshigi
+  faqat ombordan to'g'ridan-to'g'ri sotuv uchun;
+- **§2**: yetkazilgan-u qoldiq to'lanmagan shartnomada oxirgi qadam
+  endi «Qoldiq to'lov» / **bugalter** (avval "Yakunlandi"/sales edi —
+  bugalter ishni ko'rmasdi, SLA sales'ga yozilardi, 10-§5 hovuzi ham
+  noto'g'ri rolga tayanardi). Yopilganda yana "Yakunlandi" bo'ladi.
+
+Testlar: `apps/core/tests/test_chain_tld.py` (6).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

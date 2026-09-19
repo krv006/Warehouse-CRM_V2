@@ -670,6 +670,27 @@ def act_suggestion_text(configuration):
     return ' '.join(lines)
 
 
+def chain_open_replenishment(configuration=None, contract=None):
+    """Zanjirdagi ochiq TLD — qaysi eshikdan kirilganidan qat'i nazar (11-§1).
+
+    Zanjirga ikki eshik bor (konfiguratsiya va shartnoma) va avval har biri
+    faqat o'z tomonini tekshirardi: engineer CFG'dan hisob ochgan bo'lsa ham
+    sales SHT'dan ikkinchisini ocha olardi — bir xil mol ikki marta buyurtma
+    qilinib, ikki marta to'lanardi. Bu 8-§3 dagi "bitta CFG'ga bitta SHT"
+    xatosining aynan o'zi, faqat boshqa hujjatda.
+    """
+    if contract is not None and configuration is None:
+        configuration = contract.configuration
+    candidates = []
+    if configuration is not None:
+        candidates += list(configuration.replenishments.all())
+        for chained in configuration.contracts.all():
+            candidates += list(chained.replenishments.all())
+    if contract is not None:
+        candidates += list(contract.replenishments.all())
+    return next((rep for rep in candidates if rep.is_open), None)
+
+
 def _require_paid_chain(configuration):
     """YANGI-OQIM B4: ta'minot va yig'ish faqat boshlang'ich to'lovdan keyin.
 
@@ -1062,9 +1083,9 @@ def send_missing_to_procurement(configuration, user):
     # B4: ta'minot ham pul kelgandan keyingi qadam — mol pulga bog'lanadi
     _require_paid_chain(configuration)
 
-    # Bitta konfiguratsiya uchun bitta ochiq hisob: tugma ikki marta bosilsa
-    # ikkinchi TLD ochilmaydi — front mavjudini `procurement` maydonidan ko'radi
-    existing = configuration.open_replenishment
+    # Bitta ZANJIR uchun bitta ochiq hisob (11-§1: shartnoma eshigidan
+    # ochilgani ham hisobga kiradi) — front mavjudini `procurement`dan ko'radi
+    existing = chain_open_replenishment(configuration=configuration)
     if existing:
         raise ValidationError({
             'detail': (

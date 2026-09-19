@@ -599,10 +599,20 @@ def build_roadmap(document, user):
         doc=('contract', contract),
     )
     completed = bool(contract and contract.status == 'completed')
+    # 11-to'plam §2: mol yetkazilgan-u qoldiq to'lanmagan bo'lsa, zanjirni
+    # ochiq tutib turgan YAGONA narsa — pul, uni esa bugalter kiritadi.
+    # Nom ham o'zgaradi: "Yakunlandi" kutish paytida "hammasi tugadi" degan
+    # yolg'on taassurot berardi.
+    awaiting_money = bool(
+        contract and not completed and contract.delivered_at
+        and contract.balance > 0
+    )
     data['completed'] = dict(
         done=completed,
         at=contract.status_changed_at if completed and contract else None,
         who=None,
+        role='bugalter' if awaiting_money else None,
+        label="Qoldiq to'lov" if awaiting_money else None,
         doc=('contract', contract),
     )
 

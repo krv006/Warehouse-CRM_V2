@@ -249,7 +249,7 @@ keyin kelgani keyingi ish kuni oxirigacha (`/company/` da `sla_cutoff_hour`,
 | POST | `/configurations/{id}/finalize/` | #4: shartlari `approved` + yig'ilgan (`assembled_at`) + ACT (tanada `{"act": 2}`); YANGI-OQIM: shartnoma bu yerda OCHILMAYDI (u `approve`da ochilgan) — qatordagi bazaviy model **yig'ilgan variantga ko'chadi** (B6, son/narx tegilmaydi), CFG `ready` (shartnoma `active` bo'lsa `sold`), bron shartnomaga o'tadi |
 | POST | `/configurations/{id}/assemble/` | #4/§10.1: yig'ish — faqat `approved` yechim; **B4: shartnoma `active`/`completed` bo'lishi shart** (400: "Boshlang'ich to'lov kutilmoqda — SHT-…"; rad etilgan/bekor qilinganida boshqa matn); build: butlovchilar chiqadi, variant kiradi; modify: tayyor mahsulot fizik o'zgartiriladi (tana: `{"removals": {...}}`); yetmasa 400 (nomlar bilan) — mol TLD orqali kelgach qayta bosiladi; javobda `act_suggestion` (#4D) |
 | POST | `/configurations/{id}/request-prices/` | YANGI-OQIM B2 + 10-§1/2: narx so'rovi — **TLD emas**; eslatma endi **mahsulotga** ishora qiladi (`entity=Product`, har bir narxsiz mahsulotga alohida — buyurtmachi CFG'ni ko'ra olmaydi, mahsulot kartasi esa ochiq); takrorida yangilanadi (kalit user+Product); faqat `draft`/`pending_clarification`/`pending_sales` da (keyin 400 — narx shartnomaga kirib bo'lgan); narx kelgach mahsulot eslatmasi yopiladi va **sales** xabar oladi |
-| POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan TLD ochadi; #4: faqat `approved` konfiguratsiyada; **B4: faqat to'langan zanjirda** (shartnoma `active`) — mol pulga bog'lanadi; hammasi omborda bo'lsa 400; ochiq TLD bor bo'lsa ham 400 |
+| POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan TLD ochadi; #4: faqat `approved` konfiguratsiyada; **B4: faqat to'langan zanjirda** (shartnoma `active`) — mol pulga bog'lanadi; hammasi omborda bo'lsa 400; ochiq TLD bor bo'lsa ham 400 — 11-§1: tekshiruv **butun zanjir** bo'yicha (shartnoma eshigidan ochilgani ham hisobga kiradi) |
 | POST | `/configurations/{id}/change-quantity/` | 4-to'plam §2 + 6-to'plam §4: partiya sonini o'zgartirish — **sales** (admin; u mijoz bilan kelishadi, engineer emas), tana `{"quantity": 100, "comment": "..."}`; `draft`/`pending_sales`/`approved` da; bron qayta hisoblanadi, zayavka soni ergashadi, `approved` bo'lsa **`pending_sales`ga qaytadi** (narx-muddat qayta kelishiladi); yig'ilgan (`assembled_at`) yoki chernovikdan o'tgan ochiq TLD bo'lsa 400 (TLD raqami bilan); chernovik TLD to'smaydi; **B13: to'lov kelgach 400 — hech narsa o'zgarmaydi**; pul kelmagan draft SHT esa songa ergashadi (qator miqdori va jami qayta yig'iladi) |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
 | GET/POST | `/configuration-items/` | qatorni alohida qo'shish — `configuration` majburiy, faqat `draft`; bazada yo'q tovar uchun `new_component_name` |
@@ -355,7 +355,10 @@ tasdig'i, to'lov kelib TLD hali ochilmaganda (yetishmovchilik bilan) —
 "Buyurtmachiga yuborildi" (engineer). **10-§6**: `procurement_chain` qora
 quti emas — roli va nomi TLD holatidan ("TLD — bugalter tekshiruvi",
 "TLD — to'lov kutilmoqda", "TLD — yo'lda" …). **10-§7**: `ship` qadami
-yetkazgan odamning ismi bilan (`delivered_by`). **8-to'plam §1**: zanjirda
+yetkazgan odamning ismi bilan (`delivered_by`). **11-§2**: mol yetkazilgan-u
+qoldiq to'lanmagan bo'lsa oxirgi qadam «Qoldiq to'lov» nomi va **bugalter**
+roli bilan joriy bo'ladi — "Yakunlandi" yolg'on taassurot bermaydi, SLA va
+hovuz to'g'ri odamga ishlaydi. **8-to'plam §1**: zanjirda
 UMUMAN bo'lmaydigan hujjatning qadamlari ham `skipped` — qo'lda ochilgan
 shartnomada ZVK/CFG qadamlari chizilmaydi ("hali boshlanmagan" bo'lib
 ko'rinmaydi); qoida: keyingi bosqich hujjati bor-u, oldingisi yo'q bo'lsa,
@@ -560,7 +563,7 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | POST | `/contracts/{id}/approve/` | admin bosqichi (`pending_admin` → `approved`); B11 mosligi: `pending_bugalter`dan eski bitta qadamli yo'l ham qabul qilinadi (tanada `didox_number`); har bosqichda keyingi bosqich egasiga bildirishnoma |
 | POST | `/contracts/{id}/reject/` | bugalter / admin |
 | POST | `/contracts/{id}/ship/` | #2: **yetkazish** — mol shu yerda chiqadi (buyurtmachi/bugalter, admin); `delivered_at` yoziladi, bron chiqimga aylanadi, balans yopiq bo'lsa `completed` |
-| POST | `/contracts/{id}/request-procurement/` | #2: **sales (egasi)** — band qilinmagan qismidan TLD ochadi (`contract` FK, `owner_sales`); bitta ochiq TLD qoidasi |
+| POST | `/contracts/{id}/request-procurement/` | #2: **sales (egasi)** — band qilinmagan qismidan TLD ochadi (`contract` FK, `owner_sales`); 11-§1: **konfiguratsiyadan tug'ilgan shartnomada yopiq** (400 — yetishmayotganni engineer CFG sahifasidan yuboradi, `missing` o'sha yerda), eshik faqat ombordan to'g'ridan-to'g'ri sotuv uchun; bitta ochiq TLD qoidasi endi **butun zanjir** bo'yicha |
 | POST | `/contracts/{id}/confirm-payment/` | bugalter; YANGI-OQIM: bu **ish boshlanish signali** — CFG broni qattiqlashadi, engineer xabar oladi, 13–16 qadamlar ochiladi |
 | GET | `/contracts/{id}/timeline/` | hamma |
 | GET | `/contracts/{id}/print/` | **faqat sales, admin** — chop etish shakli (qator narxlari bor) |

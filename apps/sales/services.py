@@ -670,9 +670,22 @@ def send_contract_missing_to_procurement(contract, user):
 
     _require_role(user, sales=True)
 
-    existing = next(
-        (rep for rep in contract.replenishments.all() if rep.is_open), None,
-    )
+    # 11-§1: konfiguratsiyadan tug'ilgan shartnomada bu eshik YOPIQ — nima
+    # yetishmayotganini konfiguratsiya biladi (tarkib va `missing` o'sha
+    # yerda), shartnoma tomonidagi hisob bronlardan chiqarilib boshqa raqam
+    # berishi mumkin. Bu eshik to'g'ridan-to'g'ri ombordan sotuv uchun.
+    if contract.configuration_id:
+        raise ValidationError({
+            'detail': (
+                'Bu shartnoma konfiguratsiyadan tug\'ilgan — yetishmayotganni '
+                'engineer konfiguratsiya sahifasidan yuboradi.'
+            ),
+        })
+
+    # Zanjir bo'yicha bitta ochiq TLD (11-§1) — eshik bo'yicha emas
+    from apps.configurator.services import chain_open_replenishment
+
+    existing = chain_open_replenishment(contract=contract)
     if existing:
         raise ValidationError({
             'detail': (
