@@ -32,7 +32,7 @@ from apps.sales.services import (
 BUGALTER_ACTIONS = {
     'approve', 'reject', 'confirm_payment', 'send_didox', 'confirm_didox',
 }
-# #2: yetkazishni mol bilan ishlaydigan odam bosadi — buyurtmachi/bugalter
+# 11-§3: yetkazishni shartnoma egasi sales bosadi — buyurtmachi/bugalter emas
 SHIP_ACTIONS = {'ship'}
 
 
@@ -67,14 +67,13 @@ class ContractViewSet(BaseModelViewSet):
         if user.is_sales:
             return qs.filter(created_by=user)
         if user.is_supplier:
-            # #2: yetkazish navbati; 10-§7: PLYUS o'zi yetkazganlari va o'zi
-            # TLD ochgan shartnomalar — qo'l tekkizgan ish yopilguncha
-            # ko'rinib turadi (yetkazgan zahoti 404 bo'lib qolmasin)
+            # 11-§3: yetkazish navbati olib tashlandi — mol chiqarish endi
+            # sales ishi. 10-§7 qoidasi qoladi: o'zi yetkazganlari (eski
+            # yozuvlar) va o'zi TLD ochgan zanjir yopilguncha ko'rinadi.
             from django.db.models import Q
 
             return qs.filter(
-                Q(status=Contract.Status.ACTIVE, delivered_at__isnull=True)
-                | Q(delivered_by=user)
+                Q(delivered_by=user)
                 | Q(replenishments__created_by=user)
             ).distinct()
         return qs.none()
@@ -83,9 +82,7 @@ class ContractViewSet(BaseModelViewSet):
         if self.action in BUGALTER_ACTIONS:
             return [IsAdminOrBugalter()]
         if self.action in SHIP_ACTIONS:
-            from apps.accounts.permissions import ProcurementSharedAccess
-
-            return [ProcurementSharedAccess()]
+            return [IsAdminOrSales()]
         return super().get_permissions()
 
     def _check_editable(self, contract):

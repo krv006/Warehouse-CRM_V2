@@ -606,15 +606,20 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
 def ship_contract(contract, user):
     """Yetkazib berish (#2): mol AYNAN shu yerda ombordan chiqadi.
 
-    Kim: buyurtmachi yoki bugalter (admin) — mol bilan ishlaydigan odam.
+    Kim: shartnoma egasi sales (va admin) — mijoz bilan gaplashadigan,
+    molni topshiradigan odam (11-§3). Buyurtmachi va bugalter mol bilan
+    ishlamaydi — ular zanjirning boshqa uchida (TLD, pul).
     Shartlari: boshlang'ich to'lov qabul qilingan (`active`), hali
     yetkazilmagan, mol yetarli (o'z broni o'ziga ochiq). Bir marta, to'liq —
     qisman yetkazish hozircha yo'q. Balans yopiq bo'lsa shu yerda `completed`.
     """
     if not user or not user.is_authenticated:
         raise PermissionDenied('Avtorizatsiya talab qilinadi.')
-    if not (user.is_admin or user.is_supplier or user.is_bugalter):
-        raise PermissionDenied('Yetkazishni buyurtmachi yoki bugalter belgilaydi.')
+    if not user.is_admin:
+        if not user.is_sales:
+            raise PermissionDenied("Yetkazishni sales (shartnoma egasi) belgilaydi.")
+        if contract.created_by_id and contract.created_by_id != user.id:
+            raise PermissionDenied('Bu shartnoma sizniki emas.')
     if contract.delivered_at:
         raise ValidationError({'detail': 'Bu shartnoma allaqachon yetkazilgan.'})
     if contract.status not in {Contract.Status.ACTIVE, Contract.Status.COMPLETED}:

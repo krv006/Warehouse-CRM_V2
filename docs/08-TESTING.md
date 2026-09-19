@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **462 ta test, hammasi OK**.
+Hozirgi holat: **470 ta test, hammasi OK**.
 
 ---
 
@@ -68,7 +68,7 @@ Hozirgi holat: **462 ta test, hammasi OK**.
 | `apps/core/tests/test_resync_reservations.py` | 4-to'plam §1: eski xato bron (mashina ichidagi qism) yangi ta'rifga qayta qurilishi, terminal hujjat broni bo'shatilib qayta yozilmasligi |
 | `apps/core/tests/test_roadmap.py` | B8/B11: uch kirish nuqtasidan bir xil roadmap (barcha rollar, 200), 18 qadam holatlari (done/current/blocked), javobda pul yo'qligi, can_open matritsasi, repeats, cancelled belgisi, shartli qadamlar (§1–2: chernovikda current=submitted, narx so'ralganda current, missing bo'sh — skipped, TLD ochiq — chain current, chegara ostida admin skipped); migrate_to_contract_first (dry-run, mijozsiz ro'yxat, SHT ochilishi) |
 | `apps/core/tests/test_roadmap_list.py` | 7-to'plam §1: bugalter navbati kelgan zanjirni ko'rishi (egasi bo'lmasa ham), buyurtmachida bo'sh ro'yxat, engineer o'z zanjirlarini, detal bilan bir xil shakl (18 qadam, pul yo'q), muddatdan o'tgani birinchi + limit, state=closed/all; 10-§5: qo'l tekkizgan odam navbat o'tgach ham ko'rishi, engineer hovuzi olingach torayishi, TLD yo'ldaligida buyurtmachi hovuzi |
-| `apps/sales/tests/test_delivered_by.py` | 10-§7: kim yetkazgani yozilishi, yetkazgach ko'rinish saqlanishi (begona buyurtmachiga 404), roadmap ship qadami ismi |
+| `apps/sales/tests/test_delivered_by.py` | 10-§7/11-§3: sales (egasi) yetkazadi va `delivered_by` yoziladi, buyurtmachi endi 403, eski `delivered_by=buyurtmachi` yozuvda ko'rinish saqlanishi (begona buyurtmachiga 404), roadmap ship qadami ismi |
 | `apps/core/tests/test_chain_tld.py` | 11-to'plam: konfiguratsiyali shartnomada request-procurement yopiq, CFG eshigi shartnoma tomoni TLD'sini ham ko'rishi, oddiy shartnomada eshik ishlashi; qoldiq to'lov qadami (bugalter roli, «Qoldiq to'lov» nomi, hovuzda ko'rinishi, yopilganda yana «Yakunlandi») |
 | `apps/core/tests/test_chain_shapes.py` | 8-to'plam: qo'lda SHT zanjirida ZVK/CFG qadamlari skipped va joriy to'g'ri, ZVK'siz CFG'da faqat zayavka qadami skipped; bitta CFG'ga ikkinchi shartnoma 400 (bekor qilingani hisobga olinmaydi); cancel_reason ikkala yo'lda to'lishi va javobda ko'rinishi |
 | `apps/core/tests/test_notifications_cleanup.py` | 4-to'plam §4: mark-all-read faqat o'zinikini yopib son qaytarishi (takrori 0), object_id filtri, tasdiqda bajargan odamning eslatmasi yopilib boshqaniki turishi, resolve idempotentligi |

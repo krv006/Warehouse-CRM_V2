@@ -305,8 +305,9 @@ Hammasi omborda bo'lsa TLD umuman ochilmaydi (`request-procurement` 400) —
 engineer `complete` qiladi, sales shartnoma bilan davom etadi.
 
 **Yetkazish (#2):** chiqim to'lovdan ajratildi. To'lov — pul + sanoq;
-mol `POST /contracts/{id}/ship/` da chiqadi (buyurtmachi/bugalter), bron
-shu paytgacha ushlab turadi. Balans nol bo'lsa ham yetkazilmaguncha
+mol `POST /contracts/{id}/ship/` da chiqadi. 11-§3: buyurtmachi/bugalter
+emas — **sales (shartnoma egasi) va admin**: mijoz bilan gaplashadigan,
+molni topshiradigan odam. Bron shu paytgacha ushlab turadi. Balans nol bo'lsa ham yetkazilmaguncha
 `completed` emas. Omborda yetmasa: sales `POST /contracts/{id}/
 request-procurement/` bilan band qilinmagan qismini buyurtmachiga
 yuboradi — kelgan mol aynan shu shartnomaga band qilinadi.

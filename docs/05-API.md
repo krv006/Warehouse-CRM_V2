@@ -355,7 +355,9 @@ tasdig'i, to'lov kelib TLD hali ochilmaganda (yetishmovchilik bilan) —
 "Buyurtmachiga yuborildi" (engineer). **10-§6**: `procurement_chain` qora
 quti emas — roli va nomi TLD holatidan ("TLD — bugalter tekshiruvi",
 "TLD — to'lov kutilmoqda", "TLD — yo'lda" …). **10-§7**: `ship` qadami
-yetkazgan odamning ismi bilan (`delivered_by`). **11-§2**: mol yetkazilgan-u
+yetkazgan odamning ismi bilan (`delivered_by`). **11-§3**: qadam rasmiy
+rolini ham oldi — **sales**, buyurtmachi emas (mol chiqarish endi sales
+ishi). **11-§2**: mol yetkazilgan-u
 qoldiq to'lanmagan bo'lsa oxirgi qadam «Qoldiq to'lov» nomi va **bugalter**
 roli bilan joriy bo'ladi — "Yakunlandi" yolg'on taassurot bermaydi, SLA va
 hovuz to'g'ri odamga ishlaydi. **8-to'plam §1**: zanjirda
@@ -562,7 +564,7 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | POST | `/contracts/{id}/confirm-didox/` | B3: **bugalter** — «Didox tasdiqladi (mijoz imzoladi)»; `didox_accepted_at` yoziladi, keyin §11.3 chegara mantig'i: `pending_admin` yoki `approved`; Didox rad javobi kiritilmaydi — `pending_didox`dan orqaga yo'l yo'q |
 | POST | `/contracts/{id}/approve/` | admin bosqichi (`pending_admin` → `approved`); B11 mosligi: `pending_bugalter`dan eski bitta qadamli yo'l ham qabul qilinadi (tanada `didox_number`); har bosqichda keyingi bosqich egasiga bildirishnoma |
 | POST | `/contracts/{id}/reject/` | bugalter / admin |
-| POST | `/contracts/{id}/ship/` | #2: **yetkazish** — mol shu yerda chiqadi (buyurtmachi/bugalter, admin); `delivered_at` yoziladi, bron chiqimga aylanadi, balans yopiq bo'lsa `completed` |
+| POST | `/contracts/{id}/ship/` | #2: **yetkazish** — mol shu yerda chiqadi; 11-§3: **sales (shartnoma egasi) va admin** — buyurtmachi/bugalter endi bosolmaydi (mol bilan ishlaydigan emas, mijoz bilan gaplashadigan odam yetkazadi); `delivered_at`/`delivered_by` yoziladi, bron chiqimga aylanadi, balans yopiq bo'lsa `completed` |
 | POST | `/contracts/{id}/request-procurement/` | #2: **sales (egasi)** — band qilinmagan qismidan TLD ochadi (`contract` FK, `owner_sales`); 11-§1: **konfiguratsiyadan tug'ilgan shartnomada yopiq** (400 — yetishmayotganni engineer CFG sahifasidan yuboradi, `missing` o'sha yerda), eshik faqat ombordan to'g'ridan-to'g'ri sotuv uchun; bitta ochiq TLD qoidasi endi **butun zanjir** bo'yicha |
 | POST | `/contracts/{id}/confirm-payment/` | bugalter; YANGI-OQIM: bu **ish boshlanish signali** — CFG broni qattiqlashadi, engineer xabar oladi, 13–16 qadamlar ochiladi |
 | GET | `/contracts/{id}/timeline/` | hamma |

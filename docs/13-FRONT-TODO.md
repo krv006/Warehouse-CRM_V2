@@ -651,19 +651,22 @@ migratsiya logida qancha kamaygani yozib qo'yiladi.
 
 ## 22. Yetkazish (`ship`) va shartnomadan ta'minot (TOPSHIRIQ-2 #2) 🔴
 
+> **11-§3 bilan yangilangan:** yetkazishni endi **sales (shartnoma egasi)
+> va admin** bosadi — buyurtmachi/bugalter EMAS. Pastdagi band tarixiy
+> matn edi, §27 uni to'g'irlaydi.
+
 - Shartnoma kartasida **"Yetkazish"** tugmasi: `active` + mol to'liq band
-  bo'lganda faol (`POST /contracts/{id}/ship/` — buyurtmachi/bugalter;
-  sales'ga chizilmasin). Bosqichlar chizig'iga **"Yetkazildi"** qadami
+  bo'lganda faol (`POST /contracts/{id}/ship/` — 11-§3: **sales (egasi)
+  va admin**). Bosqichlar chizig'iga **"Yetkazildi"** qadami
   (`delivered_at`).
 - To'lovdan keyin shartnoma endi `completed` bo'lmaydi — balans nol
   bo'lsa ham yetkazilmaguncha `active`; yopilish `ship`da.
 - Yetishmovchilik ogohlantirishi yoniga **"Buyurtmachiga yuborish"**
   tugmasi (`POST /contracts/{id}/request-procurement/`, sales) —
   konfiguratsiya kartasidagi bilan bir xil; TLD javobida `contract`/
-  `contract_number` keladi, `?contract=` filtri bor.
-- Buyurtmachi navbatida yangi qator: `ship_contract` ("Yetkazing")
-  — matni `work-reason.ts`ga; buyurtmachi endi faol-yetkazilmagan
-  shartnomalarni ochib ko'ra oladi (narxlar unga baribir ko'rinmaydi).
+  `contract_number` keladi, `?contract=` filtri bor. 11-§1: konfiguratsiyali
+  shartnomada bu tugma umuman chizilmasin (`contract.configuration !==
+  null` bo'lsa) — API 400 qaytaradi.
 
 ## 23. "Yig'ish" / "Buyurtmachiga yuborish" — bitta qoida (3-to'plam §1–2) 🔴
 
@@ -784,6 +787,30 @@ bilib turish uchun:
   (tartib: F1·F2·F6·F10 → F3·F9·F11 → F4·F5·F7·F8).
 
 ---
+
+## 27. 11-to'plam: bitta TLD, qoldiq to'lov, yetkazish sales'da 🔴
+
+- **§1**: `contract.configuration !== null` bo'lsa "Buyurtmachiga yuborish"
+  tugmasi shartnoma kartasida umuman chizilmasin — API endi 400 qaytaradi
+  (`request-procurement`). Konfiguratsiya bo'yicha ochilgan TLD endi
+  shartnoma tomonidan ham "ko'rinadi" (`useChainReplenishment` — front
+  buni allaqachon qilgan bo'lsa, o'zgartirish shart emas).
+- **§2**: roadmap javobida `completed` qadami endi ba'zan `role: "bugalter"`
+  va `label: "Qoldiq to'lov"` bilan keladi (mol yetkazilgan-u qoldiq
+  to'lanmagan holatda) — front qadam nomini serverdan kelgan `label`dan
+  o'qisin, qattiq "Yakunlandi" deb yozib qo'ymasin.
+- **§3**: `ship` tugmasi endi **faqat sales (shartnoma egasi) va admin**da
+  chizilsin:
+  ```ts
+  // hozir
+  canShip: !deliveredAt && (isBuyurtmachi || isBugalter || isAdmin)
+  // keyin
+  canShip: !deliveredAt && (isAdmin || (isSales && isOwner))
+  ```
+  Buyurtmachining ish ro'yxatidan "Yetkazing" navbati olib tashlansin —
+  u endi faqat o'zi TLD ochgan yoki (eski yozuvlarda) o'zi yetkazgan
+  shartnomani ko'radi, yangi yetkazish vazifasi kelmaydi. Roadmap
+  `ship` qadamining `actor.role`si ham endi `sales`.
 
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 

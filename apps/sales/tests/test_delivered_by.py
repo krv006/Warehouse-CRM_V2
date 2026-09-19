@@ -10,7 +10,12 @@ from apps.sales.models import Contract, ContractItem
 
 
 class DeliveredByTests(APITestCase):
-    """10-to'plam §7: yetkazgan odam shartnomani yopilguncha ko'rib turadi."""
+    """10-§7: yetkazgan odam shartnomani yopilguncha ko'rib turadi.
+
+    11-§3 dan keyin `ship`ni sales (egasi) va admin bosadi — buyurtmachi
+    endi bosolmaydi, lekin ESKI yozuvlarda `delivered_by` buyurtmachi
+    bo'lishi mumkin (u ish yopilguncha ko'rishda davom etishi kerak).
+    """
 
     def setUp(self):
         self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
@@ -39,17 +44,22 @@ class DeliveredByTests(APITestCase):
         )
 
     def test_ship_records_who_and_keeps_visibility(self):
-        """Yetkazgan zahoti 404 bo'lib qolmasin — ish yopilguncha ko'rinadi."""
-        self.client.force_authenticate(self.supplier)
+        """11-§3: sales (egasi) yetkazadi — delivered_by va statusi to'g'ri yoziladi."""
+        self.client.force_authenticate(self.sales)
         response = self.client.post(f'/api/contracts/{self.contract.id}/ship/')
         self.assertEqual(response.status_code, 200, response.data)
 
         self.contract.refresh_from_db()
-        self.assertEqual(self.contract.delivered_by, self.supplier)
+        self.assertEqual(self.contract.delivered_by, self.sales)
         # Balans ochiq — shartnoma hali yopilmagan (`active`)
         self.assertEqual(self.contract.status, Contract.Status.ACTIVE)
 
-        # Yetkazgan buyurtmachi ko'rishda davom etadi
+    def test_legacy_delivered_by_keeps_supplier_visibility(self):
+        """Eski yozuv: buyurtmachi yetkazgan bo'lsa, ish yopilguncha ko'rinadi."""
+        self.contract.delivered_by = self.supplier
+        self.contract.save()
+
+        self.client.force_authenticate(self.supplier)
         response = self.client.get(f'/api/contracts/{self.contract.id}/')
         self.assertEqual(response.status_code, 200)
         numbers = [
@@ -63,9 +73,15 @@ class DeliveredByTests(APITestCase):
         response = self.client.get(f'/api/contracts/{self.contract.id}/')
         self.assertEqual(response.status_code, 404)
 
+    def test_supplier_cannot_ship_anymore(self):
+        """11-§3: buyurtmachi endi yetkaza olmaydi — mol chiqarish sales ishi."""
+        self.client.force_authenticate(self.supplier)
+        response = self.client.post(f'/api/contracts/{self.contract.id}/ship/')
+        self.assertEqual(response.status_code, 403)
+
     def test_roadmap_ship_step_gets_name(self):
         """Roadmapdagi `ship` qadami endi ism bilan keladi."""
-        self.client.force_authenticate(self.supplier)
+        self.client.force_authenticate(self.sales)
         self.client.post(f'/api/contracts/{self.contract.id}/ship/')
         steps = {
             s['key']: s for s in self.client.get(
@@ -73,4 +89,4 @@ class DeliveredByTests(APITestCase):
             ).data['steps']
         }
         self.assertEqual(steps['ship']['state'], 'done')
-        self.assertEqual(steps['ship']['actor']['full_name'], 'buy')
+        self.assertEqual(steps['ship']['actor']['full_name'], 'sal')

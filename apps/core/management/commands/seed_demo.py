@@ -419,20 +419,20 @@ class Command(BaseCommand):
 
         # 5) Faol, YETKAZILMAGAN — A-hikoya shartnomasi (YANGI OQIM: pul zanjiri
         # hikoyaning o'zida yurilgan — to'lov yig'ishdan OLDIN keladi, B4).
-        # Buyurtmachining "Yetkazing" navbatida turadi (#2)
+        # Sales'ning "Yetkazing" navbatida turadi (11-§3)
         c5 = state['contract_active']
         c5.refresh_from_db()
         # Muddat sanog'i ko'rinishi uchun boshlanishini orqaga suramiz (qizil zona)
         c5.start_date = localdate() - timedelta(days=82)
         c5.save()
 
-        # 6) Yetkazilgan va yopilgan — to'liq hayot yo'li (#2: ship)
+        # 6) Yetkazilgan va yopilgan — to'liq hayot yo'li (11-§3: sales yetkazadi)
         c6 = build(clients[3], 1, 'Yetkazilgan va yopilgan shartnoma')
         submit_contract(c6, users['sales'])
         didox(c6, 'DDX-2026-0066')
         confirm_payment(c6, users['bugalter'], amount=c6.total_amount)
         c6.refresh_from_db()
-        ship_contract(c6, users['buyurtmachi'])
+        ship_contract(c6, users['sales'])
 
     def _leads(self, users, state):
         """5 ta og'zaki kelishuv — har bosqichdan bittadan."""

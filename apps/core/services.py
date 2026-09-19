@@ -85,16 +85,14 @@ def _contract_sources(user):
             Contract.Status.APPROVED: ('awaiting_payment', 'warning'),
         }
     elif user.is_sales:
-        qs = qs.filter(created_by=user)
+        qs = qs.filter(created_by=user, delivered_at__isnull=True)
         reasons = {
             Contract.Status.DRAFT: ('draft_to_submit', 'info'),
             Contract.Status.REJECTED: ('fix_and_resubmit', 'danger'),
             Contract.Status.APPROVED: ('awaiting_client_payment', 'warning'),
+            # 11-§3: yetkazish endi shartnoma egasi sales ishi
+            Contract.Status.ACTIVE: ('ship_contract', 'warning'),
         }
-    elif user.is_supplier:
-        # #2: yetkazish navbati — faol, hali yetkazilmagan shartnomalar
-        qs = qs.filter(delivered_at__isnull=True)
-        reasons = {Contract.Status.ACTIVE: ('ship_contract', 'warning')}
     else:
         return None
     return {

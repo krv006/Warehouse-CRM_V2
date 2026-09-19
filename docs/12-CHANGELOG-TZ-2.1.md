@@ -1524,6 +1524,30 @@ zanjir testlari yangilandi. Procurement: 51/51 OK.
 
 Testlar: `apps/core/tests/test_chain_tld.py` (6).
 
+## 8.52 11-to'plam §3: yetkazishni sales belgilaydi 📦
+
+- Yetkazish "mol bilan ishlaydigan odam" qoidasiga qurilgan edi
+  (buyurtmachi/bugalter) — noto'g'ri: mijoz bilan gaplashadigan, muddatni
+  aytadigan va molni topshiradigan odam shartnoma egasi **sales**.
+  Buyurtmachining ishi zanjirning boshqa uchida (TLD, omborga kirim).
+- `ship_contract`: endi faqat **sales (shartnoma egasi) va admin**; sales
+  ro'yxatida ham faqat o'z shartnomasi bor, shuning uchun egalik sharti
+  amalning o'zida ham tekshiriladi.
+- Ruxsat klassi `SHIP_ACTIONS` uchun `ProcurementSharedAccess`dan
+  `IsAdminOrSales`ga — `ProcurementSharedAccess` o'z nomiga (ta'minot
+  bo'limi) qaytdi.
+- Roadmap: `('ship', 'Yetkazish', 'sales')` — qadam roli o'zgardi,
+  `delivered_by` (10-§7) endi sales ismini ko'rsatadi.
+- `_contract_sources`: yetkazish eslatmasi buyurtmachi shoxidan sales
+  shoxiga ko'chdi (faqat `delivered_at__isnull=True`).
+- Buyurtmachining shartnoma ro'yxatidan yetkazish navbati olib
+  tashlandi — qolgan ikkitasi qoladi: `delivered_by=user` (eski
+  yozuvlar) va `replenishments__created_by=user` (o'zi TLD ochgan
+  zanjir, yopilguncha ko'rinadi).
+
+Testlar: `test_contract_flow.py`, `test_delivered_by.py`,
+`test_chain_closure.py`, `test_reservations.py` yangilandi.
+
 ---
 
 ## 9. Nima o'zgarmadi

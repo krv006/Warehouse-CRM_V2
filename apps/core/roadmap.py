@@ -35,7 +35,7 @@ STEPS = [
     ('procurement_chain', "TLD zanjiri (kirimgacha)", 'buyurtmachi'),
     ('assemble', "Yig'ish", 'engineer'),
     ('finalize', 'ACT bilan yakunlash', 'engineer'),
-    ('ship', 'Yetkazish', 'buyurtmachi'),
+    ('ship', 'Yetkazish', 'sales'),
     ('completed', 'Yakunlandi', 'sales'),
 ]
 

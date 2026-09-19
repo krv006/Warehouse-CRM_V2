@@ -268,13 +268,13 @@ class ContractShipmentTests(APITestCase):
             'amount': str(contract.total_amount),
         }, format='json')
 
-        # Sales yetkaza olmaydi — mol bilan buyurtmachi/bugalter ishlaydi
-        self.client.force_authenticate(self.sales)
+        # Buyurtmachi yetkaza olmaydi — mol bilan endi sales ishlaydi (11-§3)
+        self.client.force_authenticate(self.buyurtmachi)
         self.assertEqual(
             self.client.post(f'/api/contracts/{contract.id}/ship/').status_code, 403,
         )
 
-        self.client.force_authenticate(self.buyurtmachi)
+        self.client.force_authenticate(self.sales)
         response = self.client.post(f'/api/contracts/{contract.id}/ship/')
         self.assertEqual(response.status_code, 200, response.data)
 
@@ -285,13 +285,13 @@ class ContractShipmentTests(APITestCase):
         self.assertIsNotNone(contract.delivered_at)
         self.assertEqual(contract.status, Contract.Status.COMPLETED)
 
-        # Ikkinchi marta yetkazib bo'lmaydi. 10-§7: yetkazgan buyurtmachi
-        # hujjatni endi KO'RADI (404 emas) — shuning uchun aniq 400 oladi
+        # Ikkinchi marta yetkazib bo'lmaydi — 400 (o'sha sales, ega)
         response = self.client.post(f'/api/contracts/{contract.id}/ship/')
         self.assertEqual(response.status_code, 400)
+        # Bugalter umuman yetkaza olmaydi — ruxsat darajasida 403
         self.client.force_authenticate(self.bugalter)
         response = self.client.post(f'/api/contracts/{contract.id}/ship/')
-        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.status_code, 403)
 
     def test_ship_blocked_when_stock_insufficient_but_payment_works(self):
         """#2: omborda yetmasa TO'LOV qotmaydi — faqat yetkazish kutadi."""
@@ -304,6 +304,7 @@ class ContractShipmentTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertTrue(CashTransaction.objects.exists())
 
+        self.client.force_authenticate(self.sales)
         response = self.client.post(f'/api/contracts/{contract.id}/ship/')
         self.assertEqual(response.status_code, 400)
         self.assertIn('HP 880', str(response.data['items']))
@@ -311,7 +312,7 @@ class ContractShipmentTests(APITestCase):
 
     def test_ship_before_payment_is_400(self):
         contract = self._approved_contract(1)
-        self.client.force_authenticate(self.bugalter)
+        self.client.force_authenticate(self.sales)
         response = self.client.post(f'/api/contracts/{contract.id}/ship/')
         self.assertEqual(response.status_code, 400)
         self.assertIn("to'lov", response.data['detail'])
@@ -361,6 +362,8 @@ class ContractShipmentTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
 
         # Kelgan mol shu shartnomaga band bo'ldi — endi yetkazish o'tadi
+        # (11-§3: yetkazadigan — shartnoma egasi sales)
+        self.client.force_authenticate(self.sales)
         response = self.client.post(f'/api/contracts/{contract.id}/ship/')
         self.assertEqual(response.status_code, 200, response.data)
         contract.refresh_from_db()

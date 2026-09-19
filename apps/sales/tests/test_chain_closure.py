@@ -113,7 +113,8 @@ class ChainClosureTests(APITestCase):
         self.assertEqual(contract.items.get().product, configuration.variant)
 
         # Yetkazish — shartnoma yopiladi, ZVK endi arxivga o'tadi (B7)
-        self.client.force_authenticate(self.bugalter)
+        # 11-§3: sales (egasi) yetkazadi
+        self.client.force_authenticate(self.sales)
         response = self.client.post(f'/api/contracts/{contract_id}/ship/')
         self.assertEqual(response.status_code, 200, response.data)
         contract.refresh_from_db()

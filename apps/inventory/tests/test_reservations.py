@@ -121,6 +121,8 @@ class ReservationBasicsTests(APITestCase):
         self.assertEqual(reservation.status, StockReservation.Status.ACTIVE)
         self.assertEqual(sellable_quantity(self.ssd, self.warehouse), Decimal('3'))
 
+        # 11-§3: sales (egasi) yetkazadi
+        self.client.force_authenticate(self.sales)
         response = self.client.post(f'/api/contracts/{contract_id}/ship/')
         self.assertEqual(response.status_code, 200, response.data)
         reservation.refresh_from_db()
@@ -133,6 +135,7 @@ class ReservationBasicsTests(APITestCase):
         contract_id = self._make_contract(quantity=5)  # butun qoldiqni band qiladi
         response = self._pay(contract_id)
         self.assertEqual(response.status_code, 200, response.data)
+        self.client.force_authenticate(self.sales)
         response = self.client.post(f'/api/contracts/{contract_id}/ship/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertIsNotNone(
