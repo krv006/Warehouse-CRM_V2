@@ -285,10 +285,10 @@ class ContractShipmentTests(APITestCase):
         self.assertIsNotNone(contract.delivered_at)
         self.assertEqual(contract.status, Contract.Status.COMPLETED)
 
-        # Ikkinchi marta yetkazib bo'lmaydi (buyurtmachi navbatidan ham chiqadi — 404;
-        # bugalter uchun esa aniq 400)
+        # Ikkinchi marta yetkazib bo'lmaydi. 10-§7: yetkazgan buyurtmachi
+        # hujjatni endi KO'RADI (404 emas) — shuning uchun aniq 400 oladi
         response = self.client.post(f'/api/contracts/{contract.id}/ship/')
-        self.assertEqual(response.status_code, 404)
+        self.assertEqual(response.status_code, 400)
         self.client.force_authenticate(self.bugalter)
         response = self.client.post(f'/api/contracts/{contract.id}/ship/')
         self.assertEqual(response.status_code, 400)

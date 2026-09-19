@@ -66,6 +66,12 @@ class Contract(StatusTrackedModel):
     # TOPSHIRIQ-2 #2: yetkazib berish — alohida hodisa (`ship`), to'lov emas.
     # 90 kunlik muddat endi haqiqiy narsani o'lchaydi: to'lovdan yetkazishgacha
     delivered_at = DateField(null=True, blank=True)
+    # 10-to'plam §7: KIM yetkazgani — yetkazgan odam shartnomani yopilguncha
+    # ko'rib turadi, roadmapdagi `ship` qadami ham ism oladi
+    delivered_by = ForeignKey(
+        'accounts.User', SET_NULL, related_name='delivered_contracts',
+        null=True, blank=True,
+    )
     # §11.2/B3: Didox endi ikki qadam — "yubordim" (`didox_sent_at`) va
     # "Didox tasdiqladi, mijoz imzoladi" (`didox_accepted_at`)
     didox_number = CharField('Didox raqami', max_length=64, blank=True)

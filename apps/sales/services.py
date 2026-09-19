@@ -629,6 +629,9 @@ def ship_contract(contract, user):
     mark_reservations_shipped(contract)
 
     contract.delivered_at = localdate()
+    # 10-§7: kim yetkazgani yozib qo'yiladi — u shartnomani yopilguncha
+    # ko'rib turadi (StockMovement'dan qazib olish shart emas)
+    contract.delivered_by = user
     if contract.balance <= 0:
         contract.status = Contract.Status.COMPLETED
     contract.save()

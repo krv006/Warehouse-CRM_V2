@@ -535,7 +535,8 @@ def build_roadmap(document, user):
     data['ship'] = dict(
         done=delivered,
         at=contract.delivered_at if contract else None,
-        who=None,
+        # 10-§7: yetkazgan odam endi ma'lum — qadam ism oladi
+        who=getattr(contract, 'delivered_by', None) if contract else None,
         doc=('contract', contract),
     )
     completed = bool(contract and contract.status == 'completed')

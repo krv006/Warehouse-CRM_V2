@@ -108,14 +108,16 @@ class ContractSerializer(ModelSerializer):
             'status_display', 'created_by_name', 'currency', 'items_total', 'vat_total',
             'items_total_with_vat', 'total_amount', 'prepayment_percent',
             'prepayment_amount', 'term_days', 'signed_at', 'start_date',
-            'delivered_at', 'didox_number', 'didox_sent_at', 'didox_accepted_at', 'note',
+            'delivered_at', 'delivered_by',
+            'didox_number', 'didox_sent_at', 'didox_accepted_at', 'note',
             'items', 'approvals', 'payments', 'paid', 'balance', 'days_left', 'color',
             'created_by', 'created_at',
         ]
         # Didox maydonlari faqat bugalter bosqichlarida yoziladi (§11.2/B3)
         read_only_fields = [
             'number', 'created_by', 'status', 'start_date',
-            'delivered_at', 'didox_number', 'didox_sent_at', 'didox_accepted_at',
+            'delivered_at', 'delivered_by',
+            'didox_number', 'didox_sent_at', 'didox_accepted_at',
         ]
 
     def validate(self, attrs):

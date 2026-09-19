@@ -67,10 +67,16 @@ class ContractViewSet(BaseModelViewSet):
         if user.is_sales:
             return qs.filter(created_by=user)
         if user.is_supplier:
-            # #2: buyurtmachi yetkazish navbatini ko'radi — faol, yetkazilmagan
+            # #2: yetkazish navbati; 10-§7: PLYUS o'zi yetkazganlari va o'zi
+            # TLD ochgan shartnomalar — qo'l tekkizgan ish yopilguncha
+            # ko'rinib turadi (yetkazgan zahoti 404 bo'lib qolmasin)
+            from django.db.models import Q
+
             return qs.filter(
-                status=Contract.Status.ACTIVE, delivered_at__isnull=True,
-            )
+                Q(status=Contract.Status.ACTIVE, delivered_at__isnull=True)
+                | Q(delivered_by=user)
+                | Q(replenishments__created_by=user)
+            ).distinct()
         return qs.none()
 
     def get_permissions(self):
