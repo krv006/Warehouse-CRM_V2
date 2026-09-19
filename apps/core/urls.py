@@ -9,11 +9,15 @@ from apps.core.views import (
     DashboardView,
     MyWorkView,
     NotificationViewSet,
+    RoadmapListView,
     SidebarCountsView,
 )
 
 urlpatterns = [
     path('dashboard/', DashboardView.as_view(), name='dashboard'),
+
+    # 7-to'plam §1: bosh sahifa — qatnashayotgan zanjirlar roadmaplari
+    path('roadmaps/', RoadmapListView.as_view(), name='roadmap-list'),
 
     # EGALIK §2: bitta collect_work() — ikkita endpoint
     path('my-work/', MyWorkView.as_view(), name='my-work'),

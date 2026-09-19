@@ -1354,6 +1354,28 @@ yangilandi.
 
 ---
 
+## 8.45 7-to'plam: bosh sahifa uchun zanjirlar ro'yxati 🏠
+
+7-to'plam §1 (bloklovchi — front bosh sahifani shu endpointga quradi).
+
+- `GET /roadmaps/?state=open&limit=10` — joriy foydalanuvchi
+  qatnashayotgan zanjirlar, har biri detal `roadmap` javobi shaklida
+  (front `Roadmap` komponentini o'zgarishsiz ishlatadi);
+- qatnashish: hujjat egasi YOKI joriy qadam uning rolida (bugalter va
+  buyurtmachi hech qanday hujjatni ro'yxat qilib ololmasdi — endi
+  navbati kelgan zanjirni ko'radi); admin — hammasi;
+- tartib: muddatdan o'tgan → navbati shu foydalanuvchida → kutish
+  vaqti; `state=open/closed/all`, `limit` 1–50;
+- front: `WorkQueue` va "Eslatmalar" kartasi o'rniga `ChainList`
+  (eslatmalar qo'ng'iroqchada qoladi). Ochiq savol (hujjatdagi):
+  admindagi `EscalationQueue` taqdiri — yangi ro'yxat muddatdan
+  o'tganlarni birinchi ko'rsatadi; `/my-work/` backendda o'z joyida
+  qoladi, qarorni front/admin keyin beradi.
+
+Endpoint: 117 → 118. Testlar: `apps/core/tests/test_roadmap_list.py` (6).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -1382,7 +1404,7 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **117** |
+| REST endpoint | 70 | **118** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **34** |
 | Testlar | 66 | **433** |

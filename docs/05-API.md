@@ -347,6 +347,17 @@ ochilgan). Shart aniq bo'lmasa (`narxsiz qator yo'q`, `missing` bo'sh,
 summa chegaradan past) — `skipped`, front chizmaydi; hali noma'lum bo'lsa —
 `optional: true` + `pending`, front xiraroq chizadi. `current_key` doim
 javobdagi qadamlardan biriga ishora qiladi (§3).
+
+**`GET /roadmaps/?state=open&limit=10` (7-to'plam §1)** — bosh sahifa uchun
+joriy foydalanuvchi QATNASHAYOTGAN zanjirlar ro'yxati. Qatnashish: zanjirdagi
+biror hujjatning egasi (`ZVK.created_by`/`taken_by`, `CFG.created_by`,
+`SHT.created_by`) YOKI joriy qadam uning roliga tegishli (bugalter va
+buyurtmachi uchun asosiy shart); admin — hamma ochiq zanjir. `state`:
+`open` (default) / `closed` / `all`; `limit`: 1–50 (default 10). Javob
+`{"count": N, "results": [...]}` — `results[i]` detal `roadmap` javobi
+bilan AYNAN bir xil (18 qadam, pul yo'q, `can_open` alohida). Tartib:
+muddatdan o'tgan (`danger`) → joriy qadami shu foydalanuvchida → kutish
+vaqti bo'yicha kamayish.
 `tone`: `success` / `warning` / `danger` (SLA — mavjud `sla_deadline`dan) /
 `muted` / `cancelled` (qizil + chizilgan matn — `danger` bilan
 adashtirilmasin). `steps` doim 18 ta va tartibda; `repeats` — aylanma

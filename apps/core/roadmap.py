@@ -88,6 +88,117 @@ def resolve_chain(document):
     return request_obj, configuration, contract
 
 
+def chain_is_closed(request_obj, configuration, contract):
+    """Zanjir yopiqmi — bosh sahifada yopilgani kerak emas (7-to'plam §1)."""
+    if contract is not None:
+        return contract.status in ('completed', 'cancelled')
+    if configuration is not None:
+        return configuration.status == 'cancelled'
+    if request_obj is not None:
+        return request_obj.status in ('cancelled', 'archived')
+    return True
+
+
+def _participates(user, request_obj, configuration, contract, current_role):
+    """Qatnashish ta'rifi (7-to'plam §1): egasi YOKI joriy qadam uning rolida.
+
+    Ikkinchi shart bugalter va buyurtmachi uchun asosiy: ular hujjat egasi
+    emas, lekin navbat ularga keladi. Admin hamma ochiq zanjirni ko'radi.
+    """
+    if user.is_admin:
+        return True
+    owner_ids = {
+        request_obj.created_by_id if request_obj else None,
+        request_obj.taken_by_id if request_obj else None,
+        configuration.created_by_id if configuration else None,
+        contract.created_by_id if contract else None,
+    }
+    if user.id in owner_ids:
+        return True
+    role_flags = {
+        'admin': user.is_admin,
+        'sales': user.is_sales,
+        'engineer': user.is_engineer,
+        'bugalter': user.is_bugalter,
+        'buyurtmachi': user.is_supplier,
+    }
+    return bool(current_role and role_flags.get(current_role))
+
+
+def build_roadmap_list(user, state='open'):
+    """Foydalanuvchi qatnashayotgan zanjirlar ro'yxati (7-to'plam §1).
+
+    Har bir element — detal `roadmap` javobining AYNAN o'sha shakli, front
+    bitta komponentni o'zgarishsiz ishlatadi. Tartib: (1) joriy qadami
+    muddatdan o'tgan, (2) joriy qadami shu foydalanuvchida, (3) kutish
+    vaqti bo'yicha kamayish.
+    """
+    from apps.configurator.models import Configuration, ConfigurationRequest
+    from apps.sales.models import Contract
+
+    # Har bir zanjir bitta ildizdan olinadi: ZVK; ZVK'siz CFG; yolg'iz SHT
+    roots = list(
+        ConfigurationRequest.objects
+        .select_related('client', 'configuration', 'created_by', 'taken_by')
+        .order_by('-id')
+    )
+    roots += list(
+        Configuration.objects
+        .filter(requests__isnull=True)
+        .select_related('client', 'created_by')
+        .order_by('-id')
+    )
+    roots += list(
+        Contract.objects
+        .filter(configuration__isnull=True)
+        .select_related('client', 'created_by')
+        .order_by('-id')
+    )
+
+    role_flags = {
+        'admin': user.is_admin,
+        'sales': user.is_sales,
+        'engineer': user.is_engineer,
+        'bugalter': user.is_bugalter,
+        'buyurtmachi': user.is_supplier,
+    }
+
+    rows, seen = [], set()
+    for root in roots:
+        request_obj, configuration, contract = resolve_chain(root)
+        key = (
+            ('zvk', request_obj.pk) if request_obj
+            else ('cfg', configuration.pk) if configuration
+            else ('sht', contract.pk)
+        )
+        if key in seen:
+            continue
+        seen.add(key)
+
+        closed = chain_is_closed(request_obj, configuration, contract)
+        if state == 'open' and closed:
+            continue
+        if state == 'closed' and not closed:
+            continue
+
+        roadmap = build_roadmap(root, user)
+        current = next(
+            (s for s in roadmap['steps'] if s['key'] == roadmap['current_key']),
+            None,
+        )
+        current_role = current['actor']['role'] if current else None
+        if not _participates(user, request_obj, configuration, contract, current_role):
+            continue
+
+        overdue = bool(current and current['tone'] == 'danger')
+        mine = bool(current_role and role_flags.get(current_role))
+        waiting = (current or {}).get('waiting_days') or 0
+        rows.append(((not overdue, not mine, -waiting), roadmap))
+
+    rows.sort(key=lambda pair: pair[0])
+    return [roadmap for _, roadmap in rows]
+
+
 def _actor(user_obj, role):
     return {
         'id': user_obj.pk if user_obj else None,

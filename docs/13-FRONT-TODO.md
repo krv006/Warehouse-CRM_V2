@@ -765,6 +765,10 @@ bilib turish uchun:
   `optional+pending` xira chiziladi; miqdor oynasi endi to'g'ridan-to'g'ri
   `POST /configurations/{id}/change-quantity/` ga o'tadi (sales uchun ochiq,
   `done` zayavkada ham ishlaydi — ZVK orqali yuborish shart emas);
+- 7-to'plam §1 TAYYOR: bosh sahifa `ChainList` uchun `GET /roadmaps/` —
+  `WorkQueue` va "Eslatmalar" kartasi olib tashlanadi (eslatmalar
+  qo'ng'iroqchada qoladi); `results[i]` detal roadmap bilan bir xil,
+  `Roadmap` komponenti o'zgarishsiz; tartib backendda tayyor;
 - BACKEND B1–B17 TO'LIQ TAYYOR — F1–F11 ishlarini boshlash mumkin
   (tartib: F1·F2·F6·F10 → F3·F9·F11 → F4·F5·F7·F8).
 

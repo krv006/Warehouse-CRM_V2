@@ -50,6 +50,34 @@ class RoadmapView(APIView):
         return Response(build_roadmap(document, request.user))
 
 
+class RoadmapListView(APIView):
+    """GET /roadmaps/ — bosh sahifa uchun zanjirlar ro'yxati (7-to'plam §1).
+
+    Joriy foydalanuvchi QATNASHAYOTGAN zanjirlar: egasi bo'lgan yoki joriy
+    qadami uning roliga tegishli (bugalter/buyurtmachi uchun asosiy shart —
+    ular hujjat egasi emas, lekin navbat ularga keladi); admin — hammasi.
+    Har bir element detal `roadmap` javobi bilan BIR XIL shaklda — front
+    bitta komponentni o'zgarishsiz ishlatadi. Tartib: muddatdan o'tgan →
+    navbati shu foydalanuvchida → kutish vaqti bo'yicha.
+    """
+
+    @extend_schema(responses=OpenApiTypes.OBJECT)
+    def get(self, request):
+        from apps.core.roadmap import build_roadmap_list
+
+        state = request.query_params.get('state', 'open')
+        if state not in ('open', 'closed', 'all'):
+            state = 'open'
+        try:
+            limit = int(request.query_params.get('limit', 10))
+        except (TypeError, ValueError):
+            limit = 10
+        limit = max(1, min(limit, 50))
+
+        rows = build_roadmap_list(request.user, state=state)
+        return Response({'count': len(rows), 'results': rows[:limit]})
+
+
 class DashboardView(APIView):
     """Umumiy hisobot: kassa, kirim, chiqim, sotuv va muddatlar.
 
