@@ -20,10 +20,15 @@ class ConfigurationApproval(TimeStampedModel):
 
     class Step(TextChoices):
         SALES = 'sales', 'Sales — texnik yechim'
+        # 9-to'plam §1: engineer'ning aniqlashtirish savoli ham shu tarixda —
+        # ro'yxat ikki tomonlama suhbatga aylanadi (savol → javob → tasdiq)
+        ENGINEER = 'engineer', 'Engineer savoli'
 
     class Decision(TextChoices):
         APPROVED = 'approved', 'Tasdiqlandi'
         REJECTED = 'rejected', 'Qaytarildi'
+        QUESTION = 'question', "So'rov"
+        ANSWER = 'answer', 'Javob'
 
     configuration = ForeignKey(
         'configurator.Configuration', CASCADE, related_name='approvals',
@@ -35,6 +40,10 @@ class ConfigurationApproval(TimeStampedModel):
         'accounts.User', SET_NULL, related_name='configuration_approvals',
         null=True, blank=True,
     )
+
+    class Meta:
+        # 9-to'plam §1: ro'yxat suhbat tartibida o'qiladi (savol → javob → ...)
+        ordering = ['created_at']
 
     def __str__(self):
         return f'{self.configuration} — {self.get_decision_display()}'

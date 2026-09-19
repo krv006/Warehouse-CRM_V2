@@ -29,6 +29,9 @@ class Configuration(StatusTrackedModel):
 
     class Status(TextChoices):
         DRAFT = 'draft', 'Chernovik'
+        # 9-to'plam §1: engineer yarim yo'lda aniqlashtirish so'radi — ish
+        # joyida turadi (tarkib ham, bron ham), sales javob berib qaytaradi
+        PENDING_CLARIFICATION = 'pending_clarification', "Sales'dan javob kutilmoqda"
         # TOPSHIRIQ-2 #4: texnik tasdiq — sales mijozga ko'rsatib tasdiqlaydi
         PENDING_SALES = 'pending_sales', "Sales ko'rigida"
         APPROVED = 'approved', 'Texnik yechim tasdiqlandi'
@@ -61,7 +64,8 @@ class Configuration(StatusTrackedModel):
     # BITTA dona uchun o'qiladi; ombor va shartnoma bilan ishlashda shu
     # songa ko'paytiriladi. Qisman yig'ish yo'q: hammasi yoki hech nima.
     quantity = PositiveIntegerField(default=1)
-    status = CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
+    # max_length=30: 'pending_clarification' (21) sig'ishi uchun (9-to'plam §1)
+    status = CharField(max_length=30, choices=Status.choices, default=Status.DRAFT)
     # TOPSHIRIQ-2 #4: yig'ish alohida qadam — qachon jismonan yig'ilgani
     assembled_at = DateTimeField(null=True, blank=True)
     # 8-to'plam §4: "nega to'xtadi?" javobi hujjatning O'ZIDA qoladi —

@@ -61,6 +61,13 @@ urlpatterns = [
     path('configurations/<int:pk>/roadmap/', RoadmapView.as_view(
         kind='configuration',
     ), name='configuration-roadmap'),
+    # 9-to'plam §1: aniqlashtirish aylanmasi — savol (engineer) / javob (sales)
+    path('configurations/<int:pk>/ask-sales/', ConfigurationViewSet.as_view({
+        'post': 'ask_sales',
+    }), name='configuration-ask-sales'),
+    path('configurations/<int:pk>/answer/', ConfigurationViewSet.as_view({
+        'post': 'answer',
+    }), name='configuration-answer'),
 
     path('configuration-requests/', ConfigurationRequestViewSet.as_view(LIST), name='configurationrequest-list'),
     path('configuration-requests/<int:pk>/', ConfigurationRequestViewSet.as_view(DETAIL), name='configurationrequest-detail'),
@@ -74,6 +81,10 @@ urlpatterns = [
     path('configuration-requests/<int:pk>/resend/', ConfigurationRequestViewSet.as_view({
         'post': 'resend',
     }), name='configurationrequest-resend'),
+    # 9-to'plam §2: engineer ishni hovuzga qaytaradi — boshqa engineer oladi
+    path('configuration-requests/<int:pk>/release/', ConfigurationRequestViewSet.as_view({
+        'post': 'release',
+    }), name='configurationrequest-release'),
     # B17: bekor qilish zayavkadan ham — eng ko'p ishlatiladigan kirish nuqtasi
     path('configuration-requests/<int:pk>/cancel/', ConfigurationRequestViewSet.as_view({
         'post': 'cancel',

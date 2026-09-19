@@ -276,6 +276,99 @@ def price_arrived(product, user):
         )
 
 
+def ask_sales(configuration, user, comment):
+    """Engineer yarim yo'lda sales'dan aniqlashtirish so'raydi (9-to'plam §1B).
+
+    Bu zayavkani rad etish EMAS: konfiguratsiya, tarkib va bron joyida
+    qoladi — unda soatlab ish bor. Sales javob berib qaytaradi va engineer
+    o'sha yerdan davom etadi. `reject_configuration`ning oynadagi aksi.
+    """
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.accounts.models import User
+    from apps.configurator.models import Configuration, ConfigurationApproval
+    from apps.core.models import Notification
+
+    if not (user.is_admin or user.is_engineer):
+        raise PermissionDenied('Aniqlashtirishni Engineer so\'raydi.')
+    if configuration.status != Configuration.Status.DRAFT:
+        raise ValidationError({
+            'detail': 'Aniqlashtirish faqat chernovik ustida so\'raladi.',
+        })
+    if not (comment or '').strip():
+        raise ValidationError({
+            'comment': 'Savol matni majburiy — sales nimaga javob berishni bilsin.',
+        })
+
+    configuration.status = Configuration.Status.PENDING_CLARIFICATION
+    configuration.save()
+    ConfigurationApproval.objects.create(
+        configuration=configuration,
+        step=ConfigurationApproval.Step.ENGINEER,
+        decision=ConfigurationApproval.Decision.QUESTION,
+        comment=comment,
+        decided_by=user,
+    )
+
+    owner = _configuration_owner_sales(configuration)
+    recipients = [owner] if owner else list(
+        User.objects.filter(role=User.Role.SALES, is_active=True)
+    )
+    for recipient in recipients:
+        Notification.objects.create(
+            user=recipient,
+            title=f'{configuration.number}: engineer savol berdi',
+            message=comment,
+            level=Notification.Level.WARNING,
+            entity='Configuration',
+            object_id=str(configuration.pk),
+        )
+    return configuration
+
+
+def answer_clarification(configuration, user, comment):
+    """Sales engineer savoliga javob beradi (9-to'plam §1B) — ish davom etadi."""
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import Configuration, ConfigurationApproval
+    from apps.core.models import Notification
+    from apps.core.services import resolve_notifications
+
+    if not (user.is_admin or user.is_sales):
+        raise PermissionDenied('Javobni sales (yoki admin) beradi.')
+    if configuration.status != Configuration.Status.PENDING_CLARIFICATION:
+        raise ValidationError({
+            'detail': 'Konfiguratsiya sales javobini kutish bosqichida emas.',
+        })
+    if not (comment or '').strip():
+        raise ValidationError({
+            'comment': 'Javob matni majburiy — engineer davom eta olsin.',
+        })
+
+    configuration.status = Configuration.Status.DRAFT
+    configuration.save()
+    ConfigurationApproval.objects.create(
+        configuration=configuration,
+        step=ConfigurationApproval.Step.SALES,
+        decision=ConfigurationApproval.Decision.ANSWER,
+        comment=comment,
+        decided_by=user,
+    )
+    # 4-to'plam §4: "javob bering" vazifasi bajarildi
+    resolve_notifications('Configuration', configuration.pk, user=user)
+
+    if configuration.created_by:
+        Notification.objects.create(
+            user=configuration.created_by,
+            title=f'{configuration.number}: sales javob berdi',
+            message=comment,
+            level=Notification.Level.INFO,
+            entity='Configuration',
+            object_id=str(configuration.pk),
+        )
+    return configuration
+
+
 def _decide_configuration(configuration, user, decision, comment):
     from rest_framework.exceptions import PermissionDenied, ValidationError
 
@@ -1035,54 +1128,36 @@ def log_request_event(request_obj, stage, user=None, comment=''):
 
 
 def reject_request(request_obj, user, comment):
-    """Engineer zayavkani izoh bilan sales'ga qaytaradi (B15, §3.11).
+    """Engineer YANGI zayavkani izoh bilan sales'ga qaytaradi (B15, 9-§1A).
 
-    Rad etish (`returned`) — "muammo bor, tuzating": zanjir tirik, sales
-    tuzatib qayta yuboradi. Bekor qilish (`cancel_chain`) emas! `new` ga
-    qaytarilmaydi — boshqa engineer olib qo'yib, izoh o'qilmay qolardi.
-    Ishga olingan zayavkada ochilgan konfiguratsiya bekor bo'ladi va
-    broni bo'shaydi — mol behuda qulflanib qolmasin.
+    Faqat A holati: engineer ochib ko'rdi, hali ishga olmagan — matn
+    tushunarsiz, mijoz/model yo'q. Yo'qotadigan narsa yo'q. Ishga olingan
+    zayavkada esa bu amal ISHLAMAYDI (9-to'plam §1): yarim yo'ldagi
+    noaniqlik uchun `ask-sales` (konfiguratsiya joyida qoladi), ishni
+    tashlash uchun `release` bor. `returned` — sales'ning stoli, hovuzdan
+    chiqadi (boshqa engineer olib qo'yib, izoh o'qilmay qolmasin).
     """
     from rest_framework.exceptions import PermissionDenied, ValidationError
 
-    from apps.configurator.models import (
-        Configuration,
-        ConfigurationRequest,
-        ConfigurationRequestEvent,
-    )
+    from apps.configurator.models import ConfigurationRequest, ConfigurationRequestEvent
     from apps.core.models import Notification
 
     if not (user.is_admin or user.is_engineer):
         raise PermissionDenied('Zayavkani engineer (yoki admin) qaytaradi.')
-    if request_obj.status not in {
-        ConfigurationRequest.Status.NEW, ConfigurationRequest.Status.IN_PROGRESS,
-    }:
+    if request_obj.status != ConfigurationRequest.Status.NEW:
         raise ValidationError({
-            'detail': 'Faqat yangi yoki ishga olingan zayavka qaytariladi.',
+            'detail': (
+                'Ishga olingan zayavka qaytarilmaydi — aniqlashtirish uchun '
+                'konfiguratsiyadan so\'rang (ask-sales) yoki ishni hovuzga '
+                'qaytaring (release).'
+            ),
         })
     if not (comment or '').strip():
         raise ValidationError({
             'comment': 'Izoh majburiy — sales nimani tuzatishni bilishi kerak.',
         })
 
-    configuration = request_obj.configuration
-    if configuration and configuration.status not in {
-        Configuration.Status.CANCELLED, Configuration.Status.SOLD,
-    }:
-        configuration.status = Configuration.Status.CANCELLED
-        # 8-to'plam §4: sabab hujjatning o'zida — bog'lanish uzilsa ham qoladi
-        configuration.cancel_reason = comment
-        configuration.save()
-        from apps.inventory.services import release_reservations
-
-        release_reservations(
-            configuration=configuration, user=user,
-            note=f'{request_obj.number} qaytarildi: {comment}',
-        )
-
     request_obj.status = ConfigurationRequest.Status.RETURNED
-    request_obj.taken_by = None
-    request_obj.configuration = None
     request_obj.save()
     log_request_event(
         request_obj, ConfigurationRequestEvent.Stage.RETURNED, user, comment,
@@ -1094,6 +1169,77 @@ def reject_request(request_obj, user, comment):
             title=f'{request_obj.number}: zayavka qaytarildi',
             message=comment,
             level=Notification.Level.WARNING,
+            entity='ConfigurationRequest',
+            object_id=str(request_obj.pk),
+        )
+    return request_obj
+
+
+def release_request(request_obj, user, comment):
+    """Engineer ishni hovuzga qaytaradi (9-to'plam §2, C holati).
+
+    Zayavkada kamchilik yo'q — muammo engineerda (vaqti yo'q). Zayavka
+    `new` ga qaytadi (RETURNED emas: sales'da tuzatadigan narsa yo'q),
+    hovuzdagi boshqa engineer oladi. Ochilgan konfiguratsiya bekor bo'lib
+    broni bo'shaydi: egasiz yarim tarkib keyingi engineerni chalg'itardi,
+    mol behuda qulflanib turardi — keyingi `take` toza chernovik ochadi.
+    SLA soati noldan boshlanadi — yangi engineer oldingisining kechikishi
+    uchun qizil bo'lmaydi (tarix `RELEASED` yozuvida qoladi).
+    """
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import (
+        Configuration,
+        ConfigurationRequest,
+        ConfigurationRequestEvent,
+    )
+    from apps.core.models import Notification
+
+    if not user.is_admin:
+        if not (user.is_engineer and request_obj.taken_by_id == user.id):
+            raise PermissionDenied(
+                'Ishni faqat uni olgan engineer (yoki admin) qaytaradi.',
+            )
+    if request_obj.status != ConfigurationRequest.Status.IN_PROGRESS:
+        raise ValidationError({
+            'detail': 'Faqat ishga olingan zayavka hovuzga qaytariladi.',
+        })
+    if not (comment or '').strip():
+        raise ValidationError({
+            'comment': 'Izoh majburiy — zanjir nega to\'xtaganining yagona izi.',
+        })
+
+    configuration = request_obj.configuration
+    if configuration and configuration.status not in {
+        Configuration.Status.CANCELLED, Configuration.Status.SOLD,
+    }:
+        configuration.status = Configuration.Status.CANCELLED
+        configuration.cancel_reason = comment  # 8-to'plam §4
+        configuration.save()
+        from apps.inventory.services import release_reservations
+
+        release_reservations(
+            configuration=configuration, user=user,
+            note=f'{request_obj.number} hovuzga qaytarildi: {comment}',
+        )
+
+    request_obj.status = ConfigurationRequest.Status.NEW
+    request_obj.taken_by = None
+    request_obj.configuration = None
+    request_obj.save()
+    log_request_event(
+        request_obj, ConfigurationRequestEvent.Stage.RELEASED, user, comment,
+    )
+
+    # Hovuz xabar oladi (amalni bajarganning o'ziga emas), sales esa INFO —
+    # uning zanjiri kechikadi va buni bilishi kerak
+    notify_engineers_about_request(request_obj, exclude=user)
+    if request_obj.created_by:
+        Notification.objects.create(
+            user=request_obj.created_by,
+            title=f'{request_obj.number}: engineer ishni hovuzga qaytardi',
+            message=f'{comment} — zayavkani boshqa engineer oladi.',
+            level=Notification.Level.INFO,
             entity='ConfigurationRequest',
             object_id=str(request_obj.pk),
         )
@@ -1286,12 +1432,18 @@ def cancel_chain(document, user, reason):
     return {'cancelled': cancelled, 'warnings': warnings, 'reason': reason}
 
 
-def notify_engineers_about_request(request_obj):
-    """Yangi zayavka haqida barcha faol engineerlarga eslatma (3-xato tuzatmasi)."""
+def notify_engineers_about_request(request_obj, exclude=None):
+    """Yangi zayavka haqida barcha faol engineerlarga eslatma (3-xato tuzatmasi).
+
+    `exclude` — 9-to'plam §2: ishni hovuzga qaytargan engineerning o'ziga
+    xabar yuborilmaydi.
+    """
     from apps.accounts.models import User
     from apps.core.models import Notification
 
     engineers = User.objects.filter(role=User.Role.ENGINEER, is_active=True)
+    if exclude is not None:
+        engineers = engineers.exclude(pk=exclude.pk)
     for engineer in engineers:
         Notification.objects.create(
             user=engineer,

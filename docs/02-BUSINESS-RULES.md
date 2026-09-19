@@ -416,11 +416,16 @@ mol` (avval `CFG → mol → SHT → pul` edi):
    `change_quantity` orqali o'tadi — konfiguratsiya, bron va (pul
    kelmagan) shartnoma birga yangilanadi; `approved` sales ko'rigiga
    qaytadi.
-9. **Aylanma (B15)**: engineer zayavkani izoh bilan qaytara oladi
-   (`reject`, izoh majburiy) — `returned` faqat sales'da turadi, hovuzga
-   tushmaydi; sales tuzatib `resend` qiladi. Ishga olingan zayavka
-   qaytarilsa ochilgan CFG bekor bo'lib broni bo'shaydi. Har bir qadam
-   `ConfigurationRequestEvent` tarixida.
+9. **Aylanma (B15 + 9-to'plam)** — uch xil vaziyat, uch amal:
+   **A — rad etish** (`reject`, faqat `new`): zayavkada muammo, engineer
+   hali ishga olmagan — `returned`, faqat sales'da, `resend` bilan
+   hovuzga qaytadi. **B — aniqlashtirish** (`ask-sales`/`answer`): ish
+   borayotganda kichik noaniqlik — konfiguratsiya, tarkib va bron
+   JOYIDA qoladi, savol-javob `approvals` tarixida (question/answer).
+   **C — qaytarib berish** (`release`, faqat o'zi olgan engineer):
+   muammo engineerda (vaqti yo'q) — zayavka `new` ga (hovuzga), CFG
+   bekor bo'lib broni bo'shaydi, keyingi `take` toza chernovik ochadi;
+   SLA noldan. Har bir qadam `ConfigurationRequestEvent` tarixida.
 10. **Bekor qilish ≠ rad etish (B12/B17)**: `cancel_chain` — zanjir
     O'LADI: SHT/CFG/ZVK `cancelled`, bronlar bo'shaydi, to'lanmagan TLD
     bekor, to'langani ogohlantirish bilan ochiq qoladi (mol baribir

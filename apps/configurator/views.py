@@ -23,13 +23,16 @@ from apps.configurator.serializers import (
 )
 from apps.configurator.services import (
     act_suggestion_text,
+    answer_clarification,
     approve_configuration,
+    ask_sales,
     assemble_configuration,
     build_configuration_workbook,
     cancel_chain,
     change_quantity,
     log_request_event,
     reject_request,
+    release_request,
     resend_request,
     notify_engineers_about_request,
     reject_configuration,
@@ -100,11 +103,41 @@ class ConfigurationViewSet(BaseModelViewSet):
     # (approve/reject) sales bosqichi; B12: bekor qilish — sales/admin;
     # 6-to'plam §4: partiya sonini ham SALES belgilaydi (mijoz bilan kelishadi)
     def get_permissions(self):
-        if self.action in ('approve', 'reject', 'cancel', 'change_quantity'):
+        if self.action in (
+            'approve', 'reject', 'cancel', 'change_quantity', 'answer',
+        ):
             from apps.accounts.permissions import IsAdminOrSales
 
             return [IsAdminOrSales()]
         return super().get_permissions()
+
+    def ask_sales(self, request, pk=None):
+        """POST /configurations/{id}/ask-sales/ — aniqlashtirish (9-to'plam §1).
+
+        Rad etish EMAS: tarkib ham, bron ham joyida — sales javob bergach
+        engineer o'sha yerdan davom etadi.
+        """
+        configuration = ask_sales(
+            self.get_object(), request.user,
+            comment=str(request.data.get('comment', '') or ''),
+        )
+        self.log_action(
+            ActivityLog.Action.UPDATE, configuration,
+            f"Sales'dan aniqlashtirish so'raldi: {request.data.get('comment')}",
+        )
+        return Response(self.get_serializer(configuration).data)
+
+    def answer(self, request, pk=None):
+        """POST /configurations/{id}/answer/ — sales javobi (9-to'plam §1)."""
+        configuration = answer_clarification(
+            self.get_object(), request.user,
+            comment=str(request.data.get('comment', '') or ''),
+        )
+        self.log_action(
+            ActivityLog.Action.UPDATE, configuration,
+            f"Savolga javob berildi: {request.data.get('comment')}",
+        )
+        return Response(self.get_serializer(configuration).data)
 
     def cancel(self, request, pk=None):
         """POST /configurations/{id}/cancel/ — butun zanjirni to'xtatish (B12)."""
@@ -599,6 +632,23 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
             f"Sales'ga qaytarildi: {request.data.get('comment')}",
         )
         # prefetch keshida yangi event yo'q — javob to'liq tarix bilan ketsin
+        request_obj.refresh_from_db()
+        return Response(self.get_serializer(request_obj).data)
+
+    def release(self, request, pk=None):
+        """POST /configuration-requests/{id}/release/ — hovuzga qaytarish (9-§2).
+
+        Muammo engineerda (vaqti yo'q) — zayavka `new` ga qaytadi, boshqa
+        engineer oladi; ochilgan konfiguratsiya bekor bo'lib broni bo'shaydi.
+        """
+        request_obj = release_request(
+            self.get_object(), request.user,
+            comment=str(request.data.get('comment', '') or ''),
+        )
+        self.log_action(
+            ActivityLog.Action.UPDATE, request_obj,
+            f"Hovuzga qaytarildi: {request.data.get('comment')}",
+        )
         request_obj.refresh_from_db()
         return Response(self.get_serializer(request_obj).data)
 

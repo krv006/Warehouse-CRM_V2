@@ -303,6 +303,7 @@ def build_roadmap(document, user):
     price_asked = ev(ConfigurationRequestEvent.Stage.PRICE_ASKED)
     price_given = ev(ConfigurationRequestEvent.Stage.PRICE_GIVEN)
     returned = ev(ConfigurationRequestEvent.Stage.RETURNED)
+    released = ev(ConfigurationRequestEvent.Stage.RELEASED)
 
     cfg_approved_rows = [
         a for a in approvals
@@ -338,7 +339,9 @@ def build_roadmap(document, user):
         at=configuration.created_at if configuration else None,
         who=engineer,
         doc=('configuration', configuration),
-        repeats=len(returned),
+        # 9-to'plam §2: "ishga olish" necha marta qaytadan boshlangani —
+        # rad etilganlar (returned) + hovuzga qaytarilganlar (released)
+        repeats=len(returned) + len(released),
     )
     price_done = bool(price_given) or (
         configuration is not None
@@ -362,12 +365,23 @@ def build_roadmap(document, user):
     submitted_done = configuration is not None and (
         configuration.status in {'pending_sales'} | cfg_done_states
     )
+    # 9-to'plam §1: aniqlashtirish aylanma, alohida qadam emas — joriy qadam
+    # `submitted` bo'lib qolaveradi, lekin "kim kutilmoqda?" javobi sales
+    clarifying = bool(
+        configuration and configuration.status == 'pending_clarification'
+    )
+    questions = [
+        a for a in approvals
+        if a.decision == ConfigurationApproval.Decision.QUESTION
+    ]
     data['submitted'] = dict(
         done=submitted_done,
         at=configuration.status_changed_at
         if configuration and configuration.status == 'pending_sales' else None,
-        who=engineer,
+        who=sales_owner if clarifying else engineer,
+        role='sales' if clarifying else None,
         doc=('configuration', configuration),
+        repeats=len(questions),
     )
     review_done = configuration is not None and configuration.status in cfg_done_states
     data['sales_review'] = dict(
@@ -584,6 +598,9 @@ def build_roadmap(document, user):
         actor_user = row.get('who')
         if state in ('pending', 'blocked'):
             actor_user = None  # kelajak qadamda ism yo'q — faqat rol
+        # 9-to'plam §1: qadam roli vaziyatga qarab o'zgarishi mumkin
+        # (aniqlashtirishda `submitted` sales'ni kutadi)
+        role = row.get('role') or default_role
         steps.append({
             'key': key,
             'label': label,
@@ -592,7 +609,7 @@ def build_roadmap(document, user):
             # §2: shartli qadam — front `skipped` ni chizmaydi, `pending`
             # bo'lsa xiraroq chizadi (bo'lishi mumkin, hali noma'lum)
             'optional': key in OPTIONAL,
-            'actor': _actor(actor_user, default_role),
+            'actor': _actor(actor_user, role),
             'at': row.get('at'),
             'waiting_days': waiting_days if tone == 'danger' else None,
             'deadline': deadline,

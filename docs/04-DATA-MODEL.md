@@ -176,7 +176,7 @@ Unique: (`product`, `component`).
 | `purchase` | FK `purchases.Purchase` (SET_NULL, null) |
 | `variant` | FK `inventory.Product` (SET_NULL) — tayyor pozitsiya |
 | `mode` | `build` (yig'ish) / `modify` (tayyor mahsulotni o'zgartirish) |
-| `status` | `draft` / `pending_sales` / `approved` / `ready` / `sold` / `cancelled` |
+| `status` | `draft` / `pending_clarification` (9-§1 — sales javobi kutilmoqda, ish va bron joyida) / `pending_sales` / `approved` / `ready` / `sold` / `cancelled` |
 | `cancel_reason` | Text (8-to'plam §4) — "nega to'xtadi?": engineer qaytarganda (`reject_request` izohi) yoki zanjir bekor qilinganda (`cancel_chain` sababi); bog'lanish uzilsa ham hujjatda qoladi |
 | `note`, `created_by` | |
 
@@ -205,7 +205,8 @@ chiqishi mumkin), `source` (`stock` / `purchase`).
 
 ### `ConfigurationRequestEvent` — zayavka tarixi (YANGI-OQIM B15)
 `request` (CASCADE, `events`), `stage` (`created` / `taken` / `returned` /
-`resent` / `price_asked` / `price_given` / `cancelled` / `note`), `comment`,
+`released` (9-§2 — hovuzga qaytarildi) / `resent` / `price_asked` /
+`price_given` / `cancelled` / `note`), `comment`,
 `created_by`. §2.1 aylanmasi statusda iz qoldirmaydi — rad etish, qayta
 yuborish va narx so'rovi shu yerda saqlanadi (TLD `ReplenishmentEvent` bilan
 bir xil shakl); roadmap (B8) aylanma qadamlarni shundan o'qiydi.

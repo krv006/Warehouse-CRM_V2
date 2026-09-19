@@ -254,6 +254,8 @@ def sync_configuration_reservations(configuration):
     # shartnomaning qattiq broni o'rnini egallaydi
     held_statuses = {
         Configuration.Status.DRAFT,
+        # 9-to'plam §1: aniqlashtirish kutilayotganda ish (va bron) joyida
+        Configuration.Status.PENDING_CLARIFICATION,
         Configuration.Status.PENDING_SALES,
         Configuration.Status.APPROVED,
     }

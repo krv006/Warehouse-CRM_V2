@@ -188,22 +188,30 @@ def _configuration_source(user):
             'row': engineer_row,
         }
     if user.is_sales:
-        # #4: sales ko'rigidagi konfiguratsiyalar — mijozga ko'rsatib tasdiqlash
+        # #4: sales ko'rigidagi konfiguratsiyalar — mijozga ko'rsatib
+        # tasdiqlash; 9-to'plam §1: engineer savoli ham sales navbatida
         qs = (
             Configuration.objects
             .filter(
-                status=Configuration.Status.PENDING_SALES,
+                status__in=[
+                    Configuration.Status.PENDING_SALES,
+                    Configuration.Status.PENDING_CLARIFICATION,
+                ],
                 requests__created_by=user,
             )
             .distinct()
         )
+
+        def sales_row(obj):
+            if obj.status == Configuration.Status.PENDING_CLARIFICATION:
+                return 'CFG', obj.number, ('clarification_answer', 'warning'), None, None
+            return 'CFG', obj.number, ('configuration_review', 'warning'), None, None
+
         return {
             'section': 'configurations',
             'entity': 'Configuration',
             'queryset': qs,
-            'row': lambda obj: (
-                'CFG', obj.number, ('configuration_review', 'warning'), None, None,
-            ),
+            'row': sales_row,
         }
     return None
 
@@ -341,7 +349,11 @@ def _admin_stale_items(cutoff_hour, working_days):
         return 'engineer', None  # hovuz — hali hech kim olmagan
 
     def configuration_holder(obj):
-        if obj.status == Configuration.Status.PENDING_SALES:
+        if obj.status in (
+            Configuration.Status.PENDING_SALES,
+            # 9-to'plam §1: savol sales'da turibdi
+            Configuration.Status.PENDING_CLARIFICATION,
+        ):
             owner = next(
                 (r.created_by for r in obj.requests.all() if r.created_by_id), None,
             )
@@ -389,6 +401,7 @@ def _admin_stale_items(cutoff_hour, working_days):
             Configuration.objects.filter(
                 Q(status__in=[
                     Configuration.Status.DRAFT,
+                    Configuration.Status.PENDING_CLARIFICATION,
                     Configuration.Status.PENDING_SALES,
                 ])
                 | Q(

@@ -23,6 +23,9 @@ class ConfigurationRequestEvent(TimeStampedModel):
         CREATED = 'created', 'Zayavka yozildi'
         TAKEN = 'taken', 'Engineer ishga oldi'
         RETURNED = 'returned', "Engineer qaytardi (sales'ga)"
+        # 9-to'plam §2: muammo zayavkada emas, engineerda (vaqti yo'q) —
+        # ish hovuzga qaytadi, boshqa engineer oladi
+        RELEASED = 'released', 'Engineer ishni qaytardi (hovuzga)'
         RESENT = 'resent', 'Sales tuzatib qayta yubordi'
         PRICE_ASKED = 'price_asked', "Narx so'raldi (buyurtmachiga)"
         PRICE_GIVEN = 'price_given', 'Narx kiritildi'

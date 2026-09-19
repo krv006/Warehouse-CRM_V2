@@ -26,6 +26,7 @@ class Command(BaseCommand):
 
         held = {
             Configuration.Status.DRAFT,
+            Configuration.Status.PENDING_CLARIFICATION,
             Configuration.Status.PENDING_SALES,
             Configuration.Status.APPROVED,
         }

@@ -168,7 +168,10 @@ Engineer configuratorda tayyorlab, konfiguratsiyani zayavkaga biriktiradi
 | GET | `/configuration-requests/{id}/roadmap/` | B8: **zanjir ko'zgusi** — 18 qadam, uch kirish nuqtasi bir xil javob; barcha rollar to'liq ko'radi, **pul yo'q**; `label`/`state`/`tone`/`waiting_days`/`deadline`/`can_open`/`repeats`/`current_key` tayyor keladi |
 | GET | `/configurations/{id}/roadmap/` | B8: xuddi shu roadmap — konfiguratsiya tomonidan |
 | GET | `/contracts/{id}/roadmap/` | B8: xuddi shu roadmap — shartnoma tomonidan |
-| POST | `/configuration-requests/{id}/reject/` | B15: **engineer** izoh bilan qaytaradi (`comment` majburiy); `new` va `in_progress` da; ishga olinganida CFG `cancelled` bo'lib broni bo'shaydi; `returned` — faqat sales'da (hovuzdan chiqadi) |
+| POST | `/configurations/{id}/ask-sales/` | 9-to'plam §1B: **engineer** yarim yo'lda sales'dan aniqlashtirish so'raydi (`comment` majburiy) — `draft` → `pending_clarification`; tarkib ham, BRON ham joyida qoladi; tarixga `approvals` (step `engineer`, decision `question`), zayavka egasiga eslatma |
+| POST | `/configurations/{id}/answer/` | 9-to'plam §1B: **sales** javob beradi (`comment` majburiy) — `pending_clarification` → `draft`; tarixga (step `sales`, decision `answer`), engineerga eslatma; approvals ro'yxati ikki tomonlama suhbatga aylanadi |
+| POST | `/configuration-requests/{id}/reject/` | B15/9-§1A: **engineer** FAQAT `new` zayavkani izoh bilan qaytaradi (ishga olinganida 400 — `ask-sales` yoki `release` bor); `returned` — faqat sales'da (hovuzdan chiqadi) |
+| POST | `/configuration-requests/{id}/release/` | 9-to'plam §2: **zayavkani olgan engineer** (admin) ishni hovuzga qaytaradi (`comment` majburiy) — muammo zayavkada emas, engineerda (vaqti yo'q); `in_progress` → `new`, CFG bekor (`cancel_reason`), bron bo'shaydi, hovuz + sales xabar oladi; SLA noldan boshlanadi |
 | POST | `/configuration-requests/{id}/resend/` | B15: **sales (egasi)** tuzatib qayta yuboradi — `returned` → `new`, engineerlar hovuziga qaytadi |
 | POST | `/configuration-requests/{id}/cancel/` | B17: zanjirni bekor qilish — eng ko'p ishlatiladigan kirish nuqtasi (shartnoma hali ochilmagan payt) |
 | POST | `/configurations/{id}/cancel/` | B12: zanjirni bekor qilish (sales egasi / admin) |

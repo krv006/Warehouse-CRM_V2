@@ -89,8 +89,25 @@ class RequestLoopTests(APITestCase):
         numbers = [r['number'] for r in self.client.get('/api/configuration-requests/').data['results']]
         self.assertIn(request_obj.number, numbers)
 
-    def test_reject_in_progress_cancels_configuration_and_frees_stock(self):
-        """Ishga olingandan keyin ham qaytariladi — CFG bekor, bron bo'shaydi."""
+    def test_reject_in_progress_is_400(self):
+        """9-to'plam §1: ishga olingan zayavka QAYTARILMAYDI — ask-sales/release bor."""
+        request_obj = self._request()
+        self.client.force_authenticate(self.engineer)
+        take = self.client.post(f'/api/configuration-requests/{request_obj.id}/take/')
+        configuration = Configuration.objects.get(pk=take.data['configuration'])
+
+        response = self.client.post(
+            f'/api/configuration-requests/{request_obj.id}/reject/',
+            {'comment': 'Tarkib mantiqsiz'}, format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('ask-sales', str(response.data['detail']))
+        configuration.refresh_from_db()
+        # Engineer'ning ishi TEGILMAGAN
+        self.assertEqual(configuration.status, Configuration.Status.DRAFT)
+
+    def test_release_returns_to_pool_and_cancels_configuration(self):
+        """9-to'plam §2: vaqti yo'q — ish hovuzga (`new`), CFG bekor, bron bo'sh."""
         request_obj = self._request()
         self.client.force_authenticate(self.engineer)
         take = self.client.post(f'/api/configuration-requests/{request_obj.id}/take/')
@@ -101,23 +118,107 @@ class RequestLoopTests(APITestCase):
                 status=StockReservation.Status.ACTIVE,
             ).exists(),
         )
-
+        # Boshqa engineer birovning ishini qaytara olmaydi
+        self.client.force_authenticate(self.engineer2)
         response = self.client.post(
-            f'/api/configuration-requests/{request_obj.id}/reject/',
-            {'comment': 'Tarkib mantiqsiz'}, format='json',
+            f'/api/configuration-requests/{request_obj.id}/release/',
+            {'comment': 'x'}, format='json',
+        )
+        # Birovning ishi uning ro'yxatida ham yo'q (404) — taqiq kafolatlangan
+        self.assertIn(response.status_code, (403, 404))
+
+        Notification.objects.all().delete()
+        self.client.force_authenticate(self.engineer)
+        response = self.client.post(
+            f'/api/configuration-requests/{request_obj.id}/release/',
+            {'comment': 'Vaqtim yo\'q'}, format='json',
         )
         self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['status'], ConfigurationRequest.Status.NEW)
+
         configuration.refresh_from_db()
         request_obj.refresh_from_db()
         self.assertEqual(configuration.status, Configuration.Status.CANCELLED)
+        self.assertEqual(configuration.cancel_reason, 'Vaqtim yo\'q')
         self.assertIsNone(request_obj.taken_by)
-        self.assertIsNone(request_obj.configuration)
         self.assertFalse(
             StockReservation.objects.filter(
                 configuration=configuration,
                 status=StockReservation.Status.ACTIVE,
             ).exists(),
         )
+        # Hovuz xabar oladi (o'ziga emas), sales INFO oladi
+        self.assertTrue(Notification.objects.filter(user=self.engineer2).exists())
+        self.assertFalse(
+            Notification.objects.filter(
+                user=self.engineer, entity='ConfigurationRequest',
+            ).exists(),
+        )
+        self.assertTrue(Notification.objects.filter(user=self.sales).exists())
+        # Boshqa engineer qayta oladi — toza chernovik ochiladi
+        self.client.force_authenticate(self.engineer2)
+        response = self.client.post(f'/api/configuration-requests/{request_obj.id}/take/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertNotEqual(response.data['configuration'], configuration.pk)
+
+    def test_ask_sales_and_answer_loop_keeps_work(self):
+        """9-to'plam §1B: savol-javob — tarkib ham, bron ham joyida qoladi."""
+        request_obj = self._request()
+        self.client.force_authenticate(self.engineer)
+        take = self.client.post(f'/api/configuration-requests/{request_obj.id}/take/')
+        configuration = Configuration.objects.get(pk=take.data['configuration'])
+
+        # Izohsiz savol 400
+        response = self.client.post(
+            f'/api/configurations/{configuration.id}/ask-sales/', {}, format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+
+        response = self.client.post(
+            f'/api/configurations/{configuration.id}/ask-sales/',
+            {'comment': 'RAM 32 kerakmi yoki 64?'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(
+            response.data['status'], Configuration.Status.PENDING_CLARIFICATION,
+        )
+        # Bron joyida qoladi — mol o'sha-o'sha kerak
+        self.assertTrue(
+            StockReservation.objects.filter(
+                configuration=configuration,
+                status=StockReservation.Status.ACTIVE,
+            ).exists(),
+        )
+        # Zayavka egasi savolni oladi
+        note = Notification.objects.get(user=self.sales, entity='Configuration')
+        self.assertIn('savol', note.title)
+
+        # Engineer o'zi javob bera olmaydi, sales javob beradi
+        response = self.client.post(
+            f'/api/configurations/{configuration.id}/answer/',
+            {'comment': '64 qilaylik'}, format='json',
+        )
+        self.assertEqual(response.status_code, 403)
+        self.client.force_authenticate(self.sales)
+        response = self.client.post(
+            f'/api/configurations/{configuration.id}/answer/',
+            {'comment': '64 qilaylik'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['status'], Configuration.Status.DRAFT)
+
+        # Suhbat tarixda: savol -> javob (mavjud approvals ro'yxatida)
+        decisions = [a['decision'] for a in response.data['approvals']]
+        self.assertEqual(decisions, ['question', 'answer'])
+        # Engineer javob xabarini oldi va ishni davom ettiradi (submit ochiq)
+        self.assertTrue(
+            Notification.objects.filter(
+                user=self.engineer, title__contains='javob',
+            ).exists(),
+        )
+        self.client.force_authenticate(self.engineer)
+        response = self.client.post(f'/api/configurations/{configuration.id}/submit/')
+        self.assertEqual(response.status_code, 200, response.data)
 
     def test_resend_returns_to_pool(self):
         """Sales tuzatib qayta yuboradi: `returned` → `new`, engineerlar xabar oladi."""
@@ -145,22 +246,26 @@ class RequestLoopTests(APITestCase):
         self.assertTrue(Notification.objects.filter(user=self.engineer).exists())
 
     def test_events_keep_the_loop_history(self):
-        """Aylanma qadamlar tarixda: created → taken → returned → resent."""
+        """Aylanma tarixda: created → returned → resent → taken → released."""
         request_obj = self._request()
         self.client.force_authenticate(self.engineer)
-        self.client.post(f'/api/configuration-requests/{request_obj.id}/take/')
         self.client.post(
             f'/api/configuration-requests/{request_obj.id}/reject/',
-            {'comment': 'Tuzating'}, format='json',
+            {'comment': 'Model tanlanmagan'}, format='json',
         )
         self.client.force_authenticate(self.sales)
+        self.client.post(f'/api/configuration-requests/{request_obj.id}/resend/')
+        self.client.force_authenticate(self.engineer)
+        self.client.post(f'/api/configuration-requests/{request_obj.id}/take/')
         response = self.client.post(
-            f'/api/configuration-requests/{request_obj.id}/resend/',
+            f'/api/configuration-requests/{request_obj.id}/release/',
+            {'comment': 'Vaqtim yo\'q'}, format='json',
         )
         stages = [e['stage'] for e in response.data['events']]
         self.assertEqual(stages, [
             ConfigurationRequestEvent.Stage.CREATED,
-            ConfigurationRequestEvent.Stage.TAKEN,
             ConfigurationRequestEvent.Stage.RETURNED,
             ConfigurationRequestEvent.Stage.RESENT,
+            ConfigurationRequestEvent.Stage.TAKEN,
+            ConfigurationRequestEvent.Stage.RELEASED,
         ])

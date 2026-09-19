@@ -1401,6 +1401,40 @@ Migratsiya: configurator.0013. Testlar: test_chain_shapes.py (5).
 
 ---
 
+## 8.47 9-to'plam: rad etish ≠ aniqlashtirish ≠ qaytarib berish 🔀
+
+9-to'plam (§1, §2). B15 da uchta boshqa-boshqa ish bitta amalga qo'shib
+yuborilgan edi — ishga olingan zayavka qaytarilganda engineer'ning
+soatlab ishi (konfiguratsiya) yo'q qilinardi.
+
+- **§1A**: `reject` endi FAQAT `new` zayavkada — ishga olinganida 400;
+- **§1B — aniqlashtirish**: yangi holat
+  `Configuration.PENDING_CLARIFICATION` va ikki endpoint —
+  `POST /configurations/{id}/ask-sales/` (engineer savoli, izoh
+  majburiy) va `POST /configurations/{id}/answer/` (sales javobi).
+  Konfiguratsiya, tarkib va BRON joyida qoladi; suhbat
+  `ConfigurationApproval`da (yangi step `engineer`, decision
+  `question`/`answer` + `ordering=created_at`) — "Tasdiqlashlar"
+  ro'yxati ikki tomonlama suhbatga aylanadi. Roadmapda alohida qadam
+  YO'Q (aylanma): joriy `submitted`ligicha qoladi, lekin actor —
+  sales ("kim kutilmoqda" javobi), savollar soni `repeats`da;
+- **§2 — hovuzga qaytarish**: `POST /configuration-requests/{id}/release/`
+  — muammo zayavkada emas, engineerda (vaqti yo'q); faqat o'zi olgan
+  engineer (admin), izoh majburiy; zayavka `new` ga (RETURNED emas —
+  sales'da tuzatadigan narsa yo'q), CFG bekor (`cancel_reason`), bron
+  bo'shaydi; hovuz (o'zidan tashqari) + sales xabar oladi; yangi event
+  `RELEASED`; roadmap `taken.repeats` endi RETURNED+RELEASED; SLA
+  noldan boshlanadi — yangi engineer eskisining kechikishida aybdor
+  emas;
+- sales navbatida yangi qator `clarification_answer`, admin SLA'da
+  `pending_clarification` egasi — sales; bron ushlab turiladigan
+  holatlarga `pending_clarification` qo'shildi.
+
+Migratsiya: configurator.0014, 0015. Endpoint: 118 → 121.
+Testlar: test_request_loop.py qayta qurildi (8).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
@@ -1429,7 +1463,7 @@ Demo foydalanuvchilar tayyor (parol `Ombor2026!`): `admin`, `bugalter`,
 
 | Ko'rsatkich | Avval | Endi |
 |---|---|---|
-| REST endpoint | 70 | **118** |
+| REST endpoint | 70 | **121** |
 | Django ilovalari | 8 | **9** (`procurement` qo'shildi) |
 | Modellar | 23 | **34** |
 | Testlar | 66 | **433** |

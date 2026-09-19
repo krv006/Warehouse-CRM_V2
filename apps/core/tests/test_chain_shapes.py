@@ -135,19 +135,20 @@ class CancelReasonTests(APITestCase):
         take = self.client.post(f'/api/configuration-requests/{request_id}/take/')
         return request_id, Configuration.objects.get(pk=take.data['configuration'])
 
-    def test_reject_request_stores_reason_on_configuration(self):
-        """Bog'lanish uzilsa ham sabab hujjatda qoladi (javobda ham bor)."""
+    def test_release_stores_reason_on_configuration(self):
+        """9-§2 yo'li: bog'lanish uzilsa ham sabab hujjatda qoladi (javobda ham)."""
         request_id, configuration = self._taken_request()
-        self.client.post(
-            f'/api/configuration-requests/{request_id}/reject/',
-            {'comment': 'Model eskirgan'}, format='json',
+        response = self.client.post(
+            f'/api/configuration-requests/{request_id}/release/',
+            {'comment': 'Vaqtim yo\'q'}, format='json',
         )
+        self.assertEqual(response.status_code, 200, response.data)
         configuration.refresh_from_db()
         self.assertEqual(configuration.status, Configuration.Status.CANCELLED)
-        self.assertEqual(configuration.cancel_reason, 'Model eskirgan')
+        self.assertEqual(configuration.cancel_reason, 'Vaqtim yo\'q')
         # Engineer o'z hujjatida sababni ko'radi
         response = self.client.get(f'/api/configurations/{configuration.id}/')
-        self.assertEqual(response.data['cancel_reason'], 'Model eskirgan')
+        self.assertEqual(response.data['cancel_reason'], 'Vaqtim yo\'q')
 
     def test_cancel_chain_stores_reason(self):
         request_id, configuration = self._taken_request()

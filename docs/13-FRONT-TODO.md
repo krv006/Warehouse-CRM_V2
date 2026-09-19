@@ -774,6 +774,12 @@ bilib turish uchun:
   (qo'lda ochilgan SHT to'g'ri joyda ko'rinadi); SHT oynasida
   "Konfiguratsiya" tanlovi olib tashlangani to'g'ri — backend endi
   ikkinchisini 400 qiladi;
+- 9-to'plam: konfiguratsiya sahifasiga "Sales'dan so'rash" tugmasi
+  (`POST …/ask-sales/`, izoh majburiy) — olib tashlangan "Rad etish"
+  o'rniga; sales'da `pending_clarification` uchun "Javob berish" oynasi
+  (`POST …/answer/`); approvals ro'yxati endi suhbat (question/answer)
+  — mavjud komponent chizadi; ZVK ro'yxatida "Rad etish" faqat `new`da
+  (allaqachon shunday) + xohlasa `release` tugmasi keyin qo'shiladi;
 - BACKEND B1–B17 TO'LIQ TAYYOR — F1–F11 ishlarini boshlash mumkin
   (tartib: F1·F2·F6·F10 → F3·F9·F11 → F4·F5·F7·F8).
 
