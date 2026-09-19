@@ -501,6 +501,29 @@ def build_roadmap(document, user):
         doc=('contract', contract),
     )
 
+    # 8-to'plam §1: zanjirda UMUMAN bo'lmaydigan hujjatning qadamlari
+    # skipped — aks holda qo'lda ochilgan shartnoma "hali boshlanmagan"
+    # ko'rinib, bosh sahifada tepaga chiqib ketardi. Hujjat "keyin paydo
+    # bo'ladi"mi yoki "hech qachon bo'lmaydi"mi — buni faqat zanjir shakli
+    # aytadi: keyingi bosqich hujjati bor-u, oldingisi yo'q bo'lsa,
+    # oldingisi endi hech qachon paydo bo'lmaydi.
+    missing_docs = set()
+    if request_obj is None and (configuration is not None or contract is not None):
+        missing_docs.add('request')
+    if configuration is None and contract is not None:
+        missing_docs.add('configuration')
+    if missing_docs:
+        for row in data.values():
+            kind, _obj = row.get('doc') or (None, None)
+            if kind in missing_docs:
+                row['skipped'] = True
+                row['current_override'] = False
+        if 'configuration' in missing_docs:
+            # TLD zanjiri konfiguratsiya orqali kuzatiladi — u ham yo'q
+            for key in ('procurement_sent', 'procurement_chain'):
+                data[key]['skipped'] = True
+                data[key]['current_override'] = False
+
     # ---- joriy qadam va holatlar (§1/§3)
     # Tartib muhim: override birinchi (boshlangan ish doim g'olib — §3:
     # current_key hech qachon skipped qadamga ishora qilmasin), keyin

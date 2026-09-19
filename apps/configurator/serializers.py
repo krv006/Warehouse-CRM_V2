@@ -160,11 +160,13 @@ class ConfigurationSerializer(ModelSerializer):
             'quantity', 'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
             'ready_variant', 'missing', 'missing_count', 'contract',
-            'procurement', 'sent_to_procurement',
+            'procurement', 'sent_to_procurement', 'cancel_reason',
             'assembled_at', 'removals', 'approvals',
             'created_by', 'created_by_name', 'created_at',
         ]
-        read_only_fields = ['number', 'created_by', 'variant', 'assembled_at']
+        read_only_fields = [
+            'number', 'created_by', 'variant', 'assembled_at', 'cancel_reason',
+        ]
 
     def get_missing(self, obj):
         """Ombordan olinishi kerak-u, yetishmayotganlar (3-to'plam §2).

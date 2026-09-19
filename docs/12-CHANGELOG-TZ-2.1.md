@@ -1376,6 +1376,31 @@ Endpoint: 117 → 118. Testlar: `apps/core/tests/test_roadmap_list.py` (6).
 
 ---
 
+## 8.46 8-to'plam: zanjir shakli, yagona shartnoma, bekor sababi 🧷
+
+8-to'plam (§1, §3, §4; §2 — kuzatuv sifatida qayd etildi).
+
+- **§1**: roadmapda zanjirda UMUMAN bo'lmaydigan hujjat qadamlari endi
+  `skipped` — qo'lda ochilgan shartnoma (ZVK/CFG yo'q) "Zayavka
+  yozildi"da turib qolardi, endi joriy qadam to'g'ri (mas. `completed`).
+  Qoida: keyingi bosqich hujjati bor-u, oldingisi yo'q — oldingisi endi
+  hech qachon paydo bo'lmaydi (frontda ajratib bo'lmasdi);
+- **§2 (kuzatuv)**: yetkazilgan-u balansi ochiq shartnoma `state=open`da
+  qoladi — ataylab: qoldiq to'lovi ham kimningdir ishi;
+- **§3**: bitta konfiguratsiyaga BITTA shartnoma — `ContractSerializer`
+  endi `configuration` bilan ikkinchisini 400 qiladi (bekor qilingani
+  hisobga olinmaydi); avtomatik yo'l allaqachon himoyalangan edi, endi
+  qo'lda POST ham; qo'lda tuzish ombordan to'g'ridan-to'g'ri sotuvniki;
+- **§4**: `Configuration.cancel_reason` — "nega to'xtadi?" javobi
+  hujjatning o'zida: `reject_request` (engineer izohi) va `cancel_chain`
+  (sabab) ikkalasi ham to'ldiradi; serializer'da o'qiladi. Sales rad
+  etilgan konfiguratsiyani ko'rmasligi (404) — tanlangan yo'l (№1):
+  unga zayavkadagi `returned` izohi yetarli.
+
+Migratsiya: configurator.0013. Testlar: test_chain_shapes.py (5).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

@@ -346,7 +346,11 @@ bo'lishining yagona yo'li ish haqiqatan boshlangani (narx so'ralgan, TLD
 ochilgan). Shart aniq bo'lmasa (`narxsiz qator yo'q`, `missing` bo'sh,
 summa chegaradan past) — `skipped`, front chizmaydi; hali noma'lum bo'lsa —
 `optional: true` + `pending`, front xiraroq chizadi. `current_key` doim
-javobdagi qadamlardan biriga ishora qiladi (§3).
+javobdagi qadamlardan biriga ishora qiladi (§3). **8-to'plam §1**: zanjirda
+UMUMAN bo'lmaydigan hujjatning qadamlari ham `skipped` — qo'lda ochilgan
+shartnomada ZVK/CFG qadamlari chizilmaydi ("hali boshlanmagan" bo'lib
+ko'rinmaydi); qoida: keyingi bosqich hujjati bor-u, oldingisi yo'q bo'lsa,
+oldingisi endi hech qachon paydo bo'lmaydi.
 
 **`GET /roadmaps/?state=open&limit=10` (7-to'plam §1)** — bosh sahifa uchun
 joriy foydalanuvchi QATNASHAYOTGAN zanjirlar ro'yxati. Qatnashish: zanjirdagi
@@ -531,7 +535,7 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | Metod | Manzil | Kim |
 |---|---|---|
 | GET/POST | `/leads/` | admin, sales |
-| GET/POST | `/contracts/` | admin, sales; filtr: `status`, `client`, `currency`, `configuration` |
+| GET/POST | `/contracts/` | admin, sales; filtr: `status`, `client`, `currency`, `configuration`; 8-to'plam §3: `configuration` bilan ikkinchi shartnoma ochilmaydi (400 — yangi oqimda u tasdiqda avtomatik ochiladi); qo'lda tuzish ombordan to'g'ridan-to'g'ri sotuv uchun |
 | POST | `/contracts/{id}/submit/` | sales; bugalterga bildirishnoma tushadi |
 | POST | `/contracts/{id}/send-didox/` | B3: **bugalter** — «Didoxga yubordim»; `didox_number` majburiy, `pending_bugalter` → `pending_didox`, `didox_sent_at`/`signed_at` to'ladi |
 | POST | `/contracts/{id}/confirm-didox/` | B3: **bugalter** — «Didox tasdiqladi (mijoz imzoladi)»; `didox_accepted_at` yoziladi, keyin §11.3 chegara mantig'i: `pending_admin` yoki `approved`; Didox rad javobi kiritilmaydi — `pending_didox`dan orqaga yo'l yo'q |

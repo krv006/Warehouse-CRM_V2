@@ -1070,6 +1070,8 @@ def reject_request(request_obj, user, comment):
         Configuration.Status.CANCELLED, Configuration.Status.SOLD,
     }:
         configuration.status = Configuration.Status.CANCELLED
+        # 8-to'plam §4: sabab hujjatning o'zida — bog'lanish uzilsa ham qoladi
+        configuration.cancel_reason = comment
         configuration.save()
         from apps.inventory.services import release_reservations
 
@@ -1211,6 +1213,8 @@ def cancel_chain(document, user, reason):
 
         if configuration is not None and configuration.status != Configuration.Status.CANCELLED:
             configuration.status = Configuration.Status.CANCELLED
+            # 8-to'plam §4: "nega to'xtadi?" — hujjatning o'zida
+            configuration.cancel_reason = reason
             configuration.save()
             release_reservations(configuration=configuration, user=user, note=reason)
             cancelled['configuration'] = configuration.number

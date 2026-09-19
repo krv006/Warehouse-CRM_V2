@@ -176,7 +176,8 @@ Unique: (`product`, `component`).
 | `purchase` | FK `purchases.Purchase` (SET_NULL, null) |
 | `variant` | FK `inventory.Product` (SET_NULL) — tayyor pozitsiya |
 | `mode` | `build` (yig'ish) / `modify` (tayyor mahsulotni o'zgartirish) |
-| `status` | `draft` / `ready` / `attached` / `cancelled` |
+| `status` | `draft` / `pending_sales` / `approved` / `ready` / `sold` / `cancelled` |
+| `cancel_reason` | Text (8-to'plam §4) — "nega to'xtadi?": engineer qaytarganda (`reject_request` izohi) yoki zanjir bekor qilinganda (`cancel_chain` sababi); bog'lanish uzilsa ham hujjatda qoladi |
 | `note`, `created_by` | |
 
 Property: `items_total`, `total_price`, `signature`, `matching_variant`,

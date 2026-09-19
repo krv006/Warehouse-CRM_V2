@@ -64,6 +64,11 @@ class Configuration(StatusTrackedModel):
     status = CharField(max_length=20, choices=Status.choices, default=Status.DRAFT)
     # TOPSHIRIQ-2 #4: yig'ish alohida qadam — qachon jismonan yig'ilgani
     assembled_at = DateTimeField(null=True, blank=True)
+    # 8-to'plam §4: "nega to'xtadi?" javobi hujjatning O'ZIDA qoladi —
+    # zayavka bog'lanishi uzilsa ham (reject_request configuration=None
+    # qiladi) sabab yo'qolmaydi. Ikkala yo'l ham to'ldiradi:
+    # reject_request (engineer izohi) va cancel_chain (bekor sababi).
+    cancel_reason = TextField(blank=True)
     note = TextField(blank=True)
     created_by = ForeignKey(
         'accounts.User', SET_NULL, related_name='configurations',

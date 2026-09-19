@@ -769,6 +769,11 @@ bilib turish uchun:
   `WorkQueue` va "Eslatmalar" kartasi olib tashlanadi (eslatmalar
   qo'ng'iroqchada qoladi); `results[i]` detal roadmap bilan bir xil,
   `Roadmap` komponenti o'zgarishsiz; tartib backendda tayyor;
+- 8-to'plam: konfiguratsiya javobida `cancel_reason` — "Bekor qilingan"
+  qatoriga sababni qo'shing; roadmapda hujjatsiz qadamlar endi `skipped`
+  (qo'lda ochilgan SHT to'g'ri joyda ko'rinadi); SHT oynasida
+  "Konfiguratsiya" tanlovi olib tashlangani to'g'ri — backend endi
+  ikkinchisini 400 qiladi;
 - BACKEND B1–B17 TO'LIQ TAYYOR — F1–F11 ishlarini boshlash mumkin
   (tartib: F1·F2·F6·F10 → F3·F9·F11 → F4·F5·F7·F8).
 

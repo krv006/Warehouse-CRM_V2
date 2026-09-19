@@ -118,6 +118,26 @@ class ContractSerializer(ModelSerializer):
             'delivered_at', 'didox_number', 'didox_sent_at', 'didox_accepted_at',
         ]
 
+    def validate(self, attrs):
+        # 8-to'plam §3: bitta konfiguratsiyaga BITTA shartnoma — qo'lda POST
+        # bilan ikkinchisi ochilsa roadmap adashadi, bron ikki marta qo'yiladi
+        # va is_paid noto'g'ri hisoblanadi. Bekor qilingani hisobga olinmaydi.
+        configuration = attrs.get('configuration')
+        if configuration is not None:
+            existing = Contract.objects.filter(
+                configuration=configuration,
+            ).exclude(status=Contract.Status.CANCELLED)
+            if self.instance is not None:
+                existing = existing.exclude(pk=self.instance.pk)
+            if existing.exists():
+                raise ValidationError({
+                    'configuration': (
+                        'Bu konfiguratsiyaning shartnomasi allaqachon bor — '
+                        'yangi oqimda u tasdiq paytida avtomatik ochiladi.'
+                    ),
+                })
+        return attrs
+
     def _sync_total(self, contract):
         """Summa berilmagan bo'lsa qatorlardan olinadi — QQS bilan (mijoz to'laydigan real summa)."""
         if not contract.total_amount:
