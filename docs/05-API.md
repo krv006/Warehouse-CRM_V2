@@ -694,7 +694,7 @@ deb olinadi (`400`, `500` emas).
 | POST | `/replenishments/from-low-stock/` | buyurtmachi |
 | GET/POST | `/replenishments/` | yozish: admin, buyurtmachi |
 | GET/PUT/PATCH/DELETE | `/replenishments/{id}/` | admin, buyurtmachi |
-| POST | `/replenishments/{id}/submit/` | buyurtmachi; konfiguratsiya YOKI shartnomadan ochilgan hisob sales bosqichiga boradi; keyingi bosqich egasiga bildirishnoma tushadi |
+| POST | `/replenishments/{id}/submit/` | buyurtmachi; 10-§4: **to'g'ridan-to'g'ri bugalterga** (`pending_bugalter`) — TLD to'lovdan keyin ochiladi, mijozdan so'raydigan narsa yo'q; `owner_sales`ga INFO xabar; narxsiz pozitsiya bo'lsa 400; `pending_sales` shoxi faqat eski hisoblar uchun |
 | POST | `/replenishments/{id}/approve/` | mijoz buyurtmasidan ochilganda: avval **sales** (mijoz roziligi), keyin bugalter, keyin admin; oddiy to'ldirishda bugalter → admin; summa `replenishment_approval_threshold` dan kichik (UZS) bo'lsa admin bosqichi o'tkazib yuboriladi (tarixda avtomatik yozuv); har tasdiqda keyingi bosqich egasiga bildirishnoma tushadi |
 | POST | `/replenishments/{id}/reject/` | bugalter / admin |
 | POST | `/replenishments/{id}/pay/` | bugalter; `debt_amount` satr/son bo'lishi mumkin, noto'g'ri format 400 |

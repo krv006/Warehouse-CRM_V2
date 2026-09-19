@@ -33,14 +33,14 @@ class SeedDemoTests(APITestCase):
     def test_configurator_created_replenishment(self):
         """Engineer 'omborda yo'q' deb yuborgani: TLD konfiguratsiyaga bog'langan.
 
-        Yangi oqim: hisob narxlanib SUBMIT qilingan — sales (zayavka egasi)
-        mijoz roziligini olishi kutilmoqda; owner_sales to'ldirilgan.
+        10-§4: hisob narxlanib SUBMIT qilingan — TO'G'RIDAN bugalterga
+        (sales bosqichi yangi hisobda yo'q); owner_sales to'ldirilgan.
         """
         from apps.accounts.models import User
         from apps.core.models import Notification
 
         linked = Replenishment.objects.get(configuration__isnull=False)
-        self.assertEqual(linked.status, Replenishment.Status.PENDING_SALES)
+        self.assertEqual(linked.status, Replenishment.Status.PENDING_BUGALTER)
         self.assertEqual(linked.owner_sales.username, 'sales1')
         skus = set(linked.items.values_list('product__sku', flat=True))
         self.assertIn('WIFI-6E', skus)

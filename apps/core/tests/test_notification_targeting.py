@@ -157,7 +157,8 @@ class OwnerSalesTargetingTests(APITestCase):
         self.assertTrue(Notification.objects.filter(user=self.owner).exists())
         self.assertFalse(Notification.objects.filter(user=self.other).exists())
 
-    def test_client_approval_notifies_owner_only(self):
+    def test_submit_info_goes_to_owner_only(self):
+        """10-§4: sales vazifa emas, INFO xabar oladi — va faqat egasi."""
         self.client.force_authenticate(self.engineer)
         self.client.post(
             f'/api/configurations/{self.configuration.id}/request-procurement/',
@@ -170,7 +171,11 @@ class OwnerSalesTargetingTests(APITestCase):
         self.client.force_authenticate(self.buyurtmachi)
         response = self.client.post(f'/api/replenishments/{replenishment.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['status'], Replenishment.Status.PENDING_BUGALTER)
 
-        notes = Notification.objects.filter(title__contains='mijoz roziligi')
+        notes = Notification.objects.filter(title__contains='yuborildi')
         self.assertEqual(notes.count(), 1)
-        self.assertEqual(notes.get().user, self.owner)
+        note = notes.get()
+        self.assertEqual(note.user, self.owner)
+        self.assertEqual(note.level, Notification.Level.INFO)
+        self.assertFalse(Notification.objects.filter(user=self.other).exists())

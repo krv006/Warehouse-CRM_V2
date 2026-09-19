@@ -345,12 +345,13 @@ class ContractShipmentTests(APITestCase):
         response = self.client.post(f'/api/contracts/{contract.id}/request-procurement/')
         self.assertEqual(response.status_code, 400)
 
-        # Buyurtmachi narx kiritib yuboradi — shartnoma hisobi ham sales'ga boradi
+        # Buyurtmachi narx kiritib yuboradi — 10-§4: to'g'ridan bugalterga
+        # (sales o'zi ochgan hisobni o'zi tasdiqlashi ma'nosiz edi)
         item.unit_price = Decimal('20000000')
         item.save()
         self.client.force_authenticate(self.buyurtmachi)
         response = self.client.post(f'/api/replenishments/{replenishment.id}/submit/')
-        self.assertEqual(response.data['status'], Replenishment.Status.PENDING_SALES)
+        self.assertEqual(response.data['status'], Replenishment.Status.PENDING_BUGALTER)
 
         # Qisqartirib: to'g'ri receive'gacha olib boramiz
         Replenishment.objects.filter(pk=replenishment.pk).update(

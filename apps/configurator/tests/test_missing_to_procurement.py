@@ -170,14 +170,14 @@ class MissingToProcurementTests(APITestCase):
         self.assertEqual(self._send().status_code, 403)
 
     def test_chain_continues_to_supplier_flow(self):
-        """Yaratilgan hisob zanjirga tushadi: submit'da avval SALES'ga boradi.
+        """Yaratilgan hisob zanjirga tushadi: submit'da TO'G'RI bugalterga.
 
-        Mijoz buyurtmasidan ochilgan hisob mijoz roziligisiz bugalterga
-        tushmaydi (sales-gate).
+        10-to'plam §4: TLD to'lovdan keyin ochiladi — mijozdan so'raydigan
+        narsa yo'q, sales bosqichi yangi hisobda bo'lmaydi.
         """
         self._send()
         replenishment = Replenishment.objects.get()
         self.client.force_authenticate(self.buyurtmachi)
         response = self.client.post(f'/api/replenishments/{replenishment.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data['status'], Replenishment.Status.PENDING_SALES)
+        self.assertEqual(response.data['status'], Replenishment.Status.PENDING_BUGALTER)

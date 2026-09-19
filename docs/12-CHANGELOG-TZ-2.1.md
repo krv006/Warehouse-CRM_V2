@@ -1456,6 +1456,30 @@ qo'ng'iroqchada "1" turadi-yu, ro'yxat bo'sh edi.
 
 ---
 
+## 8.49 10-to'plam §4: TLD endi sales'ga qaytmaydi ➡️
+
+Eski oqimda shartnoma zanjir oxirida tuzilardi va xarid narxi mijoz
+narxiga ta'sir qilardi — shuning uchun TLD avval sales'ga (mijoz
+roziligiga) borardi. Yangi oqimda TLD ochilishining o'zi "hammasi
+bo'lgan" degani: yechim tasdiqlangan, Didox o'tgan, boshlang'ich to'lov
+kelgan; shartnomadan ochilganini esa sales'ning O'ZI ochadi — o'z
+hujjatini o'zi tasdiqlashi ma'nosiz edi.
+
+- `submit` endi har qanday TLD'ni to'g'ridan-to'g'ri bugalterga
+  yuboradi (`pending_bugalter`);
+- sales vazifa emas, **INFO xabar** oladi: zanjiridan pul chiqmoqda va
+  muddat cho'zilishi mumkin;
+- `PENDING_SALES` holati va approve/reject shoxi O'CHIRILMADI — jonli
+  bazada shu bosqichda turgan hisoblar yopilmay qolmasin; faqat yangi
+  hisob u yerga tushmaydi;
+- front keyin `replenishmentSteps`dan "Mijoz roziligi" qadamini olib
+  tashlaydi.
+
+Testlar: sales-gate to'plami legacy rejimga o'tkazildi, seed va
+zanjir testlari yangilandi. Procurement: 51/51 OK.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

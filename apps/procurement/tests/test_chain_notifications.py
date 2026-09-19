@@ -64,17 +64,19 @@ class ChainNotificationTests(APITestCase):
         note = self._notes(self.bugalter).get()
         self.assertIn('tekshiruvda', note.title)
 
-    def test_sales_approve_notifies_bugalter(self):
-        """Sales mijoz roziligini tasdiqlagach — bugalterga xabar."""
-        self._post(self.buyurtmachi, self.client_order, 'submit')
+    def test_sales_approve_notifies_bugalter_legacy(self):
+        """Legacy `pending_sales`: sales tasdiqlagach — bugalterga xabar (10-§4:
+        yangi hisob bu bosqichga tushmaydi, shox eski yozuvlar uchun)."""
+        Replenishment.objects.filter(pk=self.client_order.pk).update(
+            status=Replenishment.Status.PENDING_SALES,
+        )
         self._post(self.sales, self.client_order, 'approve')
         note = self._notes(self.bugalter).get()
         self.assertIn('bugalter tekshiruvi', note.title)
 
     def test_bugalter_approve_notifies_admin(self):
         """Bugalter tasdiqlab adminga yuborganda ADMIN xabar oladi (xato tuzatildi)."""
-        self._post(self.buyurtmachi, self.client_order, 'submit')
-        self._post(self.sales, self.client_order, 'approve')
+        self._post(self.buyurtmachi, self.client_order, 'submit')  # 10-§4: to'g'ri bugalterga
         response = self._post(self.bugalter, self.client_order, 'approve')
         self.assertEqual(response.data['status'], Replenishment.Status.PENDING_ADMIN)
 

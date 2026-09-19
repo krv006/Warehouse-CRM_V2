@@ -167,8 +167,9 @@ O'qish hammaga; **yozish faqat engineer** (admin). Sales matnli zayavka yuboradi
 ### 2.6.1 Buyurtmachi — `apps/procurement`
 
 `Replenishment` + item / approval / event. Jarayon: yetishmayotganlar ro'yxati →
-`from-low-stock` → `submit` → (mijoz buyurtmasidan ochilgan bo'lsa **sales**
-`approve` — mijoz roziligi) → bugalter `approve` → admin `approve` → bugalter `pay`
+`from-low-stock` → `submit` → **to'g'ridan-to'g'ri bugalter** `approve` (10-§4:
+TLD to'lovdan keyin ochiladi — mijozdan so'raydigan narsa yo'q; `pending_sales`
+shoxi jonli bazadagi eski hisoblar uchun saqlangan) → admin `approve` → bugalter `pay`
 (pul yetmasa `shortfall` qarzga: `Loan.source=supplier`, muddat kirimdan 60 kun;
 qarz summasi to'lov paytida muzlatiladi, kassa chiqimi `replenishment` FK bilan
 bog'lanadi) → `events` (bojxona va h.k.) → `receive` (ombor qoldig'i oshadi,

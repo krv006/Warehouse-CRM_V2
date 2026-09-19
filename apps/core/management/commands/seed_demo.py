@@ -327,7 +327,8 @@ class Command(BaseCommand):
             contract_d, users['bugalter'], amount=contract_d.prepayment_amount,
         )
         replenishment_d = send_missing_to_procurement(config_d, users['engineer'])
-        # Buyurtmachi narxlarni kiritdi va yubordi -> sales (mijoz roziligi)
+        # Buyurtmachi narxlarni kiritdi va yubordi -> bugalter (10-§4:
+        # to'lov allaqachon kelgan, mijozdan so'raydigan narsa yo'q)
         for item in replenishment_d.items.select_related('product'):
             if not item.unit_price:
                 item.unit_price = item.product.cost_price or Decimal('350000')

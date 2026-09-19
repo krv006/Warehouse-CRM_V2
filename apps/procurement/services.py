@@ -106,11 +106,17 @@ def build_from_low_stock(warehouse, user, supplier=''):
 
 @atomic
 def submit(replenishment, user):
-    """Buyurtmachi hisobni tekshiruvga yuboradi.
+    """Buyurtmachi hisobni tekshiruvga yuboradi — to'g'ridan-to'g'ri bugalterga.
 
-    Mijoz buyurtmasidan (konfiguratsiyadan) ochilgan hisob avval **sales**ga
-    boradi — sales mijoz bilan narxlarni kelishmasdan bugalter/adminga hech
-    narsa tushmaydi. Oddiy ombor to'ldirish esa to'g'ridan-to'g'ri bugalterga.
+    10-to'plam §4: eski oqimda shartnoma zanjir OXIRIDA tuzilardi va xarid
+    narxi mijoz narxiga ta'sir qilardi — shuning uchun TLD avval sales'ga
+    (mijoz roziligiga) borardi. Yangi oqimda TLD ochilishining o'zi
+    "hammasi bo'lgan" degani: yechim tasdiqlangan, shartnoma Didoxdan
+    o'tgan, BOSHLANG'ICH TO'LOV KELGAN. TLD raqamlari — bizning xarid
+    tannarximiz; xarid qimmat chiqsa bu marja masalasi (bugalter/admin
+    chegara qoidasi), mijozdan so'raydigan narsa yo'q. `PENDING_SALES`
+    holati va approve/reject shoxi jonli bazadagi eski hisoblar uchun
+    saqlab qolingan — faqat YANGI hisob u yerga tushmaydi.
     """
     _require(user, supplier=True)
     if replenishment.status not in {Replenishment.Status.DRAFT, Replenishment.Status.REJECTED}:
@@ -125,20 +131,32 @@ def submit(replenishment, user):
             'detail': 'Narxi kiritilmagan pozitsiyalar bor.',
         })
 
-    if replenishment.configuration_id or replenishment.contract_id:
-        replenishment.status = Replenishment.Status.PENDING_SALES
-        _notify_sales_for_client_approval(replenishment)
-    else:
-        from apps.accounts.models import User
+    from apps.accounts.models import User
 
-        replenishment.status = Replenishment.Status.PENDING_BUGALTER
-        _notify_role(
-            User.Role.BUGALTER, replenishment,
-            title=f'{replenishment.number}: yangi hisob tekshiruvda',
+    replenishment.status = Replenishment.Status.PENDING_BUGALTER
+    _notify_role(
+        User.Role.BUGALTER, replenishment,
+        title=f'{replenishment.number}: yangi hisob tekshiruvda',
+        message=(
+            'Buyurtmachi hisobni yubordi — tekshirib tasdiqlang, '
+            'keyin adminga o\'tadi.'
+        ),
+    )
+    # Sales VAZIFA emas, XABAR oladi: uning zanjiridan pul chiqmoqda va
+    # muddat cho'zilishi mumkin — buni bilishi kerak (10-§4.2)
+    if replenishment.owner_sales_id:
+        source = replenishment.configuration or replenishment.contract
+        Notification.objects.create(
+            user=replenishment.owner_sales,
+            title=f'{replenishment.number}: ta\'minot hisobi yuborildi',
             message=(
-                'Buyurtmachi omborni to\'ldirish hisobini yubordi — '
-                'tekshirib tasdiqlang, keyin adminga o\'tadi.'
+                f'{source.number if source else replenishment.number} '
+                'zanjiringiz bo\'yicha TLD bugalterga yuborildi — muddat '
+                'cho\'zilishi mumkin.'
             ),
+            level=Notification.Level.INFO,
+            entity='Replenishment',
+            object_id=str(replenishment.pk),
         )
     replenishment.save()
     return replenishment
@@ -159,37 +177,10 @@ def _notify_role(role, replenishment, title, message):
         )
 
 
-def _notify_sales_for_client_approval(replenishment):
-    """Zayavka egasiga xabar: narxlar tayyor, mijoz roziligini olish kerak.
-
-    §4.2 (SIDEBAR-VA-EGALIK): bu hovuz emas — mijoz bilan aynan zayavka
-    egasi gaplashgan. Egasi aniqlanmagan bo'lsa (eski/ZVK'siz hisob)
-    barcha sales'ga tushadi — xabar yo'qolmasin.
-    """
-    from apps.accounts.models import User
-
-    source = replenishment.configuration or replenishment.contract
-    source_number = source.number if source else replenishment.number
-    message = (
-        f'{source_number} bo\'yicha yetishmayotgan mahsulotlarga narxlar '
-        'kiritildi. Mijoz bilan kelishib tasdiqlang — shundan keyin '
-        'hisob bugalterga o\'tadi.'
-    )
-    if replenishment.owner_sales_id:
-        Notification.objects.create(
-            user=replenishment.owner_sales,
-            title=f'{replenishment.number}: mijoz roziligi kerak',
-            message=message,
-            level=Notification.Level.WARNING,
-            entity='Replenishment',
-            object_id=str(replenishment.pk),
-        )
-        return
-    _notify_role(
-        User.Role.SALES, replenishment,
-        title=f'{replenishment.number}: mijoz roziligi kerak',
-        message=message,
-    )
+# `_notify_sales_for_client_approval` olib tashlandi (10-to'plam §4):
+# yangi hisob sales'ga bormaydi — sales endi faqat INFO xabar oladi
+# (submit ichida). PENDING_SALES holati va approve/reject shoxi jonli
+# bazadagi eski hisoblar uchun turibdi.
 
 
 def _admin_threshold_skip(replenishment):

@@ -426,7 +426,14 @@ mol` (avval `CFG → mol → SHT → pul` edi):
    muammo engineerda (vaqti yo'q) — zayavka `new` ga (hovuzga), CFG
    bekor bo'lib broni bo'shaydi, keyingi `take` toza chernovik ochadi;
    SLA noldan. Har bir qadam `ConfigurationRequestEvent` tarixida.
-10. **Bekor qilish ≠ rad etish (B12/B17)**: `cancel_chain` — zanjir
+10. **TLD sales'ga qaytmaydi (10-§4)**: yangi oqimda TLD ochilganda
+    hammasi allaqachon bo'lgan (yechim tasdiqlangan, Didox o'tgan,
+    TO'LOV KELGAN) — TLD raqamlari bizning xarid tannarximiz, mijoz
+    narxi emas. `submit` endi to'g'ridan-to'g'ri bugalterga; sales
+    vazifa emas, INFO xabar oladi ("zanjiringiz bo'yicha TLD
+    yuborildi"). `pending_sales` va uning approve/reject shoxi jonli
+    bazadagi eski hisoblar uchun saqlangan.
+11. **Bekor qilish ≠ rad etish (B12/B17)**: `cancel_chain` — zanjir
     O'LADI: SHT/CFG/ZVK `cancelled`, bronlar bo'shaydi, to'lanmagan TLD
     bekor, to'langani ogohlantirish bilan ochiq qoladi (mol baribir
     keladi). Sabab (`reason`) majburiy, tarix va bildirishnomalar

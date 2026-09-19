@@ -9,10 +9,13 @@ from apps.procurement.models import Replenishment, ReplenishmentApproval, Replen
 
 
 class SalesGateTests(APITestCase):
-    """Mijoz buyurtmasidan ochilgan hisob: buyurtmachi -> sales -> bugalter -> admin.
+    """10-to'plam §4: yangi hisob TO'G'RIDAN-TO'G'RI bugalterga boradi.
 
-    Sales mijoz bilan narxlarni kelishmasdan bugalter/adminga hech narsa
-    tushmaydi; oddiy ombor to'ldirish esa eskicha to'g'ri bugalterga boradi.
+    Sales bosqichi (`pending_sales`) endi faqat JONLI BAZADAGI ESKI
+    hisoblar uchun saqlangan — approve/reject shoxi ishlayveradi, lekin
+    yangi submit u yerga tushmaydi (TLD to'lovdan KEYIN ochiladi, mijozdan
+    so'raydigan narsa yo'q). Legacy testlar holatni to'g'ridan yozib taqlid
+    qiladi.
     """
 
     def setUp(self):
@@ -59,14 +62,38 @@ class SalesGateTests(APITestCase):
         self.client.force_authenticate(self.buyurtmachi)
         return self.client.post(f'/api/replenishments/{replenishment.id}/submit/')
 
-    def test_client_order_goes_to_sales_first(self):
-        """Konfiguratsiyali hisob submit'da sales'ga boradi va sales'ga xabar tushadi."""
+    def _legacy_pending_sales(self, replenishment):
+        """Jonli bazadagi eski hisob holatini taqlid qiladi (10-§4 dan oldingi)."""
+        Replenishment.objects.filter(pk=replenishment.pk).update(
+            status=Replenishment.Status.PENDING_SALES,
+        )
+        replenishment.refresh_from_db()
+
+    def test_client_order_goes_straight_to_bugalter(self):
+        """10-§4: konfiguratsiyali hisob ham endi to'g'ri bugalterga boradi.
+
+        Sales VAZIFA emas, INFO xabar oladi — zanjiridan pul chiqmoqda.
+        """
+        Replenishment.objects.filter(pk=self.client_order.pk).update(
+            owner_sales=self.sales,
+        )
         response = self._submit(self.client_order)
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(response.data['status'], Replenishment.Status.PENDING_SALES)
+        self.assertEqual(response.data['status'], Replenishment.Status.PENDING_BUGALTER)
 
+        self.assertTrue(
+            Notification.objects.filter(
+                entity='Replenishment', user=self.bugalter,
+            ).exists(),
+        )
         note = Notification.objects.get(entity='Replenishment', user=self.sales)
-        self.assertIn('mijoz roziligi', note.title)
+        self.assertIn('yuborildi', note.title)
+        self.assertEqual(note.level, Notification.Level.INFO)
+        self.assertFalse(
+            Notification.objects.filter(
+                user=self.sales, title__contains='mijoz roziligi',
+            ).exists(),
+        )
 
     def test_plain_replenishment_skips_sales(self):
         """Oddiy to'ldirish eskicha — to'g'ridan-to'g'ri bugalterga."""
@@ -74,16 +101,16 @@ class SalesGateTests(APITestCase):
         self.assertEqual(response.data['status'], Replenishment.Status.PENDING_BUGALTER)
         self.assertFalse(Notification.objects.filter(user=self.sales).exists())
 
-    def test_bugalter_cannot_approve_before_sales(self):
-        """Mijoz roziligisiz bugalter tasdiqlay olmaydi — unga ish tushmaydi."""
-        self._submit(self.client_order)
+    def test_bugalter_cannot_approve_before_sales_legacy(self):
+        """Eski `pending_sales` hisobda bugalter tasdiqlay olmaydi (legacy shox)."""
+        self._legacy_pending_sales(self.client_order)
         self.client.force_authenticate(self.bugalter)
         response = self.client.post(f'/api/replenishments/{self.client_order.id}/approve/')
         self.assertEqual(response.status_code, 403)
 
     def test_full_chain_sales_then_bugalter_then_admin(self):
-        """To'liq zanjir: sales -> bugalter -> admin -> approved; tarixda sales bosqichi."""
-        self._submit(self.client_order)
+        """Legacy zanjir: sales -> bugalter -> admin -> approved; tarixda sales bosqichi."""
+        self._legacy_pending_sales(self.client_order)
 
         self.client.force_authenticate(self.sales)
         response = self.client.post(
@@ -112,8 +139,8 @@ class SalesGateTests(APITestCase):
         ])
 
     def test_sales_rejects_client_refused(self):
-        """Mijoz rozi bo'lmasa sales qaytaradi — buyurtmachiga xabar, hisob qoralamaga."""
-        self._submit(self.client_order)
+        """Legacy: `pending_sales`dagi hisobni sales qaytara oladi."""
+        self._legacy_pending_sales(self.client_order)
         self.client.force_authenticate(self.sales)
         response = self.client.post(
             f'/api/replenishments/{self.client_order.id}/reject/',
@@ -138,7 +165,7 @@ class SalesGateTests(APITestCase):
         response = self.client.get(f'/api/replenishments/{self.client_order.id}/')
         self.assertEqual(response.status_code, 404)
 
-        self._submit(self.client_order)
+        self._legacy_pending_sales(self.client_order)
         self.client.force_authenticate(self.sales)
         response = self.client.get(f'/api/replenishments/{self.client_order.id}/')
         self.assertEqual(response.status_code, 200)
