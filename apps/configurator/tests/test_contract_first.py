@@ -136,14 +136,25 @@ class ContractFirstTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('Kabel X', str(response.data['items']))
 
-        # Narx so'rovi — buyurtmachiga eslatma; takrorida dublikat yo'q
+        # Narx so'rovi — eslatma MAHSULOTGA ishora qiladi (10-to'plam §1:
+        # buyurtmachi konfiguratsiyani ko'ra olmaydi, mahsulot kartasi ochiq);
+        # takrorida dublikat yo'q
         response = self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['requested'], ['Kabel X'])
         self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
         notes = Notification.objects.filter(user=self.supplier, is_read=False)
         self.assertEqual(notes.count(), 1)
-        self.assertIn('narx kerak', notes.get().title)
+        note = notes.get()
+        self.assertIn('tannarx kerak', note.title)
+        self.assertEqual(note.entity, 'Product')
+        self.assertEqual(int(note.object_id), no_price.pk)
+
+        # 10-§1: buyurtmachining doimiy ro'yxati — narxi kutilayotganlar
+        self.client.force_authenticate(self.supplier)
+        response = self.client.get('/api/products/?needs_price=true')
+        skus = [row['sku'] for row in response.data['results']]
+        self.assertEqual(skus, ['CBL-X'])
 
         # Buyurtmachi tannarxni mahsulot kartasida kiritadi (endi ruxsati bor)
         self.client.force_authenticate(self.supplier)
@@ -167,6 +178,43 @@ class ContractFirstTests(APITestCase):
         self.client.force_authenticate(self.engineer)
         response = self.client.post(f'/api/configurations/{configuration.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
+
+    def test_price_arrives_during_clarification(self):
+        """10-to'plam §2: aniqlashtirish kutilayotganda ham narx qatorga tushadi."""
+        configuration = self._take_config()
+        no_price = Product.objects.create(
+            sku='CBL-Y', name='Kabel Y', kind=Product.Kind.COMPONENT,
+        )
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=no_price, label='K', quantity=1,
+        )
+        self.client.force_authenticate(self.engineer)
+        self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
+        self.client.post(
+            f'/api/configurations/{configuration.id}/ask-sales/',
+            {'comment': 'Qaysi rang kerak?'}, format='json',
+        )
+        configuration.refresh_from_db()
+        self.assertEqual(
+            configuration.status, Configuration.Status.PENDING_CLARIFICATION,
+        )
+        self.client.force_authenticate(self.supplier)
+        self.client.patch(
+            f'/api/products/{no_price.id}/', {'cost_price': '250000'}, format='json',
+        )
+        item = configuration.items.get(component=no_price)
+        self.assertEqual(item.unit_price, Decimal('250000'))
+
+    def test_request_prices_blocked_after_approval(self):
+        """10-to'plam §2: narx allaqachon shartnomaga kirib bo'lgan — 400."""
+        configuration = self._take_config()
+        self._approve(configuration)
+        self.client.force_authenticate(self.engineer)
+        response = self.client.post(
+            f'/api/configurations/{configuration.id}/request-prices/',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('shartnomaga kirib', str(response.data['detail']))
 
     def test_contract_reserves_nothing_until_ready(self):
         """B5.1: CFG tayyor bo'lmaguncha shartnoma bron qo'ymaydi — mol CFG da."""

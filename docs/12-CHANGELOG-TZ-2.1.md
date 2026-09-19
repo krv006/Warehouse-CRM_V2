@@ -1435,6 +1435,27 @@ Testlar: test_request_loop.py qayta qurildi (8).
 
 ---
 
+## 8.48 10-to'plam §1–2: narx so'rovi buyurtmachiga yetadigan bo'ldi 💬
+
+Narx so'rovi eslatmasi konfiguratsiyaga ishora qilardi — buyurtmachi uni
+ocholmasdi (404), front esa bunday eslatmani ro'yxatdan olib tashlaydi:
+qo'ng'iroqchada "1" turadi-yu, ro'yxat bo'sh edi.
+
+- **§1**: eslatma endi **mahsulotga** ishora qiladi (`entity=Product`) —
+  havola ishlaydi, buyurtmachi bosib mahsulot kartasida tannarx kiritadi;
+  har bir narxsiz mahsulotga ALOHIDA eslatma (beshta narx — beshta ish);
+  takror bosishda o'qilmagani yangilanadi (kalit user+Product);
+  `price_arrived` endi o'sha mahsulotning eslatmasini yopadi;
+- **§1 (ixtiyoriy qism ham qilindi)**: `GET /products/?needs_price=true`
+  — ochiq konfiguratsiyada narxsiz turgan mahsulotlar (doimiy ro'yxat,
+  eslatma bir martalik signal); front "Narx kutilmoqda · N" kartasi;
+- **§2**: `price_arrived` `pending_clarification`ni ham uyg'otadi (narx
+  kelgani holatga bog'liq emas); `request_prices` endi holat tekshiradi —
+  faqat `draft`/`pending_clarification`/`pending_sales` (aks holda 400:
+  narx allaqachon shartnomaga kirib bo'lgan).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

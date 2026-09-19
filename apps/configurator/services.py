@@ -173,10 +173,23 @@ def request_prices(configuration, user):
     from rest_framework.exceptions import PermissionDenied, ValidationError
 
     from apps.accounts.models import User
+    from apps.configurator.models import Configuration
     from apps.core.models import Notification
 
     if not (user.is_admin or user.is_engineer):
         raise PermissionDenied('Narx so\'rovini Engineer yuboradi.')
+    # 10-to'plam §2: narx so'rovi faqat hali shartnomaga kirmagan bosqichlarda
+    if configuration.status not in {
+        Configuration.Status.DRAFT,
+        Configuration.Status.PENDING_CLARIFICATION,
+        Configuration.Status.PENDING_SALES,
+    }:
+        raise ValidationError({
+            'detail': (
+                'Bu bosqichda narx so\'ralmaydi — narx allaqachon '
+                'shartnomaga kirib bo\'lgan.'
+            ),
+        })
 
     # Buyurtmachi allaqachon kiritgan narxlar nol qatorlarga tushsin
     for item in configuration.items.filter(unit_price=0):
@@ -187,30 +200,33 @@ def request_prices(configuration, user):
             'detail': 'Barcha qatorlarda narx bor — so\'rov shart emas.',
         })
 
-    names = ', '.join(item.component.name for item in no_price)
-    title = f'{configuration.number}: narx kerak — {len(no_price)} ta mahsulot'
-    message = (
-        f'{names} — tannarxni mahsulot kartasida kiriting. Bu buyurtma emas: '
-        'narx kiritilgach sales mijoz bilan kelishadi.'
+    # 10-to'plam §1: eslatma MAHSULOTGA ishora qiladi — buyurtmachi
+    # konfiguratsiyani ko'ra olmaydi (404 edi), mahsulot kartasi esa ochiq
+    # va tannarx maydoni unda. Har bir narxsiz mahsulotga alohida eslatma:
+    # vazifa ham alohida (beshta narx — beshta ish), yopilishi ham aniq
+    # (price_arrived o'sha mahsulotnikini yopadi). Takror bosishda o'qilmagan
+    # eslatma yangilanadi — kalit (user, Product, component).
+    suppliers = list(
+        User.objects.filter(role=User.Role.SUPPLIER, is_active=True)
     )
-    for supplier in User.objects.filter(role=User.Role.SUPPLIER, is_active=True):
-        existing = Notification.objects.filter(
-            user=supplier, entity='Configuration',
-            object_id=str(configuration.pk), is_read=False,
-        ).order_by('-id').first()
-        if existing:
-            existing.title = title
-            existing.message = message
-            existing.save(update_fields=['title', 'message'])
-        else:
-            Notification.objects.create(
-                user=supplier, title=title, message=message,
-                level=Notification.Level.WARNING,
-                entity='Configuration', object_id=str(configuration.pk),
+    for item in no_price:
+        for supplier in suppliers:
+            Notification.objects.update_or_create(
+                user=supplier, entity='Product',
+                object_id=str(item.component_id), is_read=False,
+                defaults={
+                    'title': f'{item.component.name}: tannarx kerak',
+                    'message': (
+                        f'{configuration.number} uchun so\'raldi. Bu buyurtma '
+                        'emas — faqat tannarxni mahsulot kartasida kiriting.'
+                    ),
+                    'level': Notification.Level.WARNING,
+                },
             )
     # B15: aylanma qadam tarixga tushadi
     from apps.configurator.models import ConfigurationRequestEvent
 
+    names = ', '.join(item.component.name for item in no_price)
     log_request_event(
         configuration.requests.order_by('-created_at').first(),
         ConfigurationRequestEvent.Stage.PRICE_ASKED, user, names,
@@ -233,17 +249,24 @@ def price_arrived(product, user):
     if not product.stock_price:
         return
 
+    suppliers = list(User.objects.filter(role=User.Role.SUPPLIER, is_active=True))
+    # 10-to'plam §1: mahsulotga bog'langan "tannarx kerak" eslatmalari yopiladi
+    for supplier in suppliers:
+        resolve_notifications('Product', product.pk, user=supplier)
+
     waiting = (
         Configuration.objects
         .filter(
             status__in=[
-                Configuration.Status.DRAFT, Configuration.Status.PENDING_SALES,
+                Configuration.Status.DRAFT,
+                # 10-to'plam §2: aniqlashtirish kutilayotganda ham narx tushadi
+                Configuration.Status.PENDING_CLARIFICATION,
+                Configuration.Status.PENDING_SALES,
             ],
             items__component=product, items__unit_price=0,
         )
         .distinct()
     )
-    suppliers = list(User.objects.filter(role=User.Role.SUPPLIER, is_active=True))
     for configuration in waiting:
         for item in ConfigurationItem.objects.filter(
             configuration=configuration, component=product, unit_price=0,

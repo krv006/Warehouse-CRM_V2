@@ -218,7 +218,7 @@ Holatlar: `new` → `in_progress` (take) → `done` (complete). Raqam: `ZVK-0000
 
 `items[]` qatori: `{section, entity, id, number, reason, amount, currency,
 level}`. Havolani front `entity`+`id` dan quradi, ko'rsatma matnini `reason`
-kodidan yozadi (`send_to_didox`, `didox_confirm`, `awaiting_payment`, `client_approval`,
+kodidan yozadi (`send_to_didox`, `didox_confirm`, `awaiting_payment`, `client_approval`, `clarification_answer`,
 `draft_to_submit`, `fix_and_resubmit`, `contact_due`, `take_request`,
 `configure`, `assemble`, `track_delivery`, `decide_expense`, `loan_due`,
 `awaiting_admin_approve`, `awaiting_client_payment`, `awaiting_check`,
@@ -248,7 +248,7 @@ keyin kelgani keyingi ish kuni oxirigacha (`/company/` da `sla_cutoff_hour`,
 | POST | `/configurations/{id}/reject/` | #4: sales izoh bilan qaytaradi (`draft`ga) — engineer xabar oladi, izoh tarixda |
 | POST | `/configurations/{id}/finalize/` | #4: shartlari `approved` + yig'ilgan (`assembled_at`) + ACT (tanada `{"act": 2}`); YANGI-OQIM: shartnoma bu yerda OCHILMAYDI (u `approve`da ochilgan) — qatordagi bazaviy model **yig'ilgan variantga ko'chadi** (B6, son/narx tegilmaydi), CFG `ready` (shartnoma `active` bo'lsa `sold`), bron shartnomaga o'tadi |
 | POST | `/configurations/{id}/assemble/` | #4/§10.1: yig'ish — faqat `approved` yechim; **B4: shartnoma `active`/`completed` bo'lishi shart** (400: "Boshlang'ich to'lov kutilmoqda — SHT-…"; rad etilgan/bekor qilinganida boshqa matn); build: butlovchilar chiqadi, variant kiradi; modify: tayyor mahsulot fizik o'zgartiriladi (tana: `{"removals": {...}}`); yetmasa 400 (nomlar bilan) — mol TLD orqali kelgach qayta bosiladi; javobda `act_suggestion` (#4D) |
-| POST | `/configurations/{id}/request-prices/` | YANGI-OQIM B2: narx so'rovi — **TLD emas**, buyurtmachi tannarxni mahsulot kartasida kiritib beradi; takrorida eslatma yangilanadi (dublikat yo'q); narx kelgach **sales** "mijoz bilan kelishing" xabarini oladi; hammasi narxli bo'lsa 400 |
+| POST | `/configurations/{id}/request-prices/` | YANGI-OQIM B2 + 10-§1/2: narx so'rovi — **TLD emas**; eslatma endi **mahsulotga** ishora qiladi (`entity=Product`, har bir narxsiz mahsulotga alohida — buyurtmachi CFG'ni ko'ra olmaydi, mahsulot kartasi esa ochiq); takrorida yangilanadi (kalit user+Product); faqat `draft`/`pending_clarification`/`pending_sales` da (keyin 400 — narx shartnomaga kirib bo'lgan); narx kelgach mahsulot eslatmasi yopiladi va **sales** xabar oladi |
 | POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan TLD ochadi; #4: faqat `approved` konfiguratsiyada; **B4: faqat to'langan zanjirda** (shartnoma `active`) — mol pulga bog'lanadi; hammasi omborda bo'lsa 400; ochiq TLD bor bo'lsa ham 400 |
 | POST | `/configurations/{id}/change-quantity/` | 4-to'plam §2 + 6-to'plam §4: partiya sonini o'zgartirish — **sales** (admin; u mijoz bilan kelishadi, engineer emas), tana `{"quantity": 100, "comment": "..."}`; `draft`/`pending_sales`/`approved` da; bron qayta hisoblanadi, zayavka soni ergashadi, `approved` bo'lsa **`pending_sales`ga qaytadi** (narx-muddat qayta kelishiladi); yig'ilgan (`assembled_at`) yoki chernovikdan o'tgan ochiq TLD bo'lsa 400 (TLD raqami bilan); chernovik TLD to'smaydi; **B13: to'lov kelgach 400 — hech narsa o'zgarmaydi**; pul kelmagan draft SHT esa songa ergashadi (qator miqdori va jami qayta yig'iladi) |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
@@ -370,6 +370,12 @@ vaqti bo'yicha kamayish.
 adashtirilmasin). `steps` doim 18 ta va tartibda; `repeats` — aylanma
 necha marta aylangani; `can_open` — kim qaysi hujjat ichiga kira olishi
 (§3.13 matritsasi backendda). **Javobda pulga oid maydon yo'q.**
+
+**`GET /products/?needs_price=true` (10-to'plam §1)** — narxi
+KUTILAYOTGAN mahsulotlar: ochiq konfiguratsiyada (`draft` /
+`pending_clarification` / `pending_sales`) narxsiz qator sifatida turganlar
+(shunchaki `cost_price=0` emas). Buyurtmachining doimiy "Narx kutilmoqda"
+ro'yxati shu filtrdan.
 
 **`available` manfiy chiqmaydi** (3-to'plam §3) — ham `missing` da, ham
 tarkib qatorlarida (`items[].available`): manfiy o'rniga `0` va alohida

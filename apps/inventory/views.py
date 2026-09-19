@@ -52,6 +52,28 @@ class ProductViewSet(BaseModelViewSet):
     filterset_fields = ['is_active', 'kind', 'base_model']
     ordering_fields = ['name', 'sale_price', 'created_at']
 
+    def get_queryset(self):
+        """10-to'plam §1: `?needs_price=true` — narxi KUTILAYOTGAN mahsulotlar.
+
+        Ochiq konfiguratsiyada narxsiz qator sifatida turganlar — shunchaki
+        `cost_price=0` emas (katalogda hech kim so'ramagan narxsiz yozuvlar
+        bu ro'yxatni ko'mib tashlardi). Buyurtmachining doimiy ro'yxati:
+        eslatma bir martalik signal, bu esa har doim ko'rinadi.
+        """
+        qs = super().get_queryset()
+        if self.request.query_params.get('needs_price') in ('true', '1'):
+            from apps.configurator.models import Configuration
+
+            qs = qs.filter(
+                configuration_items__unit_price=0,
+                configuration_items__configuration__status__in=[
+                    Configuration.Status.DRAFT,
+                    Configuration.Status.PENDING_CLARIFICATION,
+                    Configuration.Status.PENDING_SALES,
+                ],
+            ).distinct()
+        return qs
+
     def perform_update(self, serializer):
         """YANGI-OQIM B2.3: narx kiritildi — kutayotgan konfiguratsiyalar uyg'onadi.
 
