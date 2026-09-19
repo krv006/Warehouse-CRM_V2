@@ -273,6 +273,87 @@ class RoadmapTests(APITestCase):
         self.assertEqual(steps['admin_approve']['state'], 'skipped')
         self.assertTrue(steps['admin_approve']['optional'])
 
+    def test_pending_admin_step_is_current(self):
+        """10-§3: shartli qadam ustidan sakralmaydi — pending_admin'da joriy u."""
+        request_id, configuration = self._draft_chain()
+        self.client.post(f'/api/configurations/{configuration.id}/submit/')
+        self.client.force_authenticate(self.sales)
+        self.client.post(f'/api/configurations/{configuration.id}/approve/')
+        configuration.refresh_from_db()
+        contract = configuration.active_contract
+        self.client.post(f'/api/contracts/{contract.id}/submit/')
+        self.client.force_authenticate(self.bugalter)
+        self.client.post(
+            f'/api/contracts/{contract.id}/send-didox/',
+            {'didox_number': 'DDX-9'}, format='json',
+        )
+        self.client.post(f'/api/contracts/{contract.id}/confirm-didox/')
+
+        response = self.client.get(
+            f'/api/configuration-requests/{request_id}/roadmap/',
+        )
+        self.assertEqual(response.data['current_key'], 'admin_approve')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['admin_approve']['state'], 'current')
+        self.assertEqual(steps['admin_approve']['actor']['role'], 'admin')
+
+    def test_procurement_sent_current_when_paid_with_missing(self):
+        """10-§3: to'lov keldi, yetishmovchilik bor, TLD yo'q — ish engineerda."""
+        self.client.force_authenticate(self.sales)
+        request_id = self.client.post('/api/configuration-requests/', {
+            'text': '20 ta HP 880', 'base_product': self.base.id,
+            'client': self.mijoz.id, 'quantity': 20,  # omborda RAM 10 — yetmaydi
+        }, format='json').data['id']
+        self.client.force_authenticate(self.engineer)
+        take = self.client.post(f'/api/configuration-requests/{request_id}/take/')
+        configuration = Configuration.objects.get(pk=take.data['configuration'])
+        self.client.post(f'/api/configurations/{configuration.id}/submit/')
+        self.client.force_authenticate(self.sales)
+        self.client.post(f'/api/configurations/{configuration.id}/approve/')
+        configuration.refresh_from_db()
+        Contract.objects.filter(pk=configuration.active_contract.pk).update(
+            status=Contract.Status.ACTIVE,
+        )
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(
+            f'/api/configuration-requests/{request_id}/roadmap/',
+        )
+        self.assertEqual(response.data['current_key'], 'procurement_sent')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['procurement_sent']['actor']['role'], 'engineer')
+
+    def test_tld_step_role_and_label_follow_status(self):
+        """10-§6: TLD qora quti emas — egasi va nomi holatidan."""
+        request_obj, configuration, contract = self._to_waiting_payment()
+        Contract.objects.filter(pk=contract.pk).update(
+            status=Contract.Status.ACTIVE,
+        )
+        from apps.procurement.models import Replenishment
+
+        replenishment = Replenishment.objects.create(
+            warehouse=self.warehouse, configuration=configuration,
+            status=Replenishment.Status.PENDING_BUGALTER, created_by=self.engineer,
+        )
+        self.client.force_authenticate(self.admin)
+        steps = {
+            s['key']: s for s in self.client.get(
+                f'/api/configurations/{configuration.id}/roadmap/',
+            ).data['steps']
+        }
+        self.assertEqual(steps['procurement_chain']['actor']['role'], 'bugalter')
+        self.assertIn('bugalter', steps['procurement_chain']['label'])
+
+        Replenishment.objects.filter(pk=replenishment.pk).update(
+            status=Replenishment.Status.ORDERED,
+        )
+        steps = {
+            s['key']: s for s in self.client.get(
+                f'/api/configurations/{configuration.id}/roadmap/',
+            ).data['steps']
+        }
+        self.assertEqual(steps['procurement_chain']['actor']['role'], 'buyurtmachi')
+        self.assertIn("yo'lda", steps['procurement_chain']['label'])
+
     def test_cancelled_chain_marks_stop_point(self):
         request_obj, configuration, contract = self._to_waiting_payment()
         self.client.force_authenticate(self.sales)

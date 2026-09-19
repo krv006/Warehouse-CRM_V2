@@ -447,6 +447,12 @@ def build_roadmap(document, user):
         who=admin_rows[-1].decided_by if admin_rows else None,
         doc=('contract', contract),
         skipped=admin_skipped,
+        # 10-to'plam §3: shartnoma AYNAN admin tasdig'ida turibdi — bu
+        # "imkoniyat" emas, boshlangan ish; aks holda shartli qadam ustidan
+        # sakrab, ish adminga "sizniki" bo'lib ko'rinmasdi
+        current_override=bool(
+            contract and contract.status == Contract.Status.PENDING_ADMIN
+        ),
     )
     data['approved_waiting'] = dict(
         done=bool(
@@ -475,17 +481,42 @@ def build_roadmap(document, user):
         who=replenishment.created_by if replenishment else None,
         doc=('replenishment', replenishment),
         skipped=procurement_skipped,
+        # 10-to'plam §3: to'lov keldi, yetishmovchilik bor, TLD hali
+        # ochilmagan — ish ENGINEERDA ("Buyurtmachiga yuborish"); aks holda
+        # chiziq bajarib bo'lmaydigan "Yig'ish"ni joriy deb ko'rsatardi
+        current_override=bool(paid and not tld_needed and not procurement_skipped),
     )
     tld_delivered = bool(
         replenishment and replenishment.status == Replenishment.Status.DELIVERED
+    )
+    # 10-to'plam §6: TLD qora quti emas — egasi (va nomi) TLD holatidan.
+    # Aks holda mol bugalterni kutayotganda ham "buyurtmachida" deb turardi:
+    # admin noto'g'ri javob olardi, SLA noto'g'ri odamga yozilardi, §5 dagi
+    # hovuz qoidasi ham rolga tayanib noto'g'ri ishlardi.
+    TLD_ACTOR = {
+        Replenishment.Status.DRAFT: ('buyurtmachi', "TLD — to'ldirilmoqda"),
+        Replenishment.Status.REJECTED: ('buyurtmachi', "TLD — to'ldirilmoqda"),
+        Replenishment.Status.PENDING_SALES: ('sales', 'TLD — mijoz roziligi'),
+        Replenishment.Status.PENDING_BUGALTER: ('bugalter', 'TLD — bugalter tekshiruvi'),
+        Replenishment.Status.PENDING_ADMIN: ('admin', "TLD — admin tasdig'i"),
+        Replenishment.Status.APPROVED: ('bugalter', "TLD — to'lov kutilmoqda"),
+        Replenishment.Status.ORDERED: ('buyurtmachi', "TLD — yo'lda"),
+        Replenishment.Status.IN_TRANSIT: ('buyurtmachi', "TLD — yo'lda"),
+        Replenishment.Status.CUSTOMS: ('buyurtmachi', "TLD — yo'lda"),
+    }
+    tld_role, tld_label = (
+        TLD_ACTOR.get(replenishment.status, (None, None))
+        if replenishment else (None, None)
     )
     data['procurement_chain'] = dict(
         done=tld_delivered,
         at=replenishment.delivered_at if tld_delivered else None,
         who=None,
+        role=tld_role,
+        label=tld_label,
         doc=('replenishment', replenishment),
         skipped=procurement_skipped,
-        # TLD ochiq — ish haqiqatan buyurtmachida ketmoqda: joriy shu yerda
+        # TLD ochiq — ish haqiqatan zanjir ichida ketmoqda: joriy shu yerda
         current_override=bool(replenishment and not tld_delivered),
     )
     data['assemble'] = dict(
@@ -598,9 +629,11 @@ def build_roadmap(document, user):
         actor_user = row.get('who')
         if state in ('pending', 'blocked'):
             actor_user = None  # kelajak qadamda ism yo'q — faqat rol
-        # 9-to'plam §1: qadam roli vaziyatga qarab o'zgarishi mumkin
-        # (aniqlashtirishda `submitted` sales'ni kutadi)
+        # 9-to'plam §1 / 10-§6: qadam roli va nomi vaziyatga qarab o'zgaradi
+        # (aniqlashtirishda `submitted` sales'ni kutadi; TLD qadami o'z
+        # holatining egasini va qisqa nomini aytadi)
         role = row.get('role') or default_role
+        label = row.get('label') or label
         steps.append({
             'key': key,
             'label': label,
