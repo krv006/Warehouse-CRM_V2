@@ -349,17 +349,26 @@ bo'lishining yagona yo'li ish haqiqatan boshlangani (narx so'ralgan, TLD
 ochilgan). Shart aniq bo'lmasa (`narxsiz qator yo'q`, `missing` bo'sh,
 summa chegaradan past) — `skipped`, front chizmaydi; hali noma'lum bo'lsa —
 `optional: true` + `pending`, front xiraroq chizadi. `current_key` doim
-javobdagi qadamlardan biriga ishora qiladi (§3). **8-to'plam §1**: zanjirda
+javobdagi qadamlardan biriga ishora qiladi (§3). **10-§3**: har bir shartli
+qadamda `current_override` bor — `pending_admin`da joriy qadam admin
+tasdig'i, to'lov kelib TLD hali ochilmaganda (yetishmovchilik bilan) —
+"Buyurtmachiga yuborildi" (engineer). **10-§6**: `procurement_chain` qora
+quti emas — roli va nomi TLD holatidan ("TLD — bugalter tekshiruvi",
+"TLD — to'lov kutilmoqda", "TLD — yo'lda" …). **10-§7**: `ship` qadami
+yetkazgan odamning ismi bilan (`delivered_by`). **8-to'plam §1**: zanjirda
 UMUMAN bo'lmaydigan hujjatning qadamlari ham `skipped` — qo'lda ochilgan
 shartnomada ZVK/CFG qadamlari chizilmaydi ("hali boshlanmagan" bo'lib
 ko'rinmaydi); qoida: keyingi bosqich hujjati bor-u, oldingisi yo'q bo'lsa,
 oldingisi endi hech qachon paydo bo'lmaydi.
 
 **`GET /roadmaps/?state=open&limit=10` (7-to'plam §1)** — bosh sahifa uchun
-joriy foydalanuvchi QATNASHAYOTGAN zanjirlar ro'yxati. Qatnashish: zanjirdagi
-biror hujjatning egasi (`ZVK.created_by`/`taken_by`, `CFG.created_by`,
-`SHT.created_by`) YOKI joriy qadam uning roliga tegishli (bugalter va
-buyurtmachi uchun asosiy shart); admin — hamma ochiq zanjir. `state`:
+joriy foydalanuvchi QATNASHAYOTGAN zanjirlar ro'yxati. Qatnashish (10-§5): zanjirga
+**qo'l tekkizgan har bir odam** — egalar, tasdiqlar, to'lovlar, eventlar,
+TLD bosqichlari (mavjud maydonlardan yig'iladi) — ish yopilguncha ko'radi;
+hali hech kim tegmagan bosqichda esa zanjir navbatdagi rolning **hovuzida**
+(joriy rol mos-u, o'sha roldan allaqachon kimdir ishlagan bo'lsa —
+ko'rinmaydi: "yangi zayavkani hamma engineer ko'radi, olingandan keyin
+faqat oluvchisi" shu qoidadan kelib chiqadi); admin — hamma ochiq zanjir. `state`:
 `open` (default) / `closed` / `all`; `limit`: 1–50 (default 10). Javob
 `{"count": N, "results": [...]}` — `results[i]` detal `roadmap` javobi
 bilan AYNAN bir xil (18 qadam, pul yo'q, `can_open` alohida). Tartib:

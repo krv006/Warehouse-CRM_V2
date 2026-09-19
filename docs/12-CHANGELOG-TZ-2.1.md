@@ -1480,6 +1480,33 @@ zanjir testlari yangilandi. Procurement: 51/51 OK.
 
 ---
 
+## 8.50 10-to'plam §3/§5/§6/§7: zanjir kimdaligini to'g'ri aytadi 👥
+
+- **§3**: shartli qadam ustidan sakralmaydi — `admin_approve`
+  `pending_admin`da joriy bo'ladi (SHT-00055 da admin ishni ko'rmasdi,
+  SLA bugalterga yozilardi); `procurement_sent` esa "to'lov keldi,
+  yetishmovchilik bor, TLD yo'q" holatda joriy (chiziq bajarib
+  bo'lmaydigan "Yig'ish"ni ko'rsatib turardi). Umumiy qoida: har bir
+  OPTIONAL qadamda `current_override` bor — `skipped` "bo'ladimi?"
+  savoliga, override "ish shu yerdami?" savoliga javob beradi;
+- **§6**: "TLD zanjiri" qadami endi qora quti emas — roli va nomi TLD
+  holatidan (bugalter tekshiruvi / admin tasdig'i / to'lov kutilmoqda /
+  yo'lda); SLA to'g'ri odamga yoziladi, §5 hovuz qoidasi to'g'ri
+  ishlaydi (shuning uchun §6 §5 dan oldin bajarildi);
+- **§5**: `/roadmaps/` qatnashish ta'rifi "surat"dan "tarix"ga o'tdi —
+  `chain_actor_ids` zanjirga qo'l tekkizgan hammani mavjud maydonlardan
+  yig'adi (egalar, eventlar, tasdiqlar, to'lovlar, TLD bosqichlari) va
+  ular ishni yopilguncha ko'radi (bugalterning ro'yxati endi bo'sh
+  emas); rol bo'yicha ko'rinish esa HOVUZ bo'ldi — o'sha roldan hali
+  hech kim ishlamagan bo'lsagina (yangi zayavka hamma engineerda,
+  olingach faqat oluvchisida); ildizlar prefetch bilan olinadi;
+- **§7**: `Contract.delivered_by` (sales.0007) — yetkazgan buyurtmachi
+  shartnomani darhol yo'qotmaydi (404 edi): ro'yxati navbat + o'zi
+  yetkazganlari + o'zi TLD ochganlari; roadmap `ship` qadami ism oldi;
+  pul baribir sizib chiqmaydi (qator narxlari olib tashlanadi).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

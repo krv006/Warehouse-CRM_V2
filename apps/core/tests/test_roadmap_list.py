@@ -151,6 +151,62 @@ class RoadmapListTests(APITestCase):
         self.assertEqual(len(response.data['results']), 1)
         self.assertGreaterEqual(response.data['count'], 2)  # count — limitgacha
 
+    def test_actor_keeps_chain_after_turn_passes(self):
+        """10-§5: qo'l tekkizgan odam zanjirni yopilguncha ko'radi.
+
+        Bugalter to'lovni o'tkazdi — navbat engineerga o'tdi, lekin zanjir
+        bugalterdan yo'qolmaydi (avval suratga qarab yo'qolardi).
+        """
+        contract = self.request_a.configuration.active_contract
+        self.client.force_authenticate(self.bugalter)
+        response = self.client.post(
+            f'/api/contracts/{contract.id}/confirm-payment/',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        # Joriy qadam endi bugalterda emas
+        roadmap = self.client.get(
+            f'/api/contracts/{contract.id}/roadmap/',
+        ).data
+        self.assertNotIn(roadmap['current_key'], ('prepayment', 'approved_waiting'))
+
+        numbers = self._numbers(self.client.get('/api/roadmaps/'))
+        self.assertIn(self.request_a.number, numbers)
+
+    def test_engineer_pool_narrows_after_take(self):
+        """10-§5 hovuz: yangi zayavkani hamma engineer ko'radi, olingach —
+        faqat oluvchisi (rol bo'yicha keng ko'rinish yopildi)."""
+        engineer2 = User.objects.create_user(
+            'eng2', password='p', role=User.Role.ENGINEER,
+        )
+        fresh = self._zvk('Hovuz testi')  # hali hech kim olmagan
+        self.client.force_authenticate(engineer2)
+        numbers = self._numbers(self.client.get('/api/roadmaps/'))
+        self.assertIn(fresh.number, numbers)
+        # B zanjiri eng1 tomonidan olingan — eng2 uni KO'RMAYDI
+        self.assertNotIn(self.request_b.number, numbers)
+        # Oluvchining o'zida esa turibdi
+        self.client.force_authenticate(self.engineer)
+        numbers = self._numbers(self.client.get('/api/roadmaps/'))
+        self.assertIn(self.request_b.number, numbers)
+
+    def test_supplier_pool_when_tld_on_the_way(self):
+        """10-§5+§6: TLD buyurtmachi bosqichida — hovuzdagi buyurtmachi ko'radi."""
+        from apps.procurement.models import Replenishment
+
+        contract = self.request_a.configuration.active_contract
+        Contract.objects.filter(pk=contract.pk).update(
+            status=Contract.Status.ACTIVE,
+        )
+        Replenishment.objects.create(
+            warehouse=self.warehouse,
+            configuration=self.request_a.configuration,
+            status=Replenishment.Status.ORDERED,  # §6: egasi buyurtmachi
+            created_by=self.engineer,
+        )
+        self.client.force_authenticate(self.supplier)
+        numbers = self._numbers(self.client.get('/api/roadmaps/'))
+        self.assertIn(self.request_a.number, numbers)
+
     def test_state_closed_returns_cancelled_chain(self):
         self.client.force_authenticate(self.admin)
         numbers = self._numbers(self.client.get('/api/roadmaps/?state=closed'))

@@ -408,7 +408,9 @@ hujjat AYNAN shu bosqichga qachon kelgani (holat o'zgargandagina yoziladi);
 SLA muddati shu maydondan. `CompanyProfile.sla_cutoff_hour` (16),
 `sla_working_days` (1), `replenishment_approval_threshold` (TLD chegarasi).
 
-Boshqa yangi maydonlar (shu bosqichda): `Contract.didox_number`,
+Boshqa yangi maydonlar (shu bosqichda): `Contract.delivered_by`
+(10-§7 — kim yetkazgani; yetkazgan buyurtmachi shartnomani yopilguncha
+ko'radi), `Contract.didox_number`,
 `Contract.didox_sent_at` (B3 — Didoxga yuborilgan vaqt),
 `Contract.didox_accepted_at` (§11.2/B3 — mijoz imzolagani; `ContractApproval.Step`ga `didox` qo'shildi); `CompanyProfile.admin_approval_threshold`,
 `contract_reservation_days`, `configuration_reservation_days` (§11.3/§11.4);

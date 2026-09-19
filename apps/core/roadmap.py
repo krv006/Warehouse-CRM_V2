@@ -99,21 +99,54 @@ def chain_is_closed(request_obj, configuration, contract):
     return True
 
 
-def _participates(user, request_obj, configuration, contract, current_role):
-    """Qatnashish ta'rifi (7-to'plam §1): egasi YOKI joriy qadam uning rolida.
+def _replenishment_actor_ids(replenishment):
+    ids = {replenishment.created_by_id, replenishment.owner_sales_id}
+    ids |= set(replenishment.approvals.values_list('decided_by_id', flat=True))
+    ids |= set(replenishment.events.values_list('created_by_id', flat=True))
+    return ids
 
-    Ikkinchi shart bugalter va buyurtmachi uchun asosiy: ular hujjat egasi
-    emas, lekin navbat ularga keladi. Admin hamma ochiq zanjirni ko'radi.
+
+def chain_actor_ids(request_obj, configuration, contract):
+    """Zanjirga QO'L TEKKIZGAN har bir odam (10-to'plam §5).
+
+    Hammasi mavjud maydonlardan yig'iladi — yangi model yo'q: egalari,
+    tarix yozuvlari (eventlar), tasdiqlar, to'lovlar, TLD bosqichlari.
+    Avtomatik yozuvlardagi `None` tashlanadi.
+    """
+    ids = set()
+    if request_obj is not None:
+        ids |= {request_obj.created_by_id, request_obj.taken_by_id}
+        ids |= set(request_obj.events.values_list('created_by_id', flat=True))
+    if configuration is not None:
+        ids.add(configuration.created_by_id)
+        ids |= set(configuration.approvals.values_list('decided_by_id', flat=True))
+        for replenishment in configuration.replenishments.all():
+            ids |= _replenishment_actor_ids(replenishment)
+    if contract is not None:
+        ids |= {contract.created_by_id, getattr(contract, 'delivered_by_id', None)}
+        ids |= set(contract.approvals.values_list('decided_by_id', flat=True))
+        ids |= set(contract.payments.values_list('created_by_id', flat=True))
+        for replenishment in contract.replenishments.all():
+            ids |= _replenishment_actor_ids(replenishment)
+    ids.discard(None)
+    return ids
+
+
+def _participates(user, request_obj, configuration, contract, current_role):
+    """Qatnashish ta'rifi (10-to'plam §5): tarix + hovuz.
+
+    Zanjir unga QO'L TEKKIZGAN har bir odamda ko'rinadi — o'sha paytdan
+    boshlab, ish yopilguncha (navbat o'tib ketsa ham). Hali hech kim
+    tegmagan bosqichda esa u navbatdagi rolning HOVUZIDA turadi: joriy
+    rol mos kelsa-yu, o'sha roldan allaqachon kimdir ishlagan bo'lsa —
+    ko'rinmaydi (yangi zayavkani hamma engineer ko'radi, olingandan
+    keyin faqat oluvchisi — shu qoidadan o'z-o'zidan kelib chiqadi).
+    Admin hammasini ko'radi.
     """
     if user.is_admin:
         return True
-    owner_ids = {
-        request_obj.created_by_id if request_obj else None,
-        request_obj.taken_by_id if request_obj else None,
-        configuration.created_by_id if configuration else None,
-        contract.created_by_id if contract else None,
-    }
-    if user.id in owner_ids:
+    actors = chain_actor_ids(request_obj, configuration, contract)
+    if user.id in actors:
         return True
     role_flags = {
         'admin': user.is_admin,
@@ -122,7 +155,15 @@ def _participates(user, request_obj, configuration, contract, current_role):
         'bugalter': user.is_bugalter,
         'buyurtmachi': user.is_supplier,
     }
-    return bool(current_role and role_flags.get(current_role))
+    if not (current_role and role_flags.get(current_role)):
+        return False
+    # Hovuz: joriy roldan hali HECH KIM ishlamagan bo'lsagina
+    from apps.accounts.models import User
+
+    actor_roles = set(
+        User.objects.filter(pk__in=actors).values_list('role', flat=True)
+    )
+    return current_role not in actor_roles
 
 
 def build_roadmap_list(user, state='open'):
@@ -136,22 +177,40 @@ def build_roadmap_list(user, state='open'):
     from apps.configurator.models import Configuration, ConfigurationRequest
     from apps.sales.models import Contract
 
-    # Har bir zanjir bitta ildizdan olinadi: ZVK; ZVK'siz CFG; yolg'iz SHT
+    # Har bir zanjir bitta ildizdan olinadi: ZVK; ZVK'siz CFG; yolg'iz SHT.
+    # 10-§5 (tezlik): ishtirokchi yig'ish qo'shimcha so'rov qilmasin deb
+    # kerakli bog'lanishlar prefetch bilan birga keladi
     roots = list(
         ConfigurationRequest.objects
         .select_related('client', 'configuration', 'created_by', 'taken_by')
+        .prefetch_related(
+            'events',
+            'configuration__approvals',
+            'configuration__replenishments__approvals',
+            'configuration__replenishments__events',
+            'configuration__contracts__approvals',
+            'configuration__contracts__payments',
+        )
         .order_by('-id')
     )
     roots += list(
         Configuration.objects
         .filter(requests__isnull=True)
         .select_related('client', 'created_by')
+        .prefetch_related(
+            'approvals', 'replenishments__approvals', 'replenishments__events',
+            'contracts__approvals', 'contracts__payments',
+        )
         .order_by('-id')
     )
     roots += list(
         Contract.objects
         .filter(configuration__isnull=True)
         .select_related('client', 'created_by')
+        .prefetch_related(
+            'approvals', 'payments',
+            'replenishments__approvals', 'replenishments__events',
+        )
         .order_by('-id')
     )
 
