@@ -97,9 +97,10 @@ class ConfigurationViewSet(BaseModelViewSet):
         return qs.none()
 
     # §11.1: finalize engineerda (ConfiguratorAccess); #4: texnik tasdiq
-    # (approve/reject) esa sales bosqichi; B12: bekor qilish — sales/admin
+    # (approve/reject) sales bosqichi; B12: bekor qilish — sales/admin;
+    # 6-to'plam §4: partiya sonini ham SALES belgilaydi (mijoz bilan kelishadi)
     def get_permissions(self):
-        if self.action in ('approve', 'reject', 'cancel'):
+        if self.action in ('approve', 'reject', 'cancel', 'change_quantity'):
             from apps.accounts.permissions import IsAdminOrSales
 
             return [IsAdminOrSales()]
@@ -518,11 +519,14 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
             self.request.user, (serializer.instance.text or '')[:200],
         )
 
-    # YANGI-OQIM B16: miqdor faqat ochiq holatlarda o'zgaradi va
-    # konfiguratsiya bilan SINXRON — ikki hujjatda ikki xil son qolmasin
+    # YANGI-OQIM B16 + 6-to'plam §4: miqdor ochiq holatlarda o'zgaradi va
+    # konfiguratsiya bilan SINXRON. `done` ham ochiq: chegara to'lovda,
+    # zayavka holatida emas — `change_quantity` ichida to'lov/TLD/yig'ish
+    # shartlari baribir tekshiriladi, `approved` esa sales ko'rigiga qaytadi
     QUANTITY_EDITABLE = (
         ConfigurationRequest.Status.NEW,
         ConfigurationRequest.Status.IN_PROGRESS,
+        ConfigurationRequest.Status.DONE,
     )
 
     def perform_update(self, serializer):

@@ -50,6 +50,15 @@ ROLE_LABELS = {
 # 13–16 qadamlar to'lovgacha qulflangan (B4)
 PAYMENT_GATED = {'procurement_sent', 'procurement_chain', 'assemble', 'finalize'}
 
+# 6-to'plam §1–2: SHARTLI qadamlar — zanjirda bor-yo'qligi ish borishiga
+# bog'liq. Ular `current` ni "birinchi bajarilmagan" qoidasi orqali OLMAYDI:
+# joriy bo'lishining yagona yo'li — haqiqatan boshlangan bo'lsa
+# (`current_override`: narx so'ralgan, TLD ochilgan). Shart aniq
+# bo'lmaydigan holatda `skipped` — front chizmaydi.
+OPTIONAL = {
+    'price_request', 'admin_approve', 'procurement_sent', 'procurement_chain',
+}
+
 
 def resolve_chain(document):
     """Kirish nuqtasidan butun zanjirni yig'adi: (ZVK, CFG, SHT)."""
@@ -224,13 +233,19 @@ def build_roadmap(document, user):
         configuration is not None
         and configuration.status in {'pending_sales'} | cfg_done_states
     )
+    # §1: so'ralmagan va narxsiz qator ham yo'q — bu qadam bu zanjirda
+    # ANIQ bo'lmaydi; so'ralmasdan o'tib ketilgan bo'lsa ham skipped
+    has_priceless = bool(configuration and configuration.items_without_price)
     data['price_request'] = dict(
         done=bool(price_given),
         at=price_given[-1].created_at if price_given else None,
         who=price_given[-1].created_by if price_given else None,
         doc=('configuration', configuration),
         repeats=max(len(price_asked) - 1, 0),
-        skipped=not price_asked and price_done,
+        skipped=not price_asked and (
+            price_done
+            or (configuration is not None and not has_priceless)
+        ),
         current_override=bool(price_asked and not price_given),
     )
     submitted_done = configuration is not None and (
@@ -295,6 +310,12 @@ def build_roadmap(document, user):
         admin_done and not admin_rows
         and any(a.decided_by_id is None for a in admin_auto)
     )
+    # §2: summa ma'lum bo'lishi bilan qadam taqdiri ham ma'lum — chegaradan
+    # past shartnomada admin bosqichi ANIQ bo'lmaydi (oldindan skipped)
+    if contract is not None and not admin_done and not admin_skipped:
+        from apps.sales.services import _admin_threshold_skip
+
+        admin_skipped = _admin_threshold_skip(contract)
     data['admin_approve'] = dict(
         done=admin_done and not admin_skipped,
         at=admin_rows[-1].created_at if admin_rows else None,
@@ -317,12 +338,18 @@ def build_roadmap(document, user):
         doc=('contract', contract),
     )
     assembled = bool(configuration and configuration.assembled_at)
+    # §2: TLD ochilmagan bo'lsa qadam taqdiri `missing` dan ma'lum —
+    # yetishmovchilik yo'q (yoki allaqachon yig'ilgan) bo'lsa ANIQ bo'lmaydi
+    procurement_skipped = not tld_needed and (
+        assembled
+        or (configuration is not None and not configuration.missing_items)
+    )
     data['procurement_sent'] = dict(
         done=tld_needed,
         at=replenishment.created_at if replenishment else None,
         who=replenishment.created_by if replenishment else None,
         doc=('replenishment', replenishment),
-        skipped=not tld_needed and assembled,  # hammasi omborda bor edi
+        skipped=procurement_skipped,
     )
     tld_delivered = bool(
         replenishment and replenishment.status == Replenishment.Status.DELIVERED
@@ -332,7 +359,9 @@ def build_roadmap(document, user):
         at=replenishment.delivered_at if tld_delivered else None,
         who=None,
         doc=('replenishment', replenishment),
-        skipped=not tld_needed and assembled,
+        skipped=procurement_skipped,
+        # TLD ochiq — ish haqiqatan buyurtmachida ketmoqda: joriy shu yerda
+        current_override=bool(replenishment and not tld_delivered),
     )
     data['assemble'] = dict(
         done=assembled,
@@ -361,15 +390,21 @@ def build_roadmap(document, user):
         doc=('contract', contract),
     )
 
-    # ---- joriy qadam va holatlar
+    # ---- joriy qadam va holatlar (§1/§3)
+    # Tartib muhim: override birinchi (boshlangan ish doim g'olib — §3:
+    # current_key hech qachon skipped qadamga ishora qilmasin), keyin
+    # skipped o'tkaziladi, shartli (OPTIONAL) qadamlar esa "birinchi
+    # bajarilmagan" qoidasidan chetda — ular ish emas, imkoniyat.
     current_key = None
     for key, _, _ in STEPS:
         row = data[key]
-        if row.get('skipped'):
-            continue
-        if row.get('current_override'):
+        if row.get('current_override') and not row.get('skipped'):
             current_key = key
             break
+        if row.get('skipped'):
+            continue
+        if key in OPTIONAL:
+            continue
         if not row['done']:
             current_key = key
             break
@@ -420,6 +455,9 @@ def build_roadmap(document, user):
             'label': label,
             'state': state,
             'tone': tone,
+            # §2: shartli qadam — front `skipped` ni chizmaydi, `pending`
+            # bo'lsa xiraroq chizadi (bo'lishi mumkin, hali noma'lum)
+            'optional': key in OPTIONAL,
             'actor': _actor(actor_user, default_role),
             'at': row.get('at'),
             'waiting_days': waiting_days if tone == 'danger' else None,

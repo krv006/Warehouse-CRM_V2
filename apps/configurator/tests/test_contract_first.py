@@ -111,7 +111,8 @@ class ContractFirstTests(APITestCase):
         configuration = self._take_config()
         self._approve(configuration)
         # change-quantity approved'ni pending_sales'ga qaytaradi — aylanma davom
-        self.client.force_authenticate(self.engineer)
+        # (6-to'plam §4: sonni sales belgilaydi)
+        self.client.force_authenticate(self.sales)
         self.client.post(
             f'/api/configurations/{configuration.id}/change-quantity/',
             {'quantity': 3, 'comment': 'Mijoz sonni oshirdi'}, format='json',

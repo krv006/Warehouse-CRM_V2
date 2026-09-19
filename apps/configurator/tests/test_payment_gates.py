@@ -108,6 +108,7 @@ class PaymentGateTests(APITestCase):
         """B13: to'lovdan keyin partiya o'zgarmaydi — hech qanday yo'l bilan."""
         configuration, contract = self._approved()
         self._activate(contract)
+        self.client.force_authenticate(self.sales)  # §4: sonni sales belgilaydi
         response = self.client.post(
             f'/api/configurations/{configuration.id}/change-quantity/',
             {'quantity': 100, 'comment': 'Mijoz oshirdi'}, format='json',
@@ -135,6 +136,7 @@ class PaymentGateTests(APITestCase):
     def test_change_quantity_updates_draft_contract(self):
         """B13/B1: pul kelmagan draft shartnoma songa ergashadi — jami qayta yig'iladi."""
         configuration, contract = self._approved(quantity=2)
+        self.client.force_authenticate(self.sales)  # §4: sonni sales belgilaydi
         self.client.post(
             f'/api/configurations/{configuration.id}/change-quantity/',
             {'quantity': 4, 'comment': 'Mijoz oshirdi'}, format='json',
@@ -163,11 +165,34 @@ class PaymentGateTests(APITestCase):
         )
         self.assertEqual(reservation.quantity, Decimal('5'))
 
-    def test_request_quantity_locked_after_done(self):
-        """B16: yopiq holatdagi zayavkada miqdor o'zgarmaydi — 400."""
+    def test_request_quantity_editable_after_done(self):
+        """6-to'plam §4: `done` da ham son o'zgaradi — chegara to'lovda.
+
+        `approved` dagi o'zgarish yechimni sales ko'rigiga qaytaradi —
+        mijoz qayta rozilik beradi.
+        """
         configuration, contract = self._approved()
         request_obj = configuration.requests.get()
         self.assertEqual(request_obj.status, ConfigurationRequest.Status.DONE)
+        self.client.force_authenticate(self.sales)
+        response = self.client.patch(
+            f'/api/configuration-requests/{request_obj.id}/',
+            {'quantity': 9}, format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        configuration.refresh_from_db()
+        request_obj.refresh_from_db()
+        self.assertEqual(configuration.quantity, 9)
+        self.assertEqual(request_obj.quantity, 9)
+        self.assertEqual(configuration.status, Configuration.Status.PENDING_SALES)
+
+    def test_request_quantity_locked_when_archived(self):
+        """B16: yopiq (arxiv/bekor) zayavkada miqdor o'zgarmaydi — 400."""
+        configuration, contract = self._approved()
+        request_obj = configuration.requests.get()
+        ConfigurationRequest.objects.filter(pk=request_obj.pk).update(
+            status=ConfigurationRequest.Status.ARCHIVED,
+        )
         self.client.force_authenticate(self.sales)
         response = self.client.patch(
             f'/api/configuration-requests/{request_obj.id}/',

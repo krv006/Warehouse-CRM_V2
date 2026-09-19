@@ -1327,6 +1327,33 @@ yopildi — front ishlari (F1–F11) endi boshlanishi mumkin.
 
 ---
 
+## 8.44 6-to'plam: shartli roadmap qadamlari + son sales'da 🎯
+
+6-to'plam (§1–§4).
+
+- **§1/§2 — shartli qadamlar**: `price_request` chernovikda noto'g'ri
+  `current` bo'lib turardi (narx so'ralmagan bo'lsa ham). Endi to'rt
+  shartli qadam (`price_request`, `admin_approve`, `procurement_sent`,
+  `procurement_chain`) `optional: true` bilan keladi va `current`ni
+  faqat ish haqiqatan boshlanganda oladi (narx so'ralgan — kutilmoqda;
+  TLD ochiq — buyurtmachida). Shart aniq bo'lmasa `skipped`: narxsiz
+  qator yo'q, `missing` bo'sh (yoki yig'ilgan), summa chegaradan past —
+  admin qadami endi shartnoma ochilishi bilanoq skipped;
+- **§3**: joriy qadam tanlashda override birinchi tekshiriladi —
+  `current_key` hech qachon skipped qadamga ishora qilmaydi;
+- **§2.1** — rol linzasi frontda hal qilindi (backend javobi bitta,
+  o'zgarmaydi);
+- **§4 — sonni sales belgilaydi**: `change-quantity` endi **sales**
+  (admin) uchun — engineer 403 (rol taqsimoti teskari edi); ZVK orqali
+  yo'l ham ochiq va `done` holatda ham ishlaydi (`QUANTITY_EDITABLE` +
+  DONE) — chegara to'lovda: `approved`dagi o'zgarish yechimni sales
+  ko'rigiga qaytaradi, to'lovdan keyin baribir 400 (B13).
+
+Testlar: test_roadmap.py +4 (11), payment_gates/change_quantity
+yangilandi.
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

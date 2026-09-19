@@ -409,9 +409,13 @@ mol` (avval `CFG → mol → SHT → pul` edi):
    shartnoma va qatorlari (admin ham!), partiya soni (`change-quantity`),
    zayavka miqdori — hammasi qulflanadi. Ochiq qoladigani: ACT, yig'ish,
    TLD — ish aynan shulardan boshlanadi.
-8. **Zayavka miqdori sinxron** (B16): ZVK `quantity` faqat ochiq
-   holatlarda o'zgaradi va o'zgarishi `change_quantity` orqali o'tadi —
-   konfiguratsiya, bron va (pul kelmagan) shartnoma birga yangilanadi.
+8. **Zayavka miqdori sinxron** (B16 + 6-to'plam §4): sonni **sales**
+   belgilaydi — u mijoz bilan kelishadi (engineer tarkib bilan ishlaydi,
+   son bilan emas). ZVK `quantity` `new`/`in_progress`/`done` da
+   o'zgaradi (chegara to'lovda, zayavka holatida emas) va o'zgarishi
+   `change_quantity` orqali o'tadi — konfiguratsiya, bron va (pul
+   kelmagan) shartnoma birga yangilanadi; `approved` sales ko'rigiga
+   qaytadi.
 9. **Aylanma (B15)**: engineer zayavkani izoh bilan qaytara oladi
    (`reject`, izoh majburiy) — `returned` faqat sales'da turadi, hovuzga
    tushmaydi; sales tuzatib `resend` qiladi. Ishga olingan zayavka

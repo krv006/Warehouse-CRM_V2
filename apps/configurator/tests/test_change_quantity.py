@@ -68,6 +68,8 @@ class ChangeQuantityTests(APITestCase):
         return configuration
 
     def _change(self, configuration, quantity, comment='Mijoz sonni o\'zgartirdi'):
+        # 6-to'plam §4: sonni SALES belgilaydi — u mijoz bilan kelishadi
+        self.client.force_authenticate(self.sales)
         return self.client.post(
             f'/api/configurations/{configuration.id}/change-quantity/',
             {'quantity': quantity, 'comment': comment}, format='json',
@@ -144,12 +146,15 @@ class ChangeQuantityTests(APITestCase):
         note = Notification.objects.get(user=supplier)
         self.assertIn(replenishment.number, note.title)
 
-    def test_sales_cannot_change(self):
-        """Sales so'raydi, engineer yozadi (§3.4 egalik) — sales'ga 403."""
+    def test_engineer_cannot_change(self):
+        """6-to'plam §4: sonni sales belgilaydi — engineer'ga 403."""
         self._stock_in(self.ram, 150)
         configuration = self._approved_config()
-        self.client.force_authenticate(self.sales)
-        response = self._change(configuration, 100)
+        self.client.force_authenticate(self.engineer)
+        response = self.client.post(
+            f'/api/configurations/{configuration.id}/change-quantity/',
+            {'quantity': 100, 'comment': 'x'}, format='json',
+        )
         self.assertEqual(response.status_code, 403)
 
     def test_invalid_quantity_rejected(self):

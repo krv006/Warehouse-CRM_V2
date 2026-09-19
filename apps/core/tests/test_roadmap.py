@@ -173,6 +173,106 @@ class RoadmapTests(APITestCase):
         self.assertEqual(steps['sales_review']['repeats'], 1)
         self.assertEqual(steps['sales_review']['state'], 'done')
 
+    def _draft_chain(self):
+        """ZVK -> take: chernovik, hamma qator narxli."""
+        self.client.force_authenticate(self.sales)
+        request_id = self.client.post('/api/configuration-requests/', {
+            'text': 'HP 880', 'base_product': self.base.id,
+            'client': self.mijoz.id, 'quantity': 2,
+        }, format='json').data['id']
+        self.client.force_authenticate(self.engineer)
+        take = self.client.post(f'/api/configuration-requests/{request_id}/take/')
+        return request_id, Configuration.objects.get(pk=take.data['configuration'])
+
+    def test_draft_current_is_submitted_not_price(self):
+        """6-to'plam §1: narx so'ralmagan chernovikda joriy qadam — submitted."""
+        request_id, configuration = self._draft_chain()
+        response = self.client.get(
+            f'/api/configuration-requests/{request_id}/roadmap/',
+        )
+        self.assertEqual(response.data['current_key'], 'submitted')
+        steps = {s['key']: s for s in response.data['steps']}
+        # Narxsiz qator yo'q — qadam bu zanjirda ANIQ bo'lmaydi (§2)
+        self.assertEqual(steps['price_request']['state'], 'skipped')
+        self.assertTrue(steps['price_request']['optional'])
+        # §3: current_key doim javobdagi qadamlardan biri
+        self.assertIn(response.data['current_key'], steps)
+
+    def test_price_step_pending_then_current_when_asked(self):
+        """§2: narxsiz qator bor — pending (xira); so'ralgach — current."""
+        request_id, configuration = self._draft_chain()
+        no_price = Product.objects.create(
+            sku='CBL-X', name='Kabel X', kind=Product.Kind.COMPONENT,
+        )
+        from apps.configurator.models import ConfigurationItem
+
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=no_price, label='K', quantity=1,
+        )
+        response = self.client.get(
+            f'/api/configuration-requests/{request_id}/roadmap/',
+        )
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['price_request']['state'], 'pending')
+        self.assertEqual(response.data['current_key'], 'submitted')
+
+        self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
+        response = self.client.get(
+            f'/api/configuration-requests/{request_id}/roadmap/',
+        )
+        self.assertEqual(response.data['current_key'], 'price_request')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['price_request']['state'], 'current')
+
+    def test_procurement_steps_follow_missing(self):
+        """§2: yetishmovchilik yo'q — skipped; TLD ochiq — chain current."""
+        request_obj, configuration, contract = self._to_waiting_payment()
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(
+            f'/api/configurations/{configuration.id}/roadmap/',
+        )
+        steps = {s['key']: s for s in response.data['steps']}
+        # RAM omborda yetarli — ta'minot qadamlari aniq bo'lmaydi
+        self.assertEqual(steps['procurement_sent']['state'], 'skipped')
+        self.assertEqual(steps['procurement_chain']['state'], 'skipped')
+
+        # Pul keldi, TLD ochildi — ish haqiqatan buyurtmachida
+        Contract.objects.filter(pk=contract.pk).update(
+            status=Contract.Status.ACTIVE,
+        )
+        from apps.procurement.models import Replenishment
+
+        Replenishment.objects.create(
+            warehouse=self.warehouse, configuration=configuration,
+            status=Replenishment.Status.PENDING_BUGALTER, created_by=self.engineer,
+        )
+        response = self.client.get(
+            f'/api/configurations/{configuration.id}/roadmap/',
+        )
+        self.assertEqual(response.data['current_key'], 'procurement_chain')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['procurement_sent']['state'], 'done')
+        self.assertEqual(steps['procurement_chain']['state'], 'current')
+
+    def test_admin_step_skipped_early_below_threshold(self):
+        """§2: summa ma'lum bo'lishi bilan admin qadami taqdiri ham ma'lum."""
+        from apps.core.models import CompanyProfile
+
+        profile = CompanyProfile.load()
+        profile.admin_approval_threshold = Decimal('999999999999')
+        profile.save()
+        request_id, configuration = self._draft_chain()
+        self.client.post(f'/api/configurations/{configuration.id}/submit/')
+        self.client.force_authenticate(self.sales)
+        self.client.post(f'/api/configurations/{configuration.id}/approve/')
+
+        response = self.client.get(
+            f'/api/configuration-requests/{request_id}/roadmap/',
+        )
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['admin_approve']['state'], 'skipped')
+        self.assertTrue(steps['admin_approve']['optional'])
+
     def test_cancelled_chain_marks_stop_point(self):
         request_obj, configuration, contract = self._to_waiting_payment()
         self.client.force_authenticate(self.sales)

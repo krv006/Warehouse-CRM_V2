@@ -407,12 +407,12 @@ def change_quantity(configuration, user, *, quantity, comment='', via_request=Fa
     from apps.inventory.services import sync_configuration_reservations
     from apps.procurement.models import Replenishment
 
-    # B16: zayavka orqali kelganda rol tekshiruvi zayavkaning o'zida bo'lgan
-    # (sales o'z ZVK'sida, engineer — write_roles); to'g'ridan-to'g'ri
-    # konfiguratsiyada esa faqat engineer (hujjat egasi) va admin
-    if not via_request and not (user.is_admin or user.is_engineer):
+    # 6-to'plam §4: sonni BELGILAYDIGAN odam — sales (u mijoz bilan
+    # kelishadi); engineer tarkib bilan ishlaydi, son bilan emas.
+    # Zayavka orqali kelganda rol tekshiruvi zayavkaning o'zida bo'lgan.
+    if not via_request and not (user.is_admin or user.is_sales):
         raise PermissionDenied(
-            "Partiyani engineer (yoki admin) o'zgartiradi — sales so'raydi.",
+            'Partiyani sales belgilaydi — u mijoz bilan kelishadi.',
         )
 
     try:

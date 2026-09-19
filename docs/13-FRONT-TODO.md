@@ -761,6 +761,10 @@ bilib turish uchun:
   qisqarmaydi (18 qadam), havola faqat `can_open: true` da, pul yo'q.
   Ranglar: success/warning/danger/muted + `cancelled` (chizilgan matn, ✕);
   faqat joriy qadam fon oladi; `blocked` kulrang (qulf nishoni bilan);
+- 6-to'plam: roadmap qadamlarida `optional` maydoni — `skipped` chizilmaydi,
+  `optional+pending` xira chiziladi; miqdor oynasi endi to'g'ridan-to'g'ri
+  `POST /configurations/{id}/change-quantity/` ga o'tadi (sales uchun ochiq,
+  `done` zayavkada ham ishlaydi — ZVK orqali yuborish shart emas);
 - BACKEND B1–B17 TO'LIQ TAYYOR — F1–F11 ishlarini boshlash mumkin
   (tartib: F1·F2·F6·F10 → F3·F9·F11 → F4·F5·F7·F8).
 

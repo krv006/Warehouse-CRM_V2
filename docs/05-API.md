@@ -247,7 +247,7 @@ keyin kelgani keyingi ish kuni oxirigacha (`/company/` da `sla_cutoff_hour`,
 | POST | `/configurations/{id}/assemble/` | #4/§10.1: yig'ish — faqat `approved` yechim; **B4: shartnoma `active`/`completed` bo'lishi shart** (400: "Boshlang'ich to'lov kutilmoqda — SHT-…"; rad etilgan/bekor qilinganida boshqa matn); build: butlovchilar chiqadi, variant kiradi; modify: tayyor mahsulot fizik o'zgartiriladi (tana: `{"removals": {...}}`); yetmasa 400 (nomlar bilan) — mol TLD orqali kelgach qayta bosiladi; javobda `act_suggestion` (#4D) |
 | POST | `/configurations/{id}/request-prices/` | YANGI-OQIM B2: narx so'rovi — **TLD emas**, buyurtmachi tannarxni mahsulot kartasida kiritib beradi; takrorida eslatma yangilanadi (dublikat yo'q); narx kelgach **sales** "mijoz bilan kelishing" xabarini oladi; hammasi narxli bo'lsa 400 |
 | POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan TLD ochadi; #4: faqat `approved` konfiguratsiyada; **B4: faqat to'langan zanjirda** (shartnoma `active`) — mol pulga bog'lanadi; hammasi omborda bo'lsa 400; ochiq TLD bor bo'lsa ham 400 |
-| POST | `/configurations/{id}/change-quantity/` | 4-to'plam §2: partiya sonini o'zgartirish — **engineer** (admin), tana `{"quantity": 100, "comment": "..."}`; `draft`/`pending_sales`/`approved` da; bron qayta hisoblanadi, zayavka soni ergashadi, `approved` bo'lsa **`pending_sales`ga qaytadi** (narx-muddat qayta kelishiladi); yig'ilgan (`assembled_at`) yoki chernovikdan o'tgan ochiq TLD bo'lsa 400 (TLD raqami bilan); chernovik TLD to'smaydi; **B13: to'lov kelgach 400 — hech narsa o'zgarmaydi**; pul kelmagan draft SHT esa songa ergashadi (qator miqdori va jami qayta yig'iladi) |
+| POST | `/configurations/{id}/change-quantity/` | 4-to'plam §2 + 6-to'plam §4: partiya sonini o'zgartirish — **sales** (admin; u mijoz bilan kelishadi, engineer emas), tana `{"quantity": 100, "comment": "..."}`; `draft`/`pending_sales`/`approved` da; bron qayta hisoblanadi, zayavka soni ergashadi, `approved` bo'lsa **`pending_sales`ga qaytadi** (narx-muddat qayta kelishiladi); yig'ilgan (`assembled_at`) yoki chernovikdan o'tgan ochiq TLD bo'lsa 400 (TLD raqami bilan); chernovik TLD to'smaydi; **B13: to'lov kelgach 400 — hech narsa o'zgarmaydi**; pul kelmagan draft SHT esa songa ergashadi (qator miqdori va jami qayta yig'iladi) |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
 | GET/POST | `/configuration-items/` | qatorni alohida qo'shish — `configuration` majburiy, faqat `draft`; bazada yo'q tovar uchun `new_component_name` |
 | GET/PUT/PATCH/DELETE | `/configuration-items/{id}/` | filtr: `configuration`, `component`; faqat `draft` da o'zgaradi |
@@ -339,7 +339,14 @@ GET /api/configuration-requests/12/roadmap/
 }
 ```
 `state`: `done` / `current` / `pending` / `blocked` (13–16 to'lovgacha) /
-`skipped` (chegara tufayli admin, Didox'siz eski yo'l) / `cancelled`.
+`skipped` / `cancelled`. **`optional` (6-to'plam §1–2)** — shartli qadamlar
+(`price_request`, `admin_approve`, `procurement_sent`, `procurement_chain`):
+ular `current`ni "birinchi bajarilmagan" qoidasi orqali OLMAYDI — joriy
+bo'lishining yagona yo'li ish haqiqatan boshlangani (narx so'ralgan, TLD
+ochilgan). Shart aniq bo'lmasa (`narxsiz qator yo'q`, `missing` bo'sh,
+summa chegaradan past) — `skipped`, front chizmaydi; hali noma'lum bo'lsa —
+`optional: true` + `pending`, front xiraroq chizadi. `current_key` doim
+javobdagi qadamlardan biriga ishora qiladi (§3).
 `tone`: `success` / `warning` / `danger` (SLA — mavjud `sla_deadline`dan) /
 `muted` / `cancelled` (qizil + chizilgan matn — `danger` bilan
 adashtirilmasin). `steps` doim 18 ta va tartibda; `repeats` — aylanma
