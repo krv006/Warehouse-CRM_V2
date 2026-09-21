@@ -78,8 +78,11 @@ def _contract_sources(user):
         reasons = {Contract.Status.PENDING_ADMIN: ('awaiting_admin_approve', 'warning')}
     elif user.is_bugalter:
         reasons = {
-            # B3: bugalter ko'rib Didoxga yuboradi — endi bu alohida qadam
-            Contract.Status.PENDING_BUGALTER: ('send_to_didox', 'warning'),
+            # 12-§1: sales -> bugalter -> admin -> Didox. Bugalter avval
+            # TEKSHIRADI (tasdiqlaydi), Didoxga esa admin ruxsatidan keyin
+            # (ready_for_didox) yuboradi — ikkisi endi alohida qadam
+            Contract.Status.PENDING_BUGALTER: ('review_contract', 'warning'),
+            Contract.Status.READY_FOR_DIDOX: ('send_to_didox', 'warning'),
             # Mijoz imzosi kutilmoqda — tashqi kutish, shoshilinch emas (info)
             Contract.Status.PENDING_DIDOX: ('didox_confirm', 'info'),
             Contract.Status.APPROVED: ('awaiting_payment', 'warning'),
@@ -132,6 +135,19 @@ def _lead_source(user):
 def _request_source(user):
     from apps.configurator.models import ConfigurationRequest as Request
 
+    if user.is_sales:
+        # 12-§4: engineer qaytargan zayavka endi sales'niki — tuzatib qayta
+        # yuboradi. `new`/`in_progress` uning ishi emas (navbat shovqinga
+        # to'lardi), faqat o'ziga qaytganlar
+        qs = Request.objects.filter(created_by=user, status=Request.Status.RETURNED)
+        return {
+            'section': 'requests',
+            'entity': 'ConfigurationRequest',
+            'queryset': qs,
+            'row': lambda obj: (
+                'ZVK', obj.number, ('fix_and_resubmit', 'danger'), None, None,
+            ),
+        }
     if not user.is_engineer and not user.is_admin:
         return None
     if user.is_admin:

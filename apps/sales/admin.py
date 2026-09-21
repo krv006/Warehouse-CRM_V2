@@ -5,6 +5,8 @@ from apps.sales.models import (
     ContractItem,
     ContractApproval,
     ContractPayment,
+    ContractDocument,
+    ContractDocumentVersion,
     Lead,
 )
 
@@ -36,3 +38,14 @@ class ContractAdmin(ModelAdmin):
 class LeadAdmin(ModelAdmin):
     list_display = ['title', 'client', 'stage', 'expected_amount', 'next_contact_at']
     list_filter = ['stage']
+
+
+class ContractDocumentVersionInline(TabularInline):
+    model = ContractDocumentVersion
+    extra = 0
+
+
+@register(ContractDocument)
+class ContractDocumentAdmin(ModelAdmin):
+    list_display = ['contract', 'updated_by', 'updated_at']
+    inlines = [ContractDocumentVersionInline]

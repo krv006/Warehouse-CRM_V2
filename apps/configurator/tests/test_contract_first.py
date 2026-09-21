@@ -239,13 +239,16 @@ class ContractFirstTests(APITestCase):
         contract = Contract.objects.get()
         self.client.force_authenticate(self.sales)
         self.client.post(f'/api/contracts/{contract.id}/submit/')
+        # 12-§1: sales -> bugalter -> admin -> Didox -> to'lov
         self.client.force_authenticate(self.bugalter)
-        self.client.post(f'/api/contracts/{contract.id}/approve/', {
-            'didox_number': 'DDX-77',
-        }, format='json')
+        self.client.post(f'/api/contracts/{contract.id}/approve/')
         self.client.force_authenticate(self.admin)
         self.client.post(f'/api/contracts/{contract.id}/approve/')
         self.client.force_authenticate(self.bugalter)
+        self.client.post(f'/api/contracts/{contract.id}/send-didox/', {
+            'didox_number': 'DDX-77',
+        }, format='json')
+        self.client.post(f'/api/contracts/{contract.id}/confirm-didox/')
         response = self.client.post(f'/api/contracts/{contract.id}/confirm-payment/')
         self.assertEqual(response.status_code, 200, response.data)
 

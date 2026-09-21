@@ -15,6 +15,8 @@ from apps.sales.serializers import (
     ContractItemSerializer,
     ContractApprovalSerializer,
     ContractPaymentSerializer,
+    ContractDocumentSerializer,
+    ContractDocumentVersionSerializer,
     LeadSerializer,
 )
 from apps.sales.services import (
@@ -31,6 +33,9 @@ from apps.sales.services import (
 # Bu amallarni bugalter (va admin) bajaradi, sales emas
 BUGALTER_ACTIONS = {
     'approve', 'reject', 'confirm_payment', 'send_didox', 'confirm_didox',
+    # 13-§1: hujjat matnini tahrirlash — hozircha FAQAT bugalter (view metodi
+    # ichida admin ham qaytarib yuboriladi — talab shunday, "hozircha")
+    'document_update', 'document_upload',
 }
 # 11-§3: yetkazishni shartnoma egasi sales bosadi — buyurtmachi/bugalter emas
 SHIP_ACTIONS = {'ship'}
@@ -133,14 +138,13 @@ class ContractViewSet(BaseModelViewSet):
         return Response(self.get_serializer(contract).data)
 
     def approve(self, request, pk=None):
-        """POST /contracts/{id}/approve/ — avval bugalter (Didox qabuli), keyin admin.
+        """POST /contracts/{id}/approve/ — bugalter, keyin admin (12-§1: Didoxdan OLDIN).
 
-        Bugalter bosqichida tanada `didox_number` yuborilsa saqlanadi (§11.2);
-        summa chegaradan kichik bo'lsa admin bosqichi o'tkazib yuboriladi (§11.3).
+        Summa chegaradan kichik bo'lsa admin bosqichi o'tkazib yuboriladi
+        (§11.3) — ikkala holatda ham Didox hali oldinda (`ready_for_didox`).
         """
         contract = approve_contract(
             self.get_object(), request.user, request.data.get('comment', ''),
-            didox_number=str(request.data.get('didox_number', '') or ''),
         )
         self.log_action(ActivityLog.Action.APPROVE, contract, contract.get_status_display())
         return Response(self.get_serializer(contract).data)
@@ -318,6 +322,81 @@ class ContractViewSet(BaseModelViewSet):
             'terms': company.contract_terms,
             'note': contract.note,
         })
+
+    def document(self, request, pk=None):
+        """GET /contracts/{id}/document/ — hujjat matni (13-§1).
+
+        O'qish: bugalter, admin, sales (egasi — `get_object` allaqachon
+        egalik bilan cheklaydi). Engineer va buyurtmachiga umuman yopiq.
+        """
+        from rest_framework.exceptions import PermissionDenied
+
+        from apps.sales.services import get_or_create_contract_document
+
+        user = request.user
+        if not (user.is_admin or user.is_bugalter or user.is_sales):
+            raise PermissionDenied('Hujjat matni sizga ochiq emas.')
+        contract = self.get_object()
+        document = get_or_create_contract_document(contract)
+        return Response(
+            ContractDocumentSerializer(document, context={'request': request}).data,
+        )
+
+    def document_update(self, request, pk=None):
+        """PUT /contracts/{id}/document/ — matnni saqlash (13-§1).
+
+        Tahrir hozircha FAQAT bugalterda (admin ham yo'q) — talab shunday.
+        """
+        from rest_framework.exceptions import PermissionDenied
+
+        from apps.sales.services import save_contract_document
+
+        if not request.user.is_bugalter:
+            raise PermissionDenied("Hujjat matnini hozircha faqat bugalter tahrirlaydi.")
+        contract = self.get_object()
+        document = save_contract_document(
+            contract, request.user, request.data.get('body', ''),
+        )
+        self.log_action(
+            ActivityLog.Action.UPDATE, contract, f'{contract.number}: hujjat matni saqlandi',
+        )
+        return Response(
+            ContractDocumentSerializer(document, context={'request': request}).data,
+        )
+
+    def document_upload(self, request, pk=None):
+        """POST /contracts/{id}/document/upload/ — `.docx` yuklash (13-§1 bosqich 3)."""
+        from rest_framework.exceptions import PermissionDenied, ValidationError
+
+        from apps.sales.services import upload_contract_document
+
+        if not request.user.is_bugalter:
+            raise PermissionDenied("Hujjat matnini hozircha faqat bugalter tahrirlaydi.")
+        file = request.FILES.get('file')
+        if not file:
+            raise ValidationError({'file': 'Fayl yuborilmadi.'})
+        contract = self.get_object()
+        document = upload_contract_document(contract, request.user, file)
+        self.log_action(
+            ActivityLog.Action.UPDATE, contract, f'{contract.number}: hujjat .docx dan yuklandi',
+        )
+        return Response(
+            ContractDocumentSerializer(document, context={'request': request}).data,
+        )
+
+    def document_versions(self, request, pk=None):
+        """GET /contracts/{id}/document/versions/ — tarix (13-§1)."""
+        from rest_framework.exceptions import PermissionDenied
+
+        from apps.sales.services import get_or_create_contract_document
+
+        user = request.user
+        if not (user.is_admin or user.is_bugalter or user.is_sales):
+            raise PermissionDenied('Hujjat matni sizga ochiq emas.')
+        contract = self.get_object()
+        document = get_or_create_contract_document(contract)
+        versions = document.versions.select_related('created_by').order_by('-created_at')
+        return Response(ContractDocumentVersionSerializer(versions, many=True).data)
 
     def timeline(self, request, pk=None):
         """GET /contracts/{id}/timeline/ — line chart uchun kunlar va ranglar."""

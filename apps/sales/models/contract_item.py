@@ -1,6 +1,7 @@
 from django.db.models import (
     CASCADE,
     PROTECT,
+    SET_NULL,
     DecimalField,
     ForeignKey,
     PositiveIntegerField,
@@ -19,6 +20,12 @@ class ContractItem(TimeStampedModel):
 
     contract = ForeignKey('sales.Contract', CASCADE, related_name='items')
     product = ForeignKey('inventory.Product', PROTECT, related_name='contract_items')
+    # 12-§2 (C): bitta shartnomada bir nechta model bo'lishi mumkin — qator
+    # aynan qaysi konfiguratsiyadan kelganini biladi (savdo bitta, model N ta)
+    configuration = ForeignKey(
+        'configurator.Configuration', SET_NULL, related_name='contract_items',
+        null=True, blank=True,
+    )
     quantity = PositiveIntegerField(default=1)
     unit_price = DecimalField(max_digits=18, decimal_places=2)
     vat_percent = DecimalField(

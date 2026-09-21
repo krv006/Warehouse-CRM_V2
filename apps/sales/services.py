@@ -87,6 +87,8 @@ def create_contract_from_configuration(configuration, user, client=None):
         # #3: partiya — mijoz nechta so'ragan bo'lsa shuncha; narx bitta donaga
         quantity=configuration.quantity,
         unit_price=configuration.total_price,
+        # 12-§2 (C): qator aynan shu modeldan kelgani belgilanadi
+        configuration=configuration,
     )
     contract.total_amount = contract.items_total_with_vat
     contract.prepayment_percent = None
@@ -109,15 +111,25 @@ def create_contract_from_configuration(configuration, user, client=None):
 def archive_completed_chain(contract):
     """SHT yakunlandi — zayavka endi arxivga o'tadi (B7, §3.5).
 
-    Zanjir 18-qadamda tugaydi; ungacha ZVK ro'yxatlarda ko'rinib, roadmap
-    umurtqasi bo'lib turadi.
+    Zanjir 19-qadamda tugaydi; ungacha ZVK ro'yxatlarda ko'rinib, roadmap
+    umurtqasi bo'lib turadi. 12-§2 (C): bitta shartnomada bir nechta model
+    bo'lishi mumkin — HAMMASINING zayavkasi arxivlanadi, faqat birinchisiniki
+    emas (`contract.configuration` — zanjirning birinchi modeli).
     """
     from apps.configurator.models import ConfigurationRequest
 
-    if contract.status != Contract.Status.COMPLETED or not contract.configuration_id:
+    if contract.status != Contract.Status.COMPLETED:
         return
-    contract.configuration.requests.filter(
-        status=ConfigurationRequest.Status.DONE,
+    config_ids = set(
+        contract.items.exclude(configuration__isnull=True)
+        .values_list('configuration_id', flat=True)
+    )
+    if contract.configuration_id:
+        config_ids.add(contract.configuration_id)
+    if not config_ids:
+        return
+    ConfigurationRequest.objects.filter(
+        configuration_id__in=config_ids, status=ConfigurationRequest.Status.DONE,
     ).update(status=ConfigurationRequest.Status.ARCHIVED)
 
 
@@ -202,32 +214,36 @@ def _admin_threshold_skip(contract):
 
 
 @atomic
-def approve_contract(contract, user, comment='', didox_number=''):
-    """Bugalter (Didox qabuli) -> admin zanjiri bo'yicha tasdiqlash.
+def approve_contract(contract, user, comment=''):
+    """Bugalter -> admin zanjiri bo'yicha tasdiqlash — Didoxdan OLDIN (12-§1).
 
-    §11.2: bugalter bosqichi — "Didoxdan qabul qildim va tanishdim":
-    `didox_number` shu yerda saqlanadi. §11.3: summa chegaradan kichik bo'lsa
-    admin bosqichi o'tkazib yuboriladi (tarixda avtomatik yozuv qoladi).
+    Admin tasdig'i — RUXSAT, shuning uchun ishdan (Didoxga yuborishdan)
+    oldin so'raladi: sales -> bugalter -> admin -> Didox -> to'lov.
+    §11.3: summa chegaradan kichik bo'lsa admin bosqichi o'tkazib yuboriladi
+    (tarixda avtomatik yozuv qoladi) — u holda ham Didox hali oldinda.
     """
     admin_skipped = False
     if contract.status == Contract.Status.PENDING_BUGALTER:
         _require_role(user, bugalter=True)
         step = ContractApproval.Step.BUGALTER
-        if didox_number:
-            contract.didox_number = didox_number
-            contract.didox_accepted_at = now()
-        # Chop etish shaklida sana bo'sh qolmasin — qabul kuni imzo sanasi
+        # Chop etish shaklida sana bo'sh qolmasin — tekshiruv kuni imzo sanasi
         if not contract.signed_at:
             contract.signed_at = localdate()
         admin_skipped = _admin_threshold_skip(contract)
         contract.status = (
-            Contract.Status.APPROVED if admin_skipped
+            Contract.Status.READY_FOR_DIDOX if admin_skipped
             else Contract.Status.PENDING_ADMIN
         )
     elif contract.status == Contract.Status.PENDING_ADMIN:
         _require_role(user, admin=True)
         step = ContractApproval.Step.ADMIN
-        contract.status = Contract.Status.APPROVED
+        # 12-§1 eski yozuvlar: eski tartibda (Didoxdan keyin admin) ketgan
+        # shartnomaning Didoxi allaqachon tasdiqlangan bo'lishi mumkin —
+        # ikkinchi marta Didoxga yuborilmasin, to'g'ridan approved
+        contract.status = (
+            Contract.Status.APPROVED if contract.didox_accepted_at
+            else Contract.Status.READY_FOR_DIDOX
+        )
     else:
         raise ValidationError('Shartnoma tasdiqlash bosqichida emas.')
 
@@ -267,8 +283,12 @@ def _record_admin_skip(contract):
 
 
 def _notify_after_bugalter_stage(contract, admin_skipped):
-    """Bugalter bosqichidan keyingi bildirishnomalar — approve va confirm-didox
-    ikkalasi ham shu yerdan (bitta matn, ikki xil haqiqat bo'lmasin)."""
+    """Bugalter bosqichidan keyingi bildirishnomalar — approve ikkalasi ham
+    (bugalter va admin) shu yerdan (bitta matn, ikki xil haqiqat bo'lmasin).
+
+    12-§1: admin ruxsati endi Didoxdan OLDIN, ya'ni tasdiqdan keyingi holat
+    doim `ready_for_didox` — "pul kutilmoqda" xabari `confirm_didox`ga ko'chdi.
+    """
     from apps.accounts.models import User
 
     if contract.status == Contract.Status.PENDING_ADMIN:
@@ -280,28 +300,24 @@ def _notify_after_bugalter_stage(contract, admin_skipped):
                 f'{contract.currency} — oxirgi tasdiq sizdan.'
             ),
         )
-    elif contract.status == Contract.Status.APPROVED:
+    elif contract.status == Contract.Status.READY_FOR_DIDOX:
         if admin_skipped:
-            pay_message = (
-                f"Summa chegaradan past — admin tasdig'i talab qilinmadi. "
-                f"Oldindan to'lov {contract.prepayment_percent}% — "
-                f'{contract.prepayment_amount} {contract.currency}. '
-                'Pul kelgach confirm-payment qiling.'
+            didox_message = (
+                "Summa chegaradan past — admin tasdig'i talab qilinmadi. "
+                'Endi Didoxga yuboring.'
             )
             creator_message = (
                 'Bugalter tasdiqladi (summa chegaradan past — admin shart emas) '
-                '— mijozdan to\'lov kutilmoqda.'
+                '— Didoxga yuborilishi kutilmoqda.'
             )
-            title = f'{contract.number}: tasdiqlandi — pul kutilmoqda'
         else:
-            pay_message = (
-                f"Oldindan to'lov {contract.prepayment_percent}% — "
-                f'{contract.prepayment_amount} {contract.currency}. '
-                'Pul kelgach confirm-payment qiling.'
-            )
-            creator_message = 'Bugalter va admin tasdiqladi — mijozdan to\'lov kutilmoqda.'
-            title = f'{contract.number}: admin tasdiqladi — pul kutilmoqda'
-        _notify_role(User.Role.BUGALTER, contract, title=title, message=pay_message)
+            didox_message = 'Admin tasdiqladi — endi Didoxga yuboring.'
+            creator_message = 'Bugalter va admin tasdiqladi — Didoxga yuborilishi kutilmoqda.'
+        _notify_role(
+            User.Role.BUGALTER, contract,
+            title=f'{contract.number}: tasdiqlandi — Didoxga yuboring',
+            message=didox_message,
+        )
         if contract.created_by:
             Notification.objects.create(
                 user=contract.created_by,
@@ -311,7 +327,40 @@ def _notify_after_bugalter_stage(contract, admin_skipped):
                 entity='Contract',
                 object_id=str(contract.pk),
             )
+    elif contract.status == Contract.Status.APPROVED:
+        # Eski yozuvlar: Didoxi allaqachon tasdiqlangan bo'lib admin shu
+        # yerda to'g'ridan-to'g'ri approved qiladi — pul kutilmoqda xabari
+        _notify_payment_awaited(contract)
     return contract
+
+
+def _notify_payment_awaited(contract):
+    """Tasdiqlandi, Didox ham tasdiqlandi — endi pul kutilmoqda.
+
+    `confirm_didox` (normal yo'l) va `approve_contract` (eski, Didoxi
+    allaqachon tasdiqlangan yozuv) ikkalasi ham shu yerdan chaqiradi.
+    """
+    from apps.accounts.models import User
+
+    pay_message = (
+        f"Oldindan to'lov {contract.prepayment_percent}% — "
+        f'{contract.prepayment_amount} {contract.currency}. '
+        'Pul kelgach confirm-payment qiling.'
+    )
+    _notify_role(
+        User.Role.BUGALTER, contract,
+        title=f'{contract.number}: tasdiqlandi — pul kutilmoqda',
+        message=pay_message,
+    )
+    if contract.created_by:
+        Notification.objects.create(
+            user=contract.created_by,
+            title=f'{contract.number}: shartnoma tasdiqlandi',
+            message="Didox tasdiqlandi — mijozdan to'lov kutilmoqda.",
+            level=Notification.Level.INFO,
+            entity='Contract',
+            object_id=str(contract.pk),
+        )
 
 
 @atomic
@@ -324,9 +373,9 @@ def send_didox(contract, user, didox_number):
     mijoz Didoxning o'zida qayta yuboradi.
     """
     _require_role(user, bugalter=True)
-    if contract.status != Contract.Status.PENDING_BUGALTER:
+    if contract.status != Contract.Status.READY_FOR_DIDOX:
         raise ValidationError({
-            'detail': 'Didoxga yuborish bugalter tekshiruvi bosqichida bo\'ladi.',
+            'detail': "Avval bugalter va admin tasdig'i olinsin — keyin Didox.",
         })
     didox_number = (didox_number or '').strip()
     if not didox_number:
@@ -366,8 +415,8 @@ def send_didox(contract, user, didox_number):
 def confirm_didox(contract, user, comment=''):
     """Didox tasdiqlandi — mijoz imzoladi (B3, 2-qadam), bugalter belgilaydi.
 
-    Keyin hozirgi chegara mantig'i (§11.3) ishlaydi: `pending_admin`
-    yoki (summa chegaradan past bo'lsa) to'g'ridan `approved`.
+    12-§1: admin ruxsati endi Didoxdan OLDIN olingan (`approve_contract`),
+    shuning uchun bu qadam chegarani bilmaydi — natija doim `approved`.
     """
     _require_role(user, bugalter=True)
     if contract.status != Contract.Status.PENDING_DIDOX:
@@ -376,11 +425,7 @@ def confirm_didox(contract, user, comment=''):
         })
 
     contract.didox_accepted_at = now()
-    admin_skipped = _admin_threshold_skip(contract)
-    contract.status = (
-        Contract.Status.APPROVED if admin_skipped
-        else Contract.Status.PENDING_ADMIN
-    )
+    contract.status = Contract.Status.APPROVED
     contract.save()
 
     from apps.core.services import resolve_notifications
@@ -393,9 +438,7 @@ def confirm_didox(contract, user, comment=''):
         comment=comment or 'Didox tasdiqlandi — mijoz imzoladi.',
         decided_by=user,
     )
-    if admin_skipped:
-        _record_admin_skip(contract)
-    _notify_after_bugalter_stage(contract, admin_skipped)
+    _notify_payment_awaited(contract)
     return contract
 
 
@@ -749,3 +792,111 @@ def send_contract_missing_to_procurement(contract, user):
             object_id=str(replenishment.pk),
         )
     return replenishment
+
+
+# ---------------------------------------------------------------------------
+# 13-§1: shartnoma matni — bugalter yuklaydi va saytda tahrirlaydi
+# ---------------------------------------------------------------------------
+
+# Hujjat huquqiy — Didoxga ketgandan keyin (`pending_didox`) tahrir yopiladi
+CONTRACT_DOCUMENT_EDITABLE_STATUSES = {
+    Contract.Status.DRAFT, Contract.Status.REJECTED,
+    Contract.Status.PENDING_BUGALTER, Contract.Status.PENDING_ADMIN,
+    Contract.Status.READY_FOR_DIDOX,
+}
+
+
+def get_or_create_contract_document(contract):
+    from apps.sales.models import ContractDocument
+
+    document, _created = ContractDocument.objects.get_or_create(contract=contract)
+    return document
+
+
+def _require_document_editable(contract):
+    if contract.status not in CONTRACT_DOCUMENT_EDITABLE_STATUSES:
+        raise ValidationError({
+            'detail': (
+                'Hujjat matni endi tahrirlanmaydi — shartnoma Didoxga '
+                'yuborilgan yoki imzolangan.'
+            ),
+        })
+
+
+@atomic
+def save_contract_document(contract, user, body):
+    """Matnni saqlash — har safar yangi versiya (hujjat huquqiy, tarixi kerak)."""
+    _require_document_editable(contract)
+    document = get_or_create_contract_document(contract)
+    document.body = body or ''
+    document.updated_by = user
+    document.save()
+    document.versions.create(body=document.body, created_by=user)
+    return document
+
+
+@atomic
+def upload_contract_document(contract, user, file):
+    """`.docx` yuklash — `mammoth` bilan toza HTML'ga o'giradi (13-§1 bosqich 3).
+
+    Asl fayl (`source_file`) o'chirilmaydi — o'girish yo'qotishli, kerak
+    bo'lsa yuklab olinadi yoki qayta o'giriladi.
+    """
+    import mammoth
+
+    _require_document_editable(contract)
+    name = (getattr(file, 'name', '') or '').lower()
+    if not name.endswith('.docx'):
+        raise ValidationError({
+            'file': 'Matnga o\'girish faqat .docx uchun ishlaydi — .doc/boshqa formatlar hali qo\'llab-quvvatlanmaydi.',
+        })
+    result = mammoth.convert_to_html(file)
+    file.seek(0)
+
+    document = get_or_create_contract_document(contract)
+    document.body = result.value
+    document.source_file = file
+    document.updated_by = user
+    document.save()
+    document.versions.create(body=document.body, created_by=user)
+    return document
+
+
+def _contract_document_placeholders(contract):
+    """13-§1: avtomatik maydonlar — bugalter qo'lda yozmasin, summa ergashsin."""
+    client = contract.client
+    rows = ''.join(
+        f'<tr><td>{item.product.name}</td><td>{item.quantity}</td></tr>'
+        for item in contract.items.select_related('product')
+    )
+    return {
+        'contract.number': contract.number,
+        'contract.date': contract.signed_at.strftime('%d.%m.%Y') if contract.signed_at else '',
+        'client.name': client.display_name if client else '',
+        'client.inn': getattr(client, 'inn', '') or '',
+        'items_table': f'<table>{rows}</table>',
+        'total': str(contract.items_total_with_vat),
+        'prepayment_percent': str(contract.prepayment_percent or ''),
+        'term_days': str(contract.term_days),
+    }
+
+
+def render_contract_document(contract, body, user=None):
+    """O'rin egallovchilarni KO'RSATISHDA to'ldiradi — saqlashda emas.
+
+    Shunda summa o'zgarsa (masalan partiya soni) hujjat ham ergashadi.
+    Narx — qator bo'yicha xuddi shartnomaning o'zidagidek faqat sales va
+    adminga (PRICE_FIELDS qoidasi bilan bir xil chegara).
+    """
+    import re
+
+    values = _contract_document_placeholders(contract)
+    if not (user and (user.is_admin or user.is_sales)):
+        values['total'] = '•••'
+        values['prepayment_percent'] = '•••'
+
+    def repl(match):
+        key = match.group(1).strip()
+        return values.get(key, match.group(0))
+
+    return re.sub(r'\{\{\s*([\w.]+)\s*\}\}', repl, body or '')

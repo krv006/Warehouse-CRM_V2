@@ -42,22 +42,41 @@ class BaseContractSetup(APITestCase):
 
 
 class DidoxTests(BaseContractSetup):
-    """§11.2: bugalter tasdig'i — "Didoxdan qabul qildim", to'lov ham tarixga tushadi."""
+    """12-§1: bugalter -> admin -> Didox -> to'lov; imzo sanasi va tarix to'g'ri yoziladi."""
 
-    def test_didox_number_saved_on_bugalter_approve(self):
+    def test_bugalter_approve_sets_signed_at(self):
         contract_id = self._make_pending()
         self.client.force_authenticate(self.bugalter)
         response = self.client.post(f'/api/contracts/{contract_id}/approve/', {
-            'didox_number': 'DDX-2026-0091',
-            'comment': 'Didoxdan qabul qilib tanishdim',
+            'comment': 'Tekshirib chiqdim',
         }, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+
+        contract = Contract.objects.get(pk=contract_id)
+        self.assertEqual(contract.status, Contract.Status.PENDING_ADMIN)
+        # Chop etish shakli uchun imzo sanasi tekshiruv kunidayoq to'ldi
+        self.assertIsNotNone(contract.signed_at)
+        # Didox raqami hali yo'q — u faqat send-didox'da kiritiladi
+        self.assertEqual(contract.didox_number, '')
+
+    def test_didox_number_saved_on_send_didox(self):
+        contract_id = self._make_pending()
+        self.client.force_authenticate(self.bugalter)
+        self.client.post(f'/api/contracts/{contract_id}/approve/')
+        self.client.force_authenticate(self.admin)
+        self.client.post(f'/api/contracts/{contract_id}/approve/')
+        self.client.force_authenticate(self.bugalter)
+        response = self.client.post(f'/api/contracts/{contract_id}/send-didox/', {
+            'didox_number': 'DDX-2026-0091',
+        }, format='json')
+        self.assertEqual(response.status_code, 200, response.data)
+        response = self.client.post(f'/api/contracts/{contract_id}/confirm-didox/')
         self.assertEqual(response.status_code, 200, response.data)
 
         contract = Contract.objects.get(pk=contract_id)
         self.assertEqual(contract.didox_number, 'DDX-2026-0091')
         self.assertIsNotNone(contract.didox_accepted_at)
-        # Chop etish shakli uchun imzo sanasi ham to'ldi (§10.12.3)
-        self.assertIsNotNone(contract.signed_at)
+        self.assertEqual(contract.status, Contract.Status.APPROVED)
 
     def test_payment_step_written_to_history(self):
         contract_id = self._make_pending()
@@ -65,8 +84,12 @@ class DidoxTests(BaseContractSetup):
         self.client.post(f'/api/contracts/{contract_id}/approve/')
         self.client.force_authenticate(self.admin)
         self.client.post(f'/api/contracts/{contract_id}/approve/')
-
         self.client.force_authenticate(self.bugalter)
+        self.client.post(f'/api/contracts/{contract_id}/send-didox/', {
+            'didox_number': 'DDX-1',
+        }, format='json')
+        self.client.post(f'/api/contracts/{contract_id}/confirm-didox/')
+
         response = self.client.post(f'/api/contracts/{contract_id}/confirm-payment/')
         self.assertEqual(response.status_code, 200, response.data)
 
@@ -91,7 +114,8 @@ class AdminThresholdTests(BaseContractSetup):
         contract_id = self._make_pending(unit_price='5000000')
         self.client.force_authenticate(self.bugalter)
         response = self.client.post(f'/api/contracts/{contract_id}/approve/')
-        self.assertEqual(response.data['status'], Contract.Status.APPROVED)
+        # 12-§1: admin chetlab o'tilsa ham Didox hali oldinda — approved emas
+        self.assertEqual(response.data['status'], Contract.Status.READY_FOR_DIDOX)
 
         # Tarix jim qolmaydi: avtomatik admin yozuvi, decided_by bo'sh
         auto = ContractApproval.objects.get(
@@ -102,7 +126,7 @@ class AdminThresholdTests(BaseContractSetup):
 
         # Bildirishnoma yolg'on gapirmaydi — "admin tasdiqladi" deyilmaydi
         note = Notification.objects.filter(
-            user=self.bugalter, entity='Contract', title__contains='pul kutilmoqda',
+            user=self.bugalter, entity='Contract', title__contains='Didoxga yuboring',
         ).get()
         self.assertNotIn('admin tasdiqladi', note.title)
 

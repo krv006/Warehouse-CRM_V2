@@ -17,7 +17,7 @@ from django.utils.timezone import localdate
 
 from apps.core.utils import sla_deadline, working_days_since
 
-# Qadam kalitlari va nomlari — §2 jadvali (18 qadam, ro'yxat qisqarmaydi)
+# Qadam kalitlari va nomlari — §2 jadvali, 12-§1 dan keyin 19 qadam
 STEPS = [
     ('zvk_created', 'Zayavka yozildi', 'sales'),
     ('taken', 'Engineer oldi', 'engineer'),
@@ -26,9 +26,12 @@ STEPS = [
     ('sales_review', "Sales ko'rigi", 'sales'),
     ('contract_created', 'Shartnoma ochildi', 'sales'),
     ('contract_submitted', 'Bugalterga yuborildi', 'sales'),
+    # 12-§1: sales -> bugalter -> admin -> Didox -> to'lov. Admin ruxsati
+    # endi ishdan (Didoxdan) OLDIN so'raladi, hujjat hali kuchga kirmagan
+    ('bugalter_check', 'Bugalter tekshiruvi', 'bugalter'),
+    ('admin_approve', "Admin tasdig'i", 'admin'),
     ('didox_sent', 'Didoxga yuborildi', 'bugalter'),
     ('didox_confirmed', 'Didox tasdiqlandi', 'bugalter'),
-    ('admin_approve', "Admin tasdig'i", 'admin'),
     ('approved_waiting', 'Tasdiqlandi, pul kutilmoqda', 'bugalter'),
     ('prepayment', "Boshlang'ich to'lov", 'bugalter'),
     ('procurement_sent', 'Buyurtmachiga yuborildi', 'engineer'),
@@ -79,12 +82,12 @@ def resolve_chain(document):
     if request_obj is not None and configuration is None:
         configuration = request_obj.configuration
     if configuration is not None and contract is None:
+        # 12-§2 (C): ikkinchi (yoki keyingi) model faqat qator orqali
+        # ulangan bo'lishi mumkin — `active_contract` buni ham topadi
         contract = (
-            configuration.contracts
-            .exclude(status=Contract.Status.CANCELLED)
-            .order_by('-id')
-            .first()
-        ) or configuration.contracts.order_by('-id').first()
+            configuration.active_contract
+            or configuration.contracts.order_by('-id').first()
+        )
     return request_obj, configuration, contract
 
 
@@ -373,13 +376,36 @@ def build_roadmap(document, user):
         if a.decision == ConfigurationApproval.Decision.REJECTED
     ]
 
+    # 12-§6: "bajarilgan" faqat JORIY aylanishga tegishli bo'lsin — rad
+    # etilgandan keyingi qadamlar eski (rad etilmagan) qatorlardan olinadi
+    bugalter_rows = appr(
+        ContractApproval.Step.BUGALTER, decision=ContractApproval.Decision.APPROVED,
+    )
     didox_rows = appr(ContractApproval.Step.DIDOX)
-    admin_rows = appr(ContractApproval.Step.ADMIN, human_only=True)
-    admin_auto = appr(ContractApproval.Step.ADMIN)
+    admin_rows = appr(
+        ContractApproval.Step.ADMIN, decision=ContractApproval.Decision.APPROVED,
+        human_only=True,
+    )
+    admin_auto = appr(
+        ContractApproval.Step.ADMIN, decision=ContractApproval.Decision.APPROVED,
+    )
     payment_rows = appr(ContractApproval.Step.PAYMENT)
     first_payment = (
         contract.payments.order_by('paid_at').first() if contract else None
     )
+    contract_rejections = len([
+        a for a in c_approvals if a.decision == ContractApproval.Decision.REJECTED
+    ])
+    # Rad etilgandan keyingi timestamp maydonlari (didox_sent_at/
+    # didox_accepted_at) eski qiymatini saqlab qoladi — "bajarilgan"
+    # belgisi shu tufayli joriy aylanishga tegishli bo'lishi shart
+    last_reject_at = max(
+        (a.created_at for a in c_approvals if a.decision == ContractApproval.Decision.REJECTED),
+        default=None,
+    )
+
+    def after_last_reject(moment):
+        return bool(moment) and (last_reject_at is None or moment > last_reject_at)
 
     cfg_done_states = {'approved', 'ready', 'sold'}
     delivered = bool(contract and contract.delivered_at)
@@ -393,11 +419,20 @@ def build_roadmap(document, user):
         doc=('request', request_obj),
         repeats=len(ev(ConfigurationRequestEvent.Stage.RESENT)),
     )
+    # 12-§3: engineer ishga olishdan OLDIN rad etsa (`returned`) ish endi
+    # sales'da — konfiguratsiya yo'q, lekin "engineer kutilmoqda" degan
+    # noto'g'ri taassurot bermasin (`release`dan farqli: u hovuzga qaytaradi)
+    returned_now = bool(
+        request_obj and request_obj.status == 'returned'
+    )
     data['taken'] = dict(
         done=configuration is not None,
         at=configuration.created_at if configuration else None,
-        who=engineer,
-        doc=('configuration', configuration),
+        who=sales_owner if returned_now else engineer,
+        role='sales' if returned_now else None,
+        label='Sales tuzatmoqda' if returned_now else None,
+        # Qaytarilganda ochiladigan hujjat — zayavka, konfiguratsiya hali yo'q
+        doc=('request', request_obj) if returned_now else ('configuration', configuration),
         # 9-to'plam §2: "ishga olish" necha marta qaytadan boshlangani —
         # rad etilganlar (returned) + hovuzga qaytarilganlar (released)
         repeats=len(returned) + len(released),
@@ -464,31 +499,24 @@ def build_roadmap(document, user):
         at=None,
         who=contract.created_by if contract else None,
         doc=('contract', contract),
+        # 12-§6: necha marta qaytgani — chiziqda "N marta qaytarildi"
+        repeats=contract_rejections,
     )
-    data['didox_sent'] = dict(
-        done=bool(contract and contract.didox_sent_at),
-        at=contract.didox_sent_at if contract else None,
-        who=didox_rows[0].decided_by if didox_rows else None,
-        doc=('contract', contract),
-        # B11 mosligi: eski bitta qadamli approve — didox_sent_at bo'sh,
-        # lekin zanjir o'tib ketgan bo'lsa skipped
-        skipped=bool(
-            contract and not contract.didox_sent_at
-            and contract.status in ('pending_admin', 'approved', 'active', 'completed')
-        ),
+    # 12-§1: sales -> bugalter -> admin -> Didox -> to'lov. Bugalter va
+    # admin bu yerda ISHDAN (Didoxga yuborishdan) OLDIN so'raladi.
+    bugalter_done = bool(
+        contract and contract.status not in ('draft', 'rejected', 'cancelled', 'pending_bugalter')
     )
-    data['didox_confirmed'] = dict(
-        done=bool(contract and contract.didox_accepted_at),
-        at=contract.didox_accepted_at if contract else None,
-        who=didox_rows[-1].decided_by if didox_rows else None,
+    data['bugalter_check'] = dict(
+        done=bugalter_done,
+        at=bugalter_rows[-1].created_at if bugalter_rows else None,
+        who=bugalter_rows[-1].decided_by if bugalter_rows else None,
         doc=('contract', contract),
-        skipped=bool(
-            contract and not contract.didox_accepted_at
-            and contract.status in ('pending_admin', 'approved', 'active', 'completed')
-        ),
     )
     admin_done = bool(
-        contract and contract.status in ('approved', 'active', 'completed')
+        contract and contract.status in (
+            'ready_for_didox', 'pending_didox', 'approved', 'active', 'completed',
+        )
     )
     admin_skipped = bool(
         admin_done and not admin_rows
@@ -511,6 +539,35 @@ def build_roadmap(document, user):
         # sakrab, ish adminga "sizniki" bo'lib ko'rinmasdi
         current_override=bool(
             contract and contract.status == Contract.Status.PENDING_ADMIN
+        ),
+    )
+    # 12-§6: rad etilgandan keyin `didox_sent_at`/`didox_accepted_at`
+    # ESKI qiymatini saqlab qoladi — "bajarilgan" belgisi shu tufayli
+    # oxirgi rad etishdan KEYIN bo'lgan bo'lishi shart, aks holda chiziq
+    # o'tilmagan qadamni bajarilgan deb ko'rsatib, joriy qadamni sakratardi
+    didox_sent_fresh = after_last_reject(contract.didox_sent_at if contract else None)
+    didox_confirmed_fresh = after_last_reject(contract.didox_accepted_at if contract else None)
+    data['didox_sent'] = dict(
+        done=didox_sent_fresh,
+        at=contract.didox_sent_at if contract else None,
+        who=didox_rows[0].decided_by if didox_rows else None,
+        doc=('contract', contract),
+        # Juda eski yozuv: Didox ikki qadam kirishidan OLDINGI shartnoma —
+        # zanjir o'tib ketgan (approved+) bo'lsa-yu hujjat hech qachon
+        # bo'lmagan bo'lsa, bu qadam ANIQ bo'lmaydi
+        skipped=bool(
+            contract and not didox_sent_fresh
+            and contract.status in ('approved', 'active', 'completed')
+        ),
+    )
+    data['didox_confirmed'] = dict(
+        done=didox_confirmed_fresh,
+        at=contract.didox_accepted_at if contract else None,
+        who=didox_rows[-1].decided_by if didox_rows else None,
+        doc=('contract', contract),
+        skipped=bool(
+            contract and not didox_confirmed_fresh
+            and contract.status in ('approved', 'active', 'completed')
         ),
     )
     data['approved_waiting'] = dict(

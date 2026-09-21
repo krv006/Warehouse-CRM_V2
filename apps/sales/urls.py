@@ -61,6 +61,16 @@ urlpatterns = [
     path('contracts/<int:pk>/print/', ContractViewSet.as_view({
         'get': 'print_form',
     }), name='contract-print'),
+    # 13-§1: shartnoma matni — bugalter yuklaydi va saytda tahrirlaydi
+    path('contracts/<int:pk>/document/', ContractViewSet.as_view({
+        'get': 'document', 'put': 'document_update',
+    }), name='contract-document'),
+    path('contracts/<int:pk>/document/upload/', ContractViewSet.as_view({
+        'post': 'document_upload',
+    }), name='contract-document-upload'),
+    path('contracts/<int:pk>/document/versions/', ContractViewSet.as_view({
+        'get': 'document_versions',
+    }), name='contract-document-versions'),
 
     path('contract-items/', ContractItemViewSet.as_view(LIST), name='contractitem-list'),
     path('contract-items/<int:pk>/', ContractItemViewSet.as_view(DETAIL), name='contractitem-detail'),

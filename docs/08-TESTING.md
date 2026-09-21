@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **470 ta test, hammasi OK**.
+Hozirgi holat: **490 ta test, hammasi OK**.
 
 ---
 
@@ -64,7 +64,7 @@ Hozirgi holat: **470 ta test, hammasi OK**.
 | `apps/configurator/tests/test_request_loop.py` | B15/9-to'plam: izohsiz reject 400, returned faqat sales'da, in_progress'da reject 400 (ish tegilmaydi), release (hovuzga: CFG bekor+bron bo'sh, o'ziga xabar yo'q, keyingi take toza chernovik), ask-sales/answer (bron joyida, suhbat approvals'da, submit davom etadi), resend, events tarixi |
 | `apps/configurator/tests/test_cancel_chain.py` | B12/B17: zayavkadan butun zanjir yopilishi (SHT/CFG/ZVK/bron), to'lovdan keyin 400, sabab majburiy, faqat egasi/admin, to'langan TLD ochiq qolib ogohlantirish qaytishi |
 | `apps/sales/tests/test_payment_limit.py` | 4-to'plam §3: qoldiqdan katta to'lov 400 (kassaga yozilmaydi), aynan qoldiq o'tib yopilishi, nol/manfiy 400, /contract-payments/ ham rad etishi, manfiy balansda 400 (500 emas) |
-| `apps/sales/tests/test_didox_steps.py` | B3/B14: send-didox raqam majburiy va pending_didox'ga o'tishi, confirm-didox -> admin/chegara skip, pending_didox'dan orqaga yo'l yo'qligi, eski bitta qadamli approve mosligi, foiz faqat qoralamada o'zgarishi |
+| `apps/sales/tests/test_didox_steps.py` | 12-§1/B3/B14: admin tasdig'i Didoxdan OLDIN (pending_admin -> ready_for_didox), send-didox faqat ready_for_didox'dan va raqam majburiy, confirm-didox to'g'ridan approved, chegaradan past shartnoma adminsiz ready_for_didox'ga yetishi, pending_didox'dan orqaga yo'l yo'qligi, eski yozuv (Didoxi tasdiqlangan) to'g'ridan approved, foiz faqat qoralamada o'zgarishi |
 | `apps/core/tests/test_resync_reservations.py` | 4-to'plam §1: eski xato bron (mashina ichidagi qism) yangi ta'rifga qayta qurilishi, terminal hujjat broni bo'shatilib qayta yozilmasligi |
 | `apps/core/tests/test_roadmap.py` | B8/B11: uch kirish nuqtasidan bir xil roadmap (barcha rollar, 200), 18 qadam holatlari (done/current/blocked), javobda pul yo'qligi, can_open matritsasi, repeats, cancelled belgisi, shartli qadamlar (§1–2: chernovikda current=submitted, narx so'ralganda current, missing bo'sh — skipped, TLD ochiq — chain current, chegara ostida admin skipped); migrate_to_contract_first (dry-run, mijozsiz ro'yxat, SHT ochilishi) |
 | `apps/core/tests/test_roadmap_list.py` | 7-to'plam §1: bugalter navbati kelgan zanjirni ko'rishi (egasi bo'lmasa ham), buyurtmachida bo'sh ro'yxat, engineer o'z zanjirlarini, detal bilan bir xil shakl (18 qadam, pul yo'q), muddatdan o'tgani birinchi + limit, state=closed/all; 10-§5: qo'l tekkizgan odam navbat o'tgach ham ko'rishi, engineer hovuzi olingach torayishi, TLD yo'ldaligida buyurtmachi hovuzi |
@@ -82,7 +82,7 @@ Hozirgi holat: **470 ta test, hammasi OK**.
 | `apps/inventory/tests/test_product_pricing.py` | §10.2: PATCH narx siyosati (bugalter 200, sales 403), identifikatsiya maydonlari read-only, POST 405 |
 | `apps/inventory/tests/test_reservations.py` | §11.4 bron: qattiq/yumshoq, qisman band, ikkinchi shartnoma faqat erkinni oladi, reject bo'shatadi, to'lov shipped qiladi, o'z broni o'zini to'smaydi, release faqat admin+sabab, muddat o'tishi va qayta bron |
 | `apps/sales/tests/test_contract_lock_and_sync.py` | §10.3: qator o'zgarishida total sinxron, submit'dan keyin qulf (admin istisno), rejected tahrir + qayta submit |
-| `apps/sales/tests/test_didox_and_threshold.py` | §11.2 Didox raqami/sanasi, payment qadami tarixda; §11.3 chegara: kichik — admin chetlab, katta/valyuta/0 — adminga |
+| `apps/sales/tests/test_didox_and_threshold.py` | 12-§1: bugalter tasdig'ida imzo sanasi to'lishi, Didox raqami endi send-didox'da saqlanishi, payment qadami tarixda; §11.3 chegara: kichik — admin chetlab ready_for_didox'ga, katta/valyuta/0 — adminga |
 | `apps/sales/tests/test_chain_closure.py` | §10.8: Lead avtomatik bog'lanadi, ZVK arxiv, CFG sold |
 | `apps/procurement/tests/test_pay_freeze_and_kir.py` | §10.5 muzlatish, §10.9 kassa FK+yacheyka, §10.10 yo'naltirilgan xabar, §10.4 kassa sizmasligi, §4.3 avto-KIR va qayta receive taqiqi |
 | `apps/purchases/tests/test_status_guard.py` | §10.6: received→draft 400, PATCH bilan received 400, faqat oldinga |
@@ -92,7 +92,9 @@ Hozirgi holat: **470 ta test, hammasi OK**.
 | `apps/procurement/tests/test_pay_parsing.py` | pay: `debt_amount` satr bo'lsa ham 200 (prod'da 500 berardi), bo'sh satr — avtomatik shortfall, noto'g'ri format — 400 |
 | `apps/sales/tests/test_payment_parsing.py` | confirm-payment: `amount` satr — 200, noto'g'ri format — 400 (500 emas) |
 | `apps/procurement/tests/test_chain_notifications.py` | TLD tasdiq zanjirida bildirishnomalar: oddiy submit'da bugalterga, sales tasdig'ida bugalterga, bugalter tasdig'ida **adminga** (tuzatilgan xato), admin tasdig'ida bugalterga (to'lov) va buyurtmachiga |
-| `apps/sales/tests/test_contract_notifications.py` | Shartnoma zanjirida bildirishnomalar: submit'da bugalterga, bugalter tasdig'ida adminga, admin tasdig'ida bugalter+sales'ga, reject'da sales'ga (izoh bilan) |
+| `apps/sales/tests/test_contract_notifications.py` | Shartnoma zanjirida bildirishnomalar: submit'da bugalterga, bugalter tasdig'ida adminga, admin tasdig'ida (12-§1) bugalterga "Didoxga yuboring" + sales'ga, Didox tasdiqlangach (endi shu yerda) bugalterga "pul kutilmoqda", reject'da sales'ga (izoh bilan) |
+| `apps/configurator/tests/test_multi_model_contract.py` | 12-§2 (C): ikkinchi model mavjud qoralamaga qo'shiladi (yangi shartnoma ochilmaydi), draft bo'lmagan/boshqa mijoz/boshqa egadagi shartnomaga qo'shib bo'lmasligi, `active_contract` qator orqali topilishi, bir modelning TLD'si ikkinchisini bloklamasligi, yopilganda ikkala zayavka ham arxivlanishi |
+| `apps/sales/tests/test_contract_document.py` | 13-§1: GET lazily hujjat ochadi, engineer/buyurtmachiga yopiq, sales egasi/admin o'qiydi-tahrirlamaydi, egasiz sales 404, bugalter har saqlashda yangi versiya, Didoxdan keyin tahrir yopiq, o'rin egallovchilar ko'rsatishda to'ladi (narx faqat sales/admin), `.docx` bo'lmagan fayl 400, `.docx` yuklanganda mammoth orqali HTML'ga o'girilib asl fayl saqlanishi |
 | `apps/configurator/tests/test_procurement_flag.py` | Konfiguratsiyada buyurtmachi flagi: yuborilmaganda `procurement=null`, yuborilgach TLD raqami/holati va `sent_to_procurement=true`, takror yuborish 400, bekor qilingan hisob flagni bo'shatadi, rad etilgani ochiq qoladi, kirim qilingani yopadi, ro'yxatda ham chiqadi |
 | `apps/configurator/tests/test_missing_to_procurement.py` | Engineer bazada yo'q tovarni configuratordan qo'shishi (`new_component_name`, takror nom yaratilmasligi), request-procurement: yetishmaganlardan TLD ochilishi, buyurtmachi/sales/bugalterga xabar, hammasi omborda bo'lsa 400, sales'ga 403, zanjir buyurtmachi submit'iga ulanishi |
 | `apps/configurator/tests/test_front_fixes.py` | Front topgan xatolar regressiyasi: configuration-items'da `configuration` maydoni (400, 500 emas), engineer notificationlari, `configuration` filtri, ready/attached qulfi, take'da zavod tarkibi va tana ustuvorligi, komponent bazaviy bo'la olmasligi, sales finalize tanadagi ACT bilan (engineer'ga 403), sales ACT yarata olishi |

@@ -133,7 +133,8 @@ class ContractFlowTests(APITestCase):
 
         self.client.force_authenticate(self.admin)
         response = self.client.post(f'/api/contracts/{contract.id}/approve/')
-        self.assertEqual(response.data['status'], Contract.Status.APPROVED)
+        # 12-§1: admin ruxsati Didoxdan OLDIN — natija ready_for_didox
+        self.assertEqual(response.data['status'], Contract.Status.READY_FOR_DIDOX)
         self.assertEqual(
             list(ContractApproval.objects.values_list('step', flat=True)),
             [ContractApproval.Step.BUGALTER, ContractApproval.Step.ADMIN],

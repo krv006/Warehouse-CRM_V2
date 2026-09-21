@@ -165,7 +165,7 @@ Engineer configuratorda tayyorlab, konfiguratsiyani zayavkaga biriktiradi
 | POST | `/configuration-requests/` | sales (admin) — engineerlarga notification tushadi |
 | GET/PUT/PATCH/DELETE | `/configuration-requests/{id}/` | sales, engineer, admin |
 | ~~complete~~ | — olib tashlandi (#4): endi engineer konfiguratsiyani `submit` qiladi, zayavka sales `approve`sida `done` bo'ladi |
-| GET | `/configuration-requests/{id}/roadmap/` | B8: **zanjir ko'zgusi** — 18 qadam, uch kirish nuqtasi bir xil javob; barcha rollar to'liq ko'radi, **pul yo'q**; `label`/`state`/`tone`/`waiting_days`/`deadline`/`can_open`/`repeats`/`current_key` tayyor keladi |
+| GET | `/configuration-requests/{id}/roadmap/` | B8: **zanjir ko'zgusi** — 19 qadam (12-§1: `bugalter_check` qo'shildi), uch kirish nuqtasi bir xil javob; barcha rollar to'liq ko'radi, **pul yo'q**; `label`/`state`/`tone`/`waiting_days`/`deadline`/`can_open`/`repeats`/`current_key` tayyor keladi |
 | GET | `/configurations/{id}/roadmap/` | B8: xuddi shu roadmap — konfiguratsiya tomonidan |
 | GET | `/contracts/{id}/roadmap/` | B8: xuddi shu roadmap — shartnoma tomonidan |
 | POST | `/configurations/{id}/ask-sales/` | 9-to'plam §1B: **engineer** yarim yo'lda sales'dan aniqlashtirish so'raydi (`comment` majburiy) — `draft` → `pending_clarification`; tarkib ham, BRON ham joyida qoladi; tarixga `approvals` (step `engineer`, decision `question`), zayavka egasiga eslatma |
@@ -244,7 +244,7 @@ keyin kelgani keyingi ish kuni oxirigacha (`/company/` da `sla_cutoff_hour`,
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
 | POST | `/configurations/{id}/submit/` | #4: engineer texnik yechimni **sales ko'rigiga** yuboradi (`pending_sales`); zayavka egasiga xabar; YANGI-OQIM B2: **narxsiz qator bo'lsa 400** (nol qatorlar avval ombordan qayta o'qiladi) |
-| POST | `/configurations/{id}/approve/` | #4: **sales** (admin) texnik yechimni tasdiqlaydi (`approved`), zayavka `done`; tarix — `approvals[]`; YANGI-OQIM B1: **shu yerda draft SHT avtomatik ochiladi** (egasi — zayavka sales'i, javobdagi `contract` maydonida); mijoz aniqlanmasa **400** (B10) |
+| POST | `/configurations/{id}/approve/` | #4: **sales** (admin) texnik yechimni tasdiqlaydi (`approved`), zayavka `done`; tarix — `approvals[]`; YANGI-OQIM B1: **shu yerda draft SHT avtomatik ochiladi** (egasi — zayavka sales'i, javobdagi `contract` maydonida); mijoz aniqlanmasa **400** (B10). 12-§2 (C2): tanada ixtiyoriy `contract` (id) — berilsa yangi shartnoma ochilmaydi, mavjud **qoralamaga** yangi model qatori qo'shiladi (bitta savdo, bir nechta model); shartlar: `draft`, bir xil mijoz, bir xil egasi (yoki admin) — aks holda 400 |
 | POST | `/configurations/{id}/reject/` | #4: sales izoh bilan qaytaradi (`draft`ga) — engineer xabar oladi, izoh tarixda |
 | POST | `/configurations/{id}/finalize/` | #4: shartlari `approved` + yig'ilgan (`assembled_at`) + ACT (tanada `{"act": 2}`); YANGI-OQIM: shartnoma bu yerda OCHILMAYDI (u `approve`da ochilgan) — qatordagi bazaviy model **yig'ilgan variantga ko'chadi** (B6, son/narx tegilmaydi), CFG `ready` (shartnoma `active` bo'lsa `sold`), bron shartnomaga o'tadi |
 | POST | `/configurations/{id}/assemble/` | #4/§10.1: yig'ish — faqat `approved` yechim; **B4: shartnoma `active`/`completed` bo'lishi shart** (400: "Boshlang'ich to'lov kutilmoqda — SHT-…"; rad etilgan/bekor qilinganida boshqa matn); build: butlovchilar chiqadi, variant kiradi; modify: tayyor mahsulot fizik o'zgartiriladi (tana: `{"removals": {...}}`); yetmasa 400 (nomlar bilan) — mol TLD orqali kelgach qayta bosiladi; javobda `act_suggestion` (#4D) |
@@ -351,7 +351,7 @@ summa chegaradan past) — `skipped`, front chizmaydi; hali noma'lum bo'lsa —
 `optional: true` + `pending`, front xiraroq chizadi. `current_key` doim
 javobdagi qadamlardan biriga ishora qiladi (§3). **10-§3**: har bir shartli
 qadamda `current_override` bor — `pending_admin`da joriy qadam admin
-tasdig'i, to'lov kelib TLD hali ochilmaganda (yetishmovchilik bilan) —
+tasdig'i (12-§1: bu endi Didoxdan OLDIN), to'lov kelib TLD hali ochilmaganda (yetishmovchilik bilan) —
 "Buyurtmachiga yuborildi" (engineer). **10-§6**: `procurement_chain` qora
 quti emas — roli va nomi TLD holatidan ("TLD — bugalter tekshiruvi",
 "TLD — to'lov kutilmoqda", "TLD — yo'lda" …). **10-§7**: `ship` qadami
@@ -376,7 +376,7 @@ ko'rinmaydi: "yangi zayavkani hamma engineer ko'radi, olingandan keyin
 faqat oluvchisi" shu qoidadan kelib chiqadi); admin — hamma ochiq zanjir. `state`:
 `open` (default) / `closed` / `all`; `limit`: 1–50 (default 10). Javob
 `{"count": N, "results": [...]}` — `results[i]` detal `roadmap` javobi
-bilan AYNAN bir xil (18 qadam, pul yo'q, `can_open` alohida). Tartib:
+bilan AYNAN bir xil (19 qadam, pul yo'q, `can_open` alohida). Tartib:
 muddatdan o'tgan (`danger`) → joriy qadami shu foydalanuvchida → kutish
 vaqti bo'yicha kamayish.
 `tone`: `success` / `warning` / `danger` (SLA — mavjud `sla_deadline`dan) /
@@ -560,15 +560,19 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | GET/POST | `/leads/` | admin, sales |
 | GET/POST | `/contracts/` | admin, sales; filtr: `status`, `client`, `currency`, `configuration`; 8-to'plam §3: `configuration` bilan ikkinchi shartnoma ochilmaydi (400 — yangi oqimda u tasdiqda avtomatik ochiladi); qo'lda tuzish ombordan to'g'ridan-to'g'ri sotuv uchun |
 | POST | `/contracts/{id}/submit/` | sales; bugalterga bildirishnoma tushadi |
-| POST | `/contracts/{id}/send-didox/` | B3: **bugalter** — «Didoxga yubordim»; `didox_number` majburiy, `pending_bugalter` → `pending_didox`, `didox_sent_at`/`signed_at` to'ladi |
-| POST | `/contracts/{id}/confirm-didox/` | B3: **bugalter** — «Didox tasdiqladi (mijoz imzoladi)»; `didox_accepted_at` yoziladi, keyin §11.3 chegara mantig'i: `pending_admin` yoki `approved`; Didox rad javobi kiritilmaydi — `pending_didox`dan orqaga yo'l yo'q |
-| POST | `/contracts/{id}/approve/` | admin bosqichi (`pending_admin` → `approved`); B11 mosligi: `pending_bugalter`dan eski bitta qadamli yo'l ham qabul qilinadi (tanada `didox_number`); har bosqichda keyingi bosqich egasiga bildirishnoma |
+| POST | `/contracts/{id}/approve/` | 12-§1: **admin ruxsati Didoxdan OLDIN** — sales → bugalter → admin → Didox → to'lov. Bugalter bosqichi (`pending_bugalter` → `pending_admin`, yoki chegaradan past bo'lsa to'g'ridan `ready_for_didox`, §11.3); admin bosqichi (`pending_admin` → `ready_for_didox`); eski yozuv (Didoxi allaqachon tasdiqlangan) to'g'ridan `approved`; har bosqichda keyingi bosqich egasiga bildirishnoma |
+| POST | `/contracts/{id}/send-didox/` | B3: **bugalter** — «Didoxga yubordim»; faqat `ready_for_didox`dan (admin ruxsati olingandan keyin); `didox_number` majburiy, `ready_for_didox` → `pending_didox`, `didox_sent_at`/`signed_at` to'ladi |
+| POST | `/contracts/{id}/confirm-didox/` | B3: **bugalter** — «Didox tasdiqladi (mijoz imzoladi)»; `didox_accepted_at` yoziladi, natija doim `approved` (chegara mantig'i endi `approve`da, Didoxdan oldin); Didox rad javobi kiritilmaydi — `pending_didox`dan orqaga yo'l yo'q |
 | POST | `/contracts/{id}/reject/` | bugalter / admin |
 | POST | `/contracts/{id}/ship/` | #2: **yetkazish** — mol shu yerda chiqadi; 11-§3: **sales (shartnoma egasi) va admin** — buyurtmachi/bugalter endi bosolmaydi (mol bilan ishlaydigan emas, mijoz bilan gaplashadigan odam yetkazadi); `delivered_at`/`delivered_by` yoziladi, bron chiqimga aylanadi, balans yopiq bo'lsa `completed` |
 | POST | `/contracts/{id}/request-procurement/` | #2: **sales (egasi)** — band qilinmagan qismidan TLD ochadi (`contract` FK, `owner_sales`); 11-§1: **konfiguratsiyadan tug'ilgan shartnomada yopiq** (400 — yetishmayotganni engineer CFG sahifasidan yuboradi, `missing` o'sha yerda), eshik faqat ombordan to'g'ridan-to'g'ri sotuv uchun; bitta ochiq TLD qoidasi endi **butun zanjir** bo'yicha |
 | POST | `/contracts/{id}/confirm-payment/` | bugalter; YANGI-OQIM: bu **ish boshlanish signali** — CFG broni qattiqlashadi, engineer xabar oladi, 13–16 qadamlar ochiladi |
 | GET | `/contracts/{id}/timeline/` | hamma |
 | GET | `/contracts/{id}/print/` | **faqat sales, admin** — chop etish shakli (qator narxlari bor) |
+| GET | `/contracts/{id}/document/` | 13-§1: **bugalter, admin, sales (egasi)** — hujjat matni; `body` o'rin egallovchilar bilan (`{{ contract.number }}`, `{{ total }}` …) KO'RSATISHDA to'ldirilgan holda keladi, `can_edit` (faqat bugalterda `true`), `versions_count`; birinchi murojaatda bo'sh hujjat avtomatik ochiladi |
+| PUT | `/contracts/{id}/document/` | 13-§1: **faqat bugalter** (admin ham yo'q — "hozircha"); `body` saqlanadi, har saqlashda yangi versiya yoziladi; shartnoma `pending_didox`/`approved`/`active`/`completed`/`cancelled` bo'lsa 400 (hujjat huquqiy, Didoxdan keyin yopiq) |
+| POST | `/contracts/{id}/document/upload/` | 13-§1: **faqat bugalter**; `.docx` fayl (`file`) `mammoth` bilan HTML'ga o'giriladi va `body`ga yoziladi, asl fayl `source_file`da saqlanadi; boshqa format 400 |
+| GET | `/contracts/{id}/document/versions/` | 13-§1: tarix — har versiya `body`, kim va qachon saqlagani (`-created_at`) |
 | GET | `/contracts/deadlines/` | hamma |
 | GET/POST | `/contract-items/` | admin, sales |
 | GET/POST | `/contract-payments/` | admin, bugalter; POST `confirm-payment` bilan bir xil yo'ldan o'tadi: `paid_at` ixtiyoriy (default: hozir), kassaga kirim, balans yopilsa `completed`; §3: summa qoldiqdan oshsa yoki ≤0 bo'lsa `400` |

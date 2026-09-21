@@ -812,6 +812,36 @@ bilib turish uchun:
   shartnomani ko'radi, yangi yetkazish vazifasi kelmaydi. Roadmap
   `ship` qadamining `actor.role`si ham endi `sales`.
 
+## 28. 12-§1: admin tasdig'i Didoxdan OLDIN + 13-§1: shartnoma matni 🔴🔴
+
+**12-§1 — status o'zgardi:**
+
+- Yangi holat `ready_for_didox` ("Tasdiqlandi, Didoxga yuborilishi kerak")
+  `pending_admin` bilan `pending_didox` orasida qo'shildi. `CONTRACT_STATUS`
+  lug'atiga qo'shilsin, `holdsReservations` ro'yxatiga ham (shartnoma
+  hali tirik, mol band bo'lib turadi).
+- `canSendDidox`: `pending_bugalter` emas, `ready_for_didox`dan.
+- Bosqich chizig'i (`/roadmap/`) backenddan keladi — tegilmaydi, faqat
+  yangi `bugalter_check` qadami qo'shildi (19 qadam endi 18 emas).
+
+**13-§1 — yangi: "Hujjat" bo'limi (backend tayyor, front hali yo'q):**
+
+- Shartnoma sahifasida yangi bo'lim: `GET /contracts/{id}/document/`
+  javobidagi `body`ni (tayyor HTML, o'rin egallovchilar allaqachon
+  to'lgan) ko'rsatadigan muharrir (masalan TipTap/Lexical yoki oddiy
+  `contenteditable`).
+- `can_edit: true` bo'lsagina tahrir ochiq (hozircha faqat bugalterda —
+  admin ham yo'q); `PUT` bilan saqlanadi.
+- ".docx yuklash" tugmasi — `POST .../document/upload/` (`multipart`,
+  `file` maydoni); faqat `.docx`, boshqa format 400 qaytaradi.
+- Versiyalar ro'yxati — `GET .../document/versions/` (ixtiyoriy, keyinroq).
+- **"Chop etish" tugmasi endi yashirilsin** — 13-to'plamning o'zi shuni
+  so'ragan (eski `GET /contracts/{id}/print/` koddan olib tashlanmadi,
+  faqat UI dan yashiriladi; kerak bo'lib qolsa bir qatorda qaytariladi).
+- Shartnoma `pending_didox`/`approved`/`active`/`completed`/`cancelled`
+  bo'lganda `can_edit: false` — front tahrir maydonini o'qish rejimida
+  ko'rsatsin, "hujjat imzolangan" degan izoh bilan.
+
 ## Eslatma: oxirgi backend o'zgarishlari (allaqachon serverda)
 
 | Nima | Frontga ta'siri |

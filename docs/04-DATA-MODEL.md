@@ -261,7 +261,7 @@ Property: `items_total`, `total_amount`, `progress`, `days_left`, `color`.
 | `number` | `SHT-00001` (avtomatik) |
 | `client` | FK Client (PROTECT) |
 | `configuration` | FK Configuration (SET_NULL, null) |
-| `status` | `draft` / `pending_bugalter` / `pending_didox` (B3) / `pending_admin` / `approved` / `active` / `completed` / `rejected` / `cancelled` |
+| `status` | `draft` / `pending_bugalter` / `pending_admin` / `ready_for_didox` (12-§1) / `pending_didox` (B3) / `approved` / `active` / `completed` / `rejected` / `cancelled` |
 | `currency` | default `UZS` |
 | `total_amount` | Decimal(18,2) |
 | `prepayment_percent` | Decimal(5,2), bo'sh bo'lsa avtomatik 30/15 |
@@ -274,7 +274,20 @@ Property: `items_total`, `prepayment_amount`, `paid`, `balance`, `progress`, `da
 
 ### `ContractItem`
 `contract` (CASCADE, `items`), `product` (PROTECT), `quantity`, `unit_price`
-(QQS'siz), `vat_percent` (default 12). Property: `subtotal`, `vat_amount`, `total_with_vat`.
+(QQS'siz), `vat_percent` (default 12). `configuration` (SET_NULL, null,
+`contract_items`) — 12-§2 (C): bitta shartnomada bir nechta model bo'lishi
+mumkin, qator aynan qaysi konfiguratsiyadan kelganini biladi. Property:
+`subtotal`, `vat_amount`, `total_with_vat`.
+
+### `ContractDocument`
+13-§1: shartnoma MATNI — bugalter yuklaydi va saytda tahrirlaydi.
+`contract` (OneToOne, CASCADE, `document`), `body` (TextField, blank — HTML,
+o'rin egallovchilar ko'rsatishda to'ladi), `source_file` (FileField, `.docx`
+va h.k., o'girishdan keyin ham saqlanadi), `updated_by` (SET_NULL).
+
+### `ContractDocumentVersion`
+Har saqlash — yangi versiya (hujjat huquqiy, tarixi kerak). `document`
+(CASCADE, `versions`), `body` (TextField), `created_by` (SET_NULL).
 
 ### `ContractApproval`
 `contract` (CASCADE, `approvals`), `step` (`bugalter` / `admin` / `payment`),

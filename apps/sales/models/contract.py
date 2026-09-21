@@ -38,10 +38,13 @@ class Contract(StatusTrackedModel):
     class Status(TextChoices):
         DRAFT = 'draft', 'Qoralama'
         PENDING_BUGALTER = 'pending_bugalter', 'Bugalter tasdig\'i kutilmoqda'
+        PENDING_ADMIN = 'pending_admin', 'Admin tasdig\'i kutilmoqda'
+        # 12-§1: admin ruxsati Didoxdan OLDIN — "tasdiqlandi, Didoxga
+        # yuborilishi kerak" (bugalter navbatidagi kutish nuqtasi)
+        READY_FOR_DIDOX = 'ready_for_didox', 'Didoxga yuborilishi kerak'
         # B3: bugalter Didoxga yubordi — mijoz imzosi kutilmoqda. Orqaga yo'l
         # yo'q: Didox rad etsa mijoz Didoxning o'zida qayta yuboradi
         PENDING_DIDOX = 'pending_didox', 'Didox tasdig\'i kutilmoqda'
-        PENDING_ADMIN = 'pending_admin', 'Admin tasdig\'i kutilmoqda'
         APPROVED = 'approved', 'Tasdiqlandi, pul kutilmoqda'
         ACTIVE = 'active', 'Pul keldi, muddat ketmoqda'
         COMPLETED = 'completed', 'Yakunlandi'

@@ -86,13 +86,20 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 
 `apps/sales/services.py` ichida qo'shimcha qat'iy tekshiruv bor — endpoint ruxsatidan tashqari:
 
+12-§1: zanjir endi `sales → bugalter → admin → Didox → to'lov` — admin
+ruxsati Didoxdan **OLDIN** so'raladi (u ishga ruxsat, hujjat hali kuchga
+kirmagan bosqichda).
+
 | Amal | Kim bajara oladi | Aks holda |
 |---|---|---|
 | `submit` (draft/rejected → pending_bugalter) | sales, admin | `403` |
-| `approve` (pending_bugalter → pending_admin) — §11.2 "Didox qabuli", `didox_number` shu yerda saqlanadi | bugalter, admin | `403` |
-| §11.3: summa `admin_approval_threshold` dan **kichik** (UZS) bo'lsa — bugalter tasdig'i bilan to'g'ridan-to'g'ri `approved`, tarixda avtomatik admin yozuvi | — | — |
-| `approve` (pending_admin → approved) | **faqat admin** | `403` — bugalter ham o'tolmaydi |
-| `confirm-payment` (approved → active) — §11.2 "boshlang'ich to'lov", tarixga `payment` qadami yoziladi | bugalter, admin | `403` |
+| `approve` (pending_bugalter → pending_admin) — bugalter tekshiruvi | bugalter, admin | `403` |
+| §11.3: summa `admin_approval_threshold` dan **kichik** (UZS) bo'lsa — bugalter tasdig'i bilan to'g'ridan-to'g'ri `ready_for_didox`, tarixda avtomatik admin yozuvi | — | — |
+| `approve` (pending_admin → ready_for_didox) | **faqat admin** | `403` — bugalter ham o'tolmaydi |
+| `send-didox` (ready_for_didox → pending_didox) — `didox_number` shu yerda saqlanadi | bugalter, admin | `403` |
+| `confirm-didox` (pending_didox → approved) — §11.2 "boshlang'ich to'lov" endi shu yerdan kutiladi | bugalter, admin | `403` |
+| `confirm-payment` (approved → active) — tarixga `payment` qadami yoziladi | bugalter, admin | `403` |
+| 13-§1: `PUT /contracts/{id}/document/`, `POST .../document/upload/` — hujjat matni | **faqat bugalter** (admin ham yo'q — "hozircha") | `403` |
 
 ## To'ldirish (Buyurtmachi) zanjiridagi tekshiruv
 

@@ -3,6 +3,7 @@ from rest_framework.serializers import (
     ModelSerializer,
     PrimaryKeyRelatedField,
     ReadOnlyField,
+    SerializerMethodField,
     ValidationError,
 )
 
@@ -11,6 +12,8 @@ from apps.sales.models import (
     ContractItem,
     ContractApproval,
     ContractPayment,
+    ContractDocument,
+    ContractDocumentVersion,
     Lead,
 )
 
@@ -34,7 +37,11 @@ class ContractItemSerializer(ModelSerializer):
         fields = [
             'id', 'contract', 'product', 'product_name', 'quantity', 'unit_price',
             'subtotal', 'vat_percent', 'vat_amount', 'total_with_vat',
+            # 12-§2 (C): qator qaysi modeldan kelgani — bitta shartnomada
+            # bir nechta model bo'lsa front shu bilan ajratadi
+            'configuration',
         ]
+        read_only_fields = ['configuration']
 
     def validate(self, attrs):
         # contract faqat alohida /contract-items/ orqali yaratishda majburiy;
@@ -189,6 +196,51 @@ class ContractSerializer(ModelSerializer):
                 instance.total_amount = instance.items_total_with_vat
                 instance.save(update_fields=['total_amount'])
         return instance
+
+
+class ContractDocumentVersionSerializer(ModelSerializer):
+    """13-§1: tarix — kim, qachon saqlagani."""
+
+    created_by_name = ReadOnlyField(source='created_by.display_name')
+
+    class Meta:
+        model = ContractDocumentVersion
+        fields = ['id', 'body', 'created_by', 'created_by_name', 'created_at']
+
+
+class ContractDocumentSerializer(ModelSerializer):
+    """13-§1: shartnoma matni — o'rin egallovchilar ko'rsatishda to'ldiriladi."""
+
+    body = SerializerMethodField()
+    versions_count = ReadOnlyField(source='versions.count')
+    updated_by_name = ReadOnlyField(source='updated_by.display_name')
+    can_edit = SerializerMethodField()
+
+    class Meta:
+        model = ContractDocument
+        fields = [
+            'id', 'contract', 'body', 'versions_count',
+            'updated_by', 'updated_by_name', 'updated_at', 'can_edit',
+        ]
+        read_only_fields = [
+            'id', 'contract', 'versions_count',
+            'updated_by', 'updated_by_name', 'updated_at', 'can_edit',
+        ]
+
+    def get_body(self, obj):
+        from apps.sales.services import render_contract_document
+
+        user = getattr(self.context.get('request'), 'user', None)
+        return render_contract_document(obj.contract, obj.body, user)
+
+    def get_can_edit(self, obj):
+        from apps.sales.services import CONTRACT_DOCUMENT_EDITABLE_STATUSES
+
+        user = getattr(self.context.get('request'), 'user', None)
+        return bool(
+            user and user.is_authenticated and user.is_bugalter
+            and obj.contract.status in CONTRACT_DOCUMENT_EDITABLE_STATUSES
+        )
 
 
 class LeadSerializer(ModelSerializer):

@@ -571,12 +571,7 @@ def receive(replenishment, user):
 
         configuration = replenishment.configuration
         sync_configuration_reservations(configuration)
-        contract = (
-            configuration.contracts
-            .exclude(status__in=['rejected', 'cancelled'])
-            .order_by('-id')
-            .first()
-        )
+        contract = configuration.active_contract
         if contract:
             sync_contract_reservations(contract)
 

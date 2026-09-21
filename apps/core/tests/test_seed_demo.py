@@ -85,16 +85,20 @@ class SeedDemoTests(APITestCase):
         )
 
     def test_contract_statuses_cover_the_chain(self):
-        """Har bosqichdan bittadan — endi yetkazilgan/yopilgan ham bor (#2)."""
+        """Har bosqichdan bittadan — endi yetkazilgan/yopilgan ham bor (#2).
+
+        12-§1: admin ruxsati Didoxdan OLDIN — chegaradan past shartnoma
+        (c4) endi to'g'ridan `ready_for_didox`ga tushadi, `approved` emas.
+        """
         statuses = set(Contract.objects.values_list('status', flat=True))
         self.assertEqual(statuses, {
             Contract.Status.DRAFT, Contract.Status.PENDING_BUGALTER,
-            Contract.Status.PENDING_ADMIN, Contract.Status.APPROVED,
+            Contract.Status.PENDING_ADMIN, Contract.Status.READY_FOR_DIDOX,
             Contract.Status.ACTIVE, Contract.Status.COMPLETED,
         })
 
     def test_threshold_demo_contract_skipped_admin(self):
-        """§11.3 demo: kichik shartnoma bugalter tasdig'i bilan approved,
+        """§11.3 demo: kichik shartnoma bugalter tasdig'i bilan ready_for_didox,
         tarixda decided_by bo'sh avtomatik admin yozuvi bor."""
         from apps.sales.models import ContractApproval
 

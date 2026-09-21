@@ -420,12 +420,16 @@ def _configuration_client(configuration):
     return request_obj.client if request_obj else None
 
 
-def approve_configuration(configuration, user, comment=''):
+def approve_configuration(configuration, user, comment='', contract=None):
     """Sales texnik yechimni tasdiqlaydi — SHU YERDA shartnoma ochiladi (B1).
 
     YANGI OQIM: zanjir `CFG → SHT → pul → mol`. Tasdiq bilan draft shartnoma
     avtomatik ochiladi (egasi — zayavka sales'i), sales uni bugalterga
     yuboradi; ta'minot va yig'ish esa boshlang'ich to'lovdan keyin boshlanadi.
+
+    12-§2 (C2): `contract` berilsa — bitta savdoda bir nechta model
+    (mijoz bir suhbatda ikki xil narsa so'raganda). Yangi shartnoma
+    ochilmaydi, aksincha shu MAVJUD qoralamaga yangi qator qo'shiladi.
     """
     from apps.configurator.models import Configuration, ConfigurationApproval, ConfigurationRequest
     from apps.core.models import Notification
@@ -441,6 +445,22 @@ def approve_configuration(configuration, user, comment=''):
                 'Avval zayavka yoki konfiguratsiyaga mijozni bog\'lang.'
             ),
         })
+    if contract is not None:
+        from apps.sales.models import Contract
+
+        if contract.status != Contract.Status.DRAFT:
+            raise ValidationError({
+                'detail': (
+                    f'{contract.number} qoralama emas — bugalterga ketgan '
+                    'shartnomaga yangi model qo\'shib bo\'lmaydi.'
+                ),
+            })
+        if contract.client_id != client.id:
+            raise ValidationError({
+                'detail': f'{contract.number} boshqa mijozniki — mijoz mos kelmadi.',
+            })
+        if not user.is_admin and contract.created_by_id and contract.created_by_id != user.id:
+            raise ValidationError({'detail': f'{contract.number} sizniki emas.'})
 
     _decide_configuration(
         configuration, user, ConfigurationApproval.Decision.APPROVED, comment,
@@ -456,28 +476,52 @@ def approve_configuration(configuration, user, comment=''):
         status=ConfigurationRequest.Status.IN_PROGRESS,
     ).update(status=ConfigurationRequest.Status.DONE)
 
-    # B1: shartnoma zanjir boshida ochiladi (qaytadan tasdiqlashda mavjudi olinadi)
-    if configuration.active_contract is None:
+    if contract is not None:
+        _attach_configuration_to_contract(configuration, contract)
+    elif configuration.active_contract is None:
+        # B1: shartnoma zanjir boshida ochiladi (qaytadan tasdiqlashda mavjudi olinadi)
         from apps.sales.services import create_contract_from_configuration
 
         create_contract_from_configuration(configuration, user, client)
 
-    contract = configuration.active_contract
+    resolved_contract = configuration.active_contract
     if configuration.created_by:
         Notification.objects.create(
             user=configuration.created_by,
             title=f'{configuration.number}: texnik yechim tasdiqlandi',
             message=(
-                f'Sales mijoz bilan kelishdi — {contract.number} shartnomasi '
-                'ochildi. Ta\'minot va yig\'ish boshlang\'ich to\'lovdan keyin '
-                'boshlanadi.'
-                if contract else 'Sales mijoz bilan kelishdi.'
+                f'Sales mijoz bilan kelishdi — {resolved_contract.number} '
+                'shartnomasiga qo\'shildi. Ta\'minot va yig\'ish boshlang\'ich '
+                'to\'lovdan keyin boshlanadi.'
+                if resolved_contract else 'Sales mijoz bilan kelishdi.'
             ),
             level=Notification.Level.INFO,
             entity='Configuration',
             object_id=str(configuration.pk),
         )
     return configuration
+
+
+def _attach_configuration_to_contract(configuration, contract):
+    """12-§2 (C2): mavjud qoralama shartnomaga yangi model qatori qo'shiladi.
+
+    `create_contract_from_configuration` bilan bir xil qator mantig'i —
+    tayyor variant (odatda hali yo'q) narxi konfiguratsiyadan, QQS default.
+    """
+    from apps.sales.models import ContractItem
+
+    ContractItem.objects.create(
+        contract=contract,
+        product=configuration.variant or configuration.base_product,
+        quantity=configuration.quantity,
+        unit_price=configuration.total_price,
+        configuration=configuration,
+    )
+    contract.total_amount = contract.items_total_with_vat
+    contract.save()
+    from apps.inventory.services import sync_contract_reservations
+
+    sync_contract_reservations(contract)
 
 
 def reject_configuration(configuration, user, comment=''):
@@ -598,21 +642,24 @@ def change_quantity(configuration, user, *, quantity, comment='', via_request=Fa
     configuration.requests.update(quantity=quantity)
 
     # YANGI-OQIM B1 oqibati: shartnoma allaqachon ochilgan (pul hali yo'q —
-    # draft/rejected) — qatordagi son va jami ham ergashadi
-    from apps.sales.models import Contract
+    # draft/rejected) — qatordagi son va jami ham ergashadi. 12-§2 C: qator
+    # `configuration` FK orqali topiladi — ikkinchi model bo'lsa ham to'g'ri
+    from apps.sales.models import Contract, ContractItem
 
-    contract = (
-        configuration.contracts
-        .exclude(status=Contract.Status.CANCELLED)
+    contract_item = (
+        ContractItem.objects
+        .filter(configuration=configuration)
+        .exclude(contract__status=Contract.Status.CANCELLED)
+        .select_related('contract')
         .order_by('-id')
         .first()
     )
+    contract = contract_item.contract if contract_item else None
     if contract and contract.status in {
         Contract.Status.DRAFT, Contract.Status.REJECTED,
     }:
-        contract.items.filter(product=configuration.base_product).update(
-            quantity=quantity,
-        )
+        contract_item.quantity = quantity
+        contract_item.save()
         contract.total_amount = contract.items_total_with_vat
         contract.prepayment_percent = None  # foiz yangi summadan qayta olinadi
         contract.save()
@@ -678,14 +725,26 @@ def chain_open_replenishment(configuration=None, contract=None):
     sales SHT'dan ikkinchisini ocha olardi — bir xil mol ikki marta buyurtma
     qilinib, ikki marta to'lanardi. Bu 8-§3 dagi "bitta CFG'ga bitta SHT"
     xatosining aynan o'zi, faqat boshqa hujjatda.
+
+    12-§2 (C4): bitta shartnomada bir nechta model bo'lishi mumkin — TLD
+    holati har doim ANIQ BIR MODELNING yetishmovchiligidan kelib chiqadi,
+    shuning uchun shartnoma tomonidan traversal faqat u BITTA modelli
+    (eski, konfiguratsiyasiz TLD) bo'lganda qo'llaniladi — aks holda A
+    modeli uchun ochilgan hisob B modelini bekorga bloklab qo'yardi.
     """
     if contract is not None and configuration is None:
         configuration = contract.configuration
     candidates = []
     if configuration is not None:
         candidates += list(configuration.replenishments.all())
-        for chained in configuration.contracts.all():
-            candidates += list(chained.replenishments.all())
+        chained_contract = configuration.active_contract
+        if chained_contract is not None:
+            models_on_contract = (
+                chained_contract.items.exclude(configuration__isnull=True)
+                .values_list('configuration_id', flat=True).distinct()
+            )
+            if len(models_on_contract) <= 1:
+                candidates += list(chained_contract.replenishments.all())
     if contract is not None:
         candidates += list(contract.replenishments.all())
     return next((rep for rep in candidates if rep.is_open), None)
@@ -702,7 +761,13 @@ def _require_paid_chain(configuration):
 
     from apps.sales.models import Contract
 
-    contract = configuration.contracts.order_by('-id').first()
+    # 12-§2 (C): ikkinchi model bo'lsa `active_contract` qator orqali ham
+    # topadi; lekin bu yerda rad/bekor qilingan holatni ham ko'rish kerak
+    # (xabar aniq bo'lsin), shuning uchun fallback keng
+    contract = (
+        configuration.contracts.order_by('-id').first()
+        or configuration.active_contract
+    )
     if contract is None:
         raise ValidationError({
             'detail': (
@@ -810,12 +875,8 @@ def assemble_variant(configuration, user, *, strict=True):
 
     # §11.4: boshqa shartnomalarga band qilingan butlovchi yig'ishga olinmaydi;
     # shu konfiguratsiyaning o'z shartnomasi band qilgani esa ochiq
-    own_contract = (
-        configuration.contracts
-        .exclude(status__in=['rejected', 'cancelled'])
-        .order_by('-id')
-        .first()
-    )
+    # (12-§2 C: ikkinchi model bo'lsa ham `active_contract` qator orqali topadi)
+    own_contract = configuration.active_contract
     # #3: butun partiya uchun tekshiriladi — qator miqdori × partiya
     missing = [
         item.component.name
@@ -1354,7 +1415,8 @@ def cancel_chain(document, user, reason):
     if configuration is not None and request_obj is None:
         request_obj = configuration.requests.order_by('-created_at').first()
     if configuration is not None and contract is None:
-        contract = (
+        # 12-§2 (C): ikkinchi model bo'lsa `active_contract` qator orqali topadi
+        contract = configuration.active_contract or (
             configuration.contracts
             .exclude(status=Contract.Status.CANCELLED)
             .order_by('-id')

@@ -1,5 +1,7 @@
 from decimal import Decimal
 
+from django.utils.timezone import now
+
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import User
@@ -10,7 +12,7 @@ from apps.sales.models import Contract, ContractApproval, ContractItem
 
 
 class DidoxStepsTests(APITestCase):
-    """YANGI-OQIM B3: Didox bitta emas, ikki qadam — yubordim / tasdiqladi."""
+    """12-§1: sales -> bugalter -> admin -> Didox (ikki qadam) -> to'lov."""
 
     def setUp(self):
         self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
@@ -33,9 +35,46 @@ class DidoxStepsTests(APITestCase):
         )
         return contract
 
-    def test_send_didox_requires_number_and_moves_status(self):
+    def _ready_for_didox(self, contract):
+        """Bugalter va admin tasdig'ini o'tkazib, Didoxga tayyor holatga olib boradi."""
+        self.client.force_authenticate(self.bugalter)
+        self.client.post(f'/api/contracts/{contract.id}/approve/')
+        contract.refresh_from_db()
+        if contract.status == Contract.Status.PENDING_ADMIN:
+            self.client.force_authenticate(self.admin)
+            self.client.post(f'/api/contracts/{contract.id}/approve/')
+            contract.refresh_from_db()
+        self.client.force_authenticate(self.bugalter)
+
+    def test_admin_approve_before_didox_moves_to_ready(self):
+        """12-§1: admin ruxsati endi Didoxdan OLDIN — pending_admin -> ready_for_didox."""
         contract = self._pending_contract()
         self.client.force_authenticate(self.bugalter)
+        response = self.client.post(f'/api/contracts/{contract.id}/approve/')
+        self.assertEqual(response.status_code, 200, response.data)
+        contract.refresh_from_db()
+        self.assertEqual(contract.status, Contract.Status.PENDING_ADMIN)
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f'/api/contracts/{contract.id}/approve/')
+        self.assertEqual(response.status_code, 200, response.data)
+        contract.refresh_from_db()
+        self.assertEqual(contract.status, Contract.Status.READY_FOR_DIDOX)
+        # Didox raqami hali yo'q — u faqat send-didox'da kiritiladi
+        self.assertEqual(contract.didox_number, '')
+
+    def test_send_didox_requires_ready_state_and_number(self):
+        contract = self._pending_contract()
+        self.client.force_authenticate(self.bugalter)
+        # Bugalter va admin tasdig'idan oldin Didoxga yuborib bo'lmaydi
+        response = self.client.post(
+            f'/api/contracts/{contract.id}/send-didox/',
+            {'didox_number': 'DDX-77'}, format='json',
+        )
+        self.assertEqual(response.status_code, 400)
+        self.assertIn('detail', response.data)
+
+        self._ready_for_didox(contract)
         response = self.client.post(
             f'/api/contracts/{contract.id}/send-didox/', {}, format='json',
         )
@@ -58,9 +97,10 @@ class DidoxStepsTests(APITestCase):
             ).exists(),
         )
 
-    def test_confirm_didox_goes_to_admin_then_approved(self):
+    def test_confirm_didox_goes_straight_to_approved(self):
+        """12-§1: admin allaqachon oldin tasdiqlagan — Didox tasdiqi to'g'ridan approved beradi."""
         contract = self._pending_contract()
-        self.client.force_authenticate(self.bugalter)
+        self._ready_for_didox(contract)
         self.client.post(
             f'/api/contracts/{contract.id}/send-didox/',
             {'didox_number': 'DDX-77'}, format='json',
@@ -68,30 +108,20 @@ class DidoxStepsTests(APITestCase):
         response = self.client.post(f'/api/contracts/{contract.id}/confirm-didox/')
         self.assertEqual(response.status_code, 200, response.data)
         contract.refresh_from_db()
-        self.assertEqual(contract.status, Contract.Status.PENDING_ADMIN)
+        self.assertEqual(contract.status, Contract.Status.APPROVED)
         self.assertIsNotNone(contract.didox_accepted_at)
 
-        self.client.force_authenticate(self.admin)
-        response = self.client.post(f'/api/contracts/{contract.id}/approve/')
-        self.assertEqual(response.status_code, 200, response.data)
-        contract.refresh_from_db()
-        self.assertEqual(contract.status, Contract.Status.APPROVED)
-
-    def test_confirm_didox_skips_admin_under_threshold(self):
-        """§11.3 chegara mantig'i confirm-didox'da ham ishlaydi."""
+    def test_small_contract_reaches_didox_without_admin(self):
+        """§11.3 chegara mantig'i endi bugalter tasdig'ida ishlaydi, Didoxdan oldin."""
         profile = CompanyProfile.load()
         profile.admin_approval_threshold = Decimal('100000000')
         profile.save()
         contract = self._pending_contract('50000000')
         self.client.force_authenticate(self.bugalter)
-        self.client.post(
-            f'/api/contracts/{contract.id}/send-didox/',
-            {'didox_number': 'DDX-1'}, format='json',
-        )
-        response = self.client.post(f'/api/contracts/{contract.id}/confirm-didox/')
+        response = self.client.post(f'/api/contracts/{contract.id}/approve/')
         self.assertEqual(response.status_code, 200, response.data)
         contract.refresh_from_db()
-        self.assertEqual(contract.status, Contract.Status.APPROVED)
+        self.assertEqual(contract.status, Contract.Status.READY_FOR_DIDOX)
         # Tarixda avtomatik admin yozuvi (decided_by bo'sh)
         self.assertTrue(
             ContractApproval.objects.filter(
@@ -100,10 +130,19 @@ class DidoxStepsTests(APITestCase):
             ).exists(),
         )
 
+        self.client.post(
+            f'/api/contracts/{contract.id}/send-didox/',
+            {'didox_number': 'DDX-1'}, format='json',
+        )
+        response = self.client.post(f'/api/contracts/{contract.id}/confirm-didox/')
+        self.assertEqual(response.status_code, 200, response.data)
+        contract.refresh_from_db()
+        self.assertEqual(contract.status, Contract.Status.APPROVED)
+
     def test_no_way_back_from_pending_didox(self):
         """Didox rad javobi tizimga kiritilmaydi — shartnoma kutib turadi."""
         contract = self._pending_contract()
-        self.client.force_authenticate(self.bugalter)
+        self._ready_for_didox(contract)
         self.client.post(
             f'/api/contracts/{contract.id}/send-didox/',
             {'didox_number': 'DDX-1'}, format='json',
@@ -113,17 +152,20 @@ class DidoxStepsTests(APITestCase):
         contract.refresh_from_db()
         self.assertEqual(contract.status, Contract.Status.PENDING_DIDOX)
 
-    def test_legacy_one_step_approve_still_works(self):
-        """B11: eski yo'l ham qabul qilinadi — pending_bugalter'dan to'g'ridan approve."""
+    def test_legacy_admin_approve_with_prior_didox_goes_straight_to_approved(self):
+        """12-§1 eski yozuvlar: Didoxi allaqachon tasdiqlangan bo'lsa, admin
+        ikkinchi marta Didoxga yubormasdan to'g'ridan approved qiladi."""
         contract = self._pending_contract()
-        self.client.force_authenticate(self.bugalter)
-        response = self.client.post(
-            f'/api/contracts/{contract.id}/approve/',
-            {'didox_number': 'DDX-OLD'}, format='json',
+        Contract.objects.filter(pk=contract.pk).update(
+            status=Contract.Status.PENDING_ADMIN,
+            didox_number='DDX-OLD', didox_sent_at=now(), didox_accepted_at=now(),
         )
+        contract.refresh_from_db()
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f'/api/contracts/{contract.id}/approve/')
         self.assertEqual(response.status_code, 200, response.data)
         contract.refresh_from_db()
-        self.assertEqual(contract.status, Contract.Status.PENDING_ADMIN)
+        self.assertEqual(contract.status, Contract.Status.APPROVED)
 
     def test_prepayment_percent_locked_after_draft(self):
         """B14: foiz faqat qoralamada tuziladi — keyin admin ham o'zgartira olmaydi."""

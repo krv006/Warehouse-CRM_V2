@@ -86,13 +86,18 @@ class ChainClosureTests(APITestCase):
         request_obj.refresh_from_db()
         self.assertEqual(request_obj.status, ConfigurationRequest.Status.DONE)
 
-        # Pul: sales submit -> bugalter -> admin -> to'liq to'lov
+        # Pul: sales submit -> bugalter -> admin -> Didox -> to'liq to'lov (12-§1)
         self.client.post(f'/api/contracts/{contract_id}/submit/')
         self.client.force_authenticate(self.bugalter)
         self.client.post(f'/api/contracts/{contract_id}/approve/')
         self.client.force_authenticate(self.admin)
         self.client.post(f'/api/contracts/{contract_id}/approve/')
         self.client.force_authenticate(self.bugalter)
+        self.client.post(
+            f'/api/contracts/{contract_id}/send-didox/',
+            {'didox_number': 'DDX-1'}, format='json',
+        )
+        self.client.post(f'/api/contracts/{contract_id}/confirm-didox/')
         total = Contract.objects.get(pk=contract_id).total_amount
         response = self.client.post(
             f'/api/contracts/{contract_id}/confirm-payment/',

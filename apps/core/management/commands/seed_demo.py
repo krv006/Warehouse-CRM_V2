@@ -245,13 +245,16 @@ class Command(BaseCommand):
         )
 
         submit_sht(contract_a, users['sales'])
-        # B3: Didox ikki qadam — yubordim / Didox tasdiqladi
-        send_didox_sht(contract_a, users['bugalter'], 'DDX-2026-0055')
-        confirm_didox_sht(contract_a, users['bugalter'])
+        # 12-§1: bugalter -> admin -> Didox (admin ruxsati Didoxdan OLDIN)
+        approve_sht(contract_a, users['bugalter'])
         contract_a.refresh_from_db()
         if contract_a.status == contract_a.Status.PENDING_ADMIN:
             approve_sht(contract_a, users['admin'], 'Ma\'qul')
             contract_a.refresh_from_db()
+        # B3: Didox ikki qadam — yubordim / Didox tasdiqladi
+        send_didox_sht(contract_a, users['bugalter'], 'DDX-2026-0055')
+        confirm_didox_sht(contract_a, users['bugalter'])
+        contract_a.refresh_from_db()
         pay_sht(contract_a, users['bugalter'], amount=contract_a.prepayment_amount)
         pay_sht(contract_a, users['bugalter'], amount=Decimal('5000000'))
         contract_a.refresh_from_db()
@@ -317,11 +320,14 @@ class Command(BaseCommand):
 
         contract_d = config_d.active_contract
         _submit_contract(contract_d, users['sales'])
-        _send_didox(contract_d, users['bugalter'], 'DDX-2026-0077')
-        _confirm_didox(contract_d, users['bugalter'])
+        # 12-§1: bugalter -> admin -> Didox
+        _approve_contract(contract_d, users['bugalter'])
         contract_d.refresh_from_db()
         if contract_d.status == contract_d.Status.PENDING_ADMIN:
             _approve_contract(contract_d, users['admin'], 'Ma\'qul')
+            contract_d.refresh_from_db()
+        _send_didox(contract_d, users['bugalter'], 'DDX-2026-0077')
+        _confirm_didox(contract_d, users['bugalter'])
         contract_d.refresh_from_db()
         _confirm_payment(
             contract_d, users['bugalter'], amount=contract_d.prepayment_amount,
@@ -401,21 +407,23 @@ class Command(BaseCommand):
         # 1) Chernovik — sales hali yubormagan
         build(clients[0], 1, 'Sales hali yubormadi')
 
-        # 2) Didox navbati (pending_bugalter) — SLA demo uchun keyin eskirtiriladi
-        c2 = build(clients[1], 1, 'Bugalter Didoxdan qabul qilishi kutilmoqda')
+        # 2) Bugalter tekshiruvi navbati (pending_bugalter) — SLA demo uchun
+        # keyin eskirtiriladi
+        c2 = build(clients[1], 1, 'Bugalter tekshiruvi kutilmoqda')
         submit_contract(c2, users['sales'])
         state['contract_stale'] = c2
 
-        # 3) Katta summa — chegaradan oshadi, ADMINGA boradi (§11.3 demo)
+        # 3) Katta summa — chegaradan oshadi. 12-§1: admin ruxsati Didoxdan
+        # OLDIN — bugalter tasdiqlagach to'g'ridan ADMINGA boradi (§11.3 demo)
         c3 = build(clients[2], 3, '75 mln + QQS — chegaradan katta, admin ko\'radi')
         submit_contract(c3, users['sales'])
-        didox(c3, 'DDX-2026-0031')
+        approve_contract(c3, users['bugalter'])
 
         # 4) Kichik summa — chegaradan past, ADMIN CHETLAB O'TILADI (§11.3 demo):
-        # bugalter tasdig'i bilan to'g'ri approved, tarixda avtomatik yozuv
-        c4 = build(clients[3], 1, 'Kichik summa — admin tasdig\'i talab qilinmadi')
+        # bugalter tasdig'i bilan to'g'ridan ready_for_didox, tarixda avtomatik yozuv
+        c4 = build(clients[3], 1, 'Kichik summa — admin tasdig\'i talab qilinmadi, Didoxga tayyor')
         submit_contract(c4, users['sales'])
-        didox(c4, 'DDX-2026-0044')
+        approve_contract(c4, users['bugalter'])
 
         # 5) Faol, YETKAZILMAGAN — A-hikoya shartnomasi (YANGI OQIM: pul zanjiri
         # hikoyaning o'zida yurilgan — to'lov yig'ishdan OLDIN keladi, B4).
@@ -429,6 +437,11 @@ class Command(BaseCommand):
         # 6) Yetkazilgan va yopilgan — to'liq hayot yo'li (11-§3: sales yetkazadi)
         c6 = build(clients[3], 1, 'Yetkazilgan va yopilgan shartnoma')
         submit_contract(c6, users['sales'])
+        approve_contract(c6, users['bugalter'])
+        c6.refresh_from_db()
+        if c6.status == c6.Status.PENDING_ADMIN:
+            approve_contract(c6, users['admin'], 'Ma\'qul')
+            c6.refresh_from_db()
         didox(c6, 'DDX-2026-0066')
         confirm_payment(c6, users['bugalter'], amount=c6.total_amount)
         c6.refresh_from_db()

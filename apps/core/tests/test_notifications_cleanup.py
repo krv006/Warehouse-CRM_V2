@@ -89,10 +89,7 @@ class ResolveOnTransitionTests(APITestCase):
         someone_elses = self._note(self.sales)
 
         self.client.force_authenticate(self.bugalter)
-        response = self.client.post(
-            f'/api/contracts/{self.contract.id}/approve/',
-            {'didox_number': 'DDX-1'}, format='json',
-        )
+        response = self.client.post(f'/api/contracts/{self.contract.id}/approve/')
         self.assertEqual(response.status_code, 200, response.data)
 
         mine.refresh_from_db()

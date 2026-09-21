@@ -33,13 +33,18 @@ class ConfirmPaymentParsingTests(APITestCase):
             'client': self.mijoz.id,
             'items': [{'product': product.id, 'quantity': 1, 'unit_price': '5000000'}],
         }, format='json').data['id']
-        # Zanjir: submit -> bugalter -> admin
+        # Zanjir: submit -> bugalter -> admin -> Didox (12-§1)
         self.client.post(f'/api/contracts/{self.contract_id}/submit/')
         self.client.force_authenticate(self.bugalter)
         self.client.post(f'/api/contracts/{self.contract_id}/approve/')
         self.client.force_authenticate(self.admin)
         self.client.post(f'/api/contracts/{self.contract_id}/approve/')
         self.client.force_authenticate(self.bugalter)
+        self.client.post(
+            f'/api/contracts/{self.contract_id}/send-didox/',
+            {'didox_number': 'DDX-1'}, format='json',
+        )
+        self.client.post(f'/api/contracts/{self.contract_id}/confirm-didox/')
 
     def _confirm(self, body):
         return self.client.post(

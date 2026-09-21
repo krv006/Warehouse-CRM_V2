@@ -139,12 +139,14 @@ Bitta model, ikki tur: `individual` (F.I.SH, passport, JSHSHIR — unique) va
 ### 2.5 Sales — `apps/sales`
 
 - `Lead` — og'zaki kelishuv jarayoni (`new → negotiation → verbal → contract / lost`).
-- `Contract` holatlari:
-  `draft → pending_bugalter → pending_admin → approved → active → completed`
+- `Contract` holatlari (12-§1: admin ruxsati Didoxdan **OLDIN**):
+  `draft → pending_bugalter → pending_admin → ready_for_didox → pending_didox → approved → active → completed`
   (`rejected` — tahrirlanib qayta submit bo'ladi, `cancelled`).
   - `POST /contracts/{id}/submit/` — sales yuboradi; shundan keyin shartnoma va qatorlari **qulflanadi** (faqat admin o'zgartiradi), qator o'zgarganda `total_amount` avtomatik qayta yig'iladi
-  - **B3 — Didox ikki qadam**: `POST /contracts/{id}/send-didox/` (bugalter, `didox_number` majburiy, `pending_bugalter` → `pending_didox`) va `POST /contracts/{id}/confirm-didox/` (mijoz imzoladi — `pending_admin` yoki chegara ostida `approved`, §11.3); Didox rad javobi kiritilmaydi — orqaga yo'l yo'q. Eski bitta qadamli `approve` (pending_bugalter'dan) B11 mosligi uchun qabul qilinaveradi
+  - `POST /contracts/{id}/approve/` — bugalter (`pending_bugalter` → `pending_admin`, yoki chegara ostida to'g'ridan `ready_for_didox`, §11.3), so'ng admin (`pending_admin` → `ready_for_didox`); eski Didoxi tasdiqlangan yozuv to'g'ridan `approved`
+  - **B3 — Didox ikki qadam**: `POST /contracts/{id}/send-didox/` (bugalter, `didox_number` majburiy, faqat `ready_for_didox`dan, → `pending_didox`) va `POST /contracts/{id}/confirm-didox/` (mijoz imzoladi — natija doim `approved`); Didox rad javobi kiritilmaydi — orqaga yo'l yo'q
   - `POST /contracts/{id}/confirm-payment/` — bugalter; shu kundan **muddat sanog'i** boshlanadi; tarixga `payment` qadami yoziladi; konfiguratsiya `sold` bo'ladi
+  - `GET`/`PUT /contracts/{id}/document/` — 13-§1: shartnoma MATNI, bugalter yuklaydi/tahrirlaydi (`.docx` → `mammoth`), o'rin egallovchilar ko'rsatishda to'ladi; Didoxga ketgach (`pending_didox`+) yopiq
   - `GET /contracts/{id}/timeline/` — line chart nuqtalari va rang
 - Shartnoma tuzilganda mahsulot **bron** qilinadi (§11.4, `StockReservation`): qattiq bron sotuvni to'sadi, konfiguratsiya chernovigi yumshoq bron (ogohlantiradi); to'lovda bron chiqimga aylanadi, muddati o'tganini `check_deadlines` bo'shatadi; mijozning ochiq `Lead`i shartnomaga avtomatik bog'lanadi
 - Oldindan to'lov: summa **1 mlrd dan kam bo'lsa 30%**, ko'p bo'lsa **15%**; qo'lda o'zgartirsa bo'ladi.
@@ -158,6 +160,7 @@ O'qish hammaga; **yozish faqat engineer** (admin). Sales matnli zayavka yuboradi
 (`stock` yoki `purchase`) hisoblanadi.
 - `GET /configurations/{id}/stock-check/`
 - **YANGI OQIM**: zanjir `CFG → SHT → pul → mol`. Sales texnik yechimni tasdiqlashi (`approve`) bilanoq **draft shartnoma avtomatik ochiladi** (mijozsiz tasdiq 400); ta'minot va yig'ish **boshlang'ich to'lovdan keyin**. Narx `submit`dan oldin aniq bo'ladi (`request-prices` — buyurtmachi tannarx kiritadi, §6-B ustama `CompanyProfile.markup_percent`)
+- **12-§2 (C)**: bitta savdoda bir nechta model — `approve`ga ixtiyoriy `contract` (id) berilsa yangi shartnoma ochilmaydi, mavjud **qoralamaga** yangi model qatori qo'shiladi (`ContractItem.configuration`); shartlar: `draft`, bir xil mijoz, bir xil egasi (yoki admin)
 - `POST /configurations/{id}/finalize/` — **ACT majburiy**; §11.1: yakunlash **engineer bosqichi**, shartlari `approved` + yig'ilgan; shartnoma bu yerda OCHILMAYDI — qatordagi bazaviy model **yig'ilgan variantga ko'chadi** (son/narx tegilmaydi), CFG `ready` (pul kelgan bo'lsa `sold`); chop etish shakli: `GET /contracts/{id}/print/`
 - `POST /configurations/{id}/assemble/` — yig'ish; **B4: faqat boshlang'ich to'lovdan keyin** (shartnoma `active`), aks holda 400 "To'lov kutilmoqda — SHT-…"; ta'minot (`request-procurement`) ham xuddi shu qulf ostida
 - `GET /configurations/{id}/export-excel/` — chernovik Excel (openpyxl)

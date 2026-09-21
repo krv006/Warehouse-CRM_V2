@@ -347,12 +347,15 @@ keyin avtomatik narx oladi (`needs_price` o'chadi, finalize ochiladi).
 
 **§11 kelishilgan o'zgarishlar (endi kodda):** ACT va `finalize` —
 engineerda (§11.1, "Yakunlash va salesga topshirish"); bugalter tasdig'i ikkiga
-bo'lindi — "Didox qabuli" (`didox_number` saqlanadi) va "boshlang'ich to'lov"
-(tarixga `payment` qadami yoziladi) (§11.2); `admin_approval_threshold` dan
-kichik UZS shartnoma admin tasdig'isiz o'tadi, tarixda avtomatik yozuv qoladi,
-boshqa valyuta doim adminga (§11.3). Shartnoma va qatorlari tasdiqqa
-yuborilgach qulflanadi (faqat admin), qator o'zgarganda `total_amount`
-avtomatik qayta hisoblanadi (§10.3); rad etilgani tuzatilib qayta yuboriladi.
+bo'lindi — "tekshiruv" va "boshlang'ich to'lov" (tarixga `payment` qadami
+yoziladi) (§11.2). 12-§1: admin tasdig'i endi bularning O'RTASIDA emas,
+Didoxdan **OLDIN** — sales → bugalter → admin → Didox (`didox_number`
+`send-didox`da saqlanadi) → to'lov; `admin_approval_threshold` dan
+kichik UZS shartnoma admin tasdig'isiz to'g'ridan Didoxga tayyor bo'ladi,
+tarixda avtomatik yozuv qoladi, boshqa valyuta doim adminga (§11.3).
+Shartnoma va qatorlari tasdiqqa yuborilgach qulflanadi (faqat admin), qator
+o'zgarganda `total_amount` avtomatik qayta hisoblanadi (§10.3); rad etilgani
+tuzatilib qayta yuboriladi.
 
 **Hujjat egaligi (EGALIK §3):** sales va engineer ko'p, shuning uchun
 ularda egalik filtri bor: sales faqat o'z shartnomasi/kelishuvi/zayavkasini

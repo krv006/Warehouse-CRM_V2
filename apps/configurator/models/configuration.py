@@ -213,13 +213,29 @@ class Configuration(StatusTrackedModel):
         Yangi oqimda shartnoma sales tasdig'ida ochiladi va zanjirning
         umurtqasi bo'ladi — to'lov holati, bron turi va yig'ish ruxsati
         shu shartnomadan o'qiladi.
+
+        12-§2 (C): bitta shartnomada bir nechta model bo'lishi mumkin —
+        faqat BIRINCHI (`Contract.configuration`) shartnoma orqali topiladi.
+        Keyingi modellar shartnomaga faqat QATOR orqali ulanadi
+        (`ContractItem.configuration`), shuning uchun to'g'ridan-to'g'ri
+        FK bo'sh qaytsa, qator orqali ham qidiriladi.
         """
-        return (
+        contract = (
             self.contracts
             .exclude(status__in=['rejected', 'cancelled'])
             .order_by('-id')
             .first()
         )
+        if contract is not None:
+            return contract
+        item = (
+            self.contract_items
+            .exclude(contract__status__in=['rejected', 'cancelled'])
+            .select_related('contract')
+            .order_by('-id')
+            .first()
+        )
+        return item.contract if item else None
 
     @property
     def is_paid(self):

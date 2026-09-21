@@ -102,12 +102,18 @@ class ReservationBasicsTests(APITestCase):
         self.assertEqual(sellable_quantity(self.ssd, self.warehouse), Decimal('5'))
 
     def _pay(self, contract_id):
+        # 12-§1: sales -> bugalter -> admin -> Didox -> to'lov
         self.client.post(f'/api/contracts/{contract_id}/submit/')
         self.client.force_authenticate(self.bugalter)
         self.client.post(f'/api/contracts/{contract_id}/approve/')
         self.client.force_authenticate(self.admin)
         self.client.post(f'/api/contracts/{contract_id}/approve/')
         self.client.force_authenticate(self.bugalter)
+        self.client.post(
+            f'/api/contracts/{contract_id}/send-didox/',
+            {'didox_number': 'DDX-1'}, format='json',
+        )
+        self.client.post(f'/api/contracts/{contract_id}/confirm-didox/')
         return self.client.post(f'/api/contracts/{contract_id}/confirm-payment/')
 
     def test_payment_keeps_reservation_ship_marks_it(self):

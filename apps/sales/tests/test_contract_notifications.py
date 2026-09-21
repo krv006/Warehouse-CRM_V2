@@ -51,17 +51,31 @@ class ContractChainNotificationTests(APITestCase):
         note = self._notes(self.admin).get()
         self.assertIn("admin tasdig'i kutilmoqda", note.title)
 
-    def test_admin_approve_notifies_bugalter_and_sales(self):
+    def test_admin_approve_notifies_bugalter_to_send_didox(self):
+        """12-§1: admin ruxsati Didoxdan OLDIN — bugalter "Didoxga yuboring" oladi."""
         self._post(self.sales, 'submit')
         self._post(self.bugalter, 'approve')
         self._post(self.admin, 'approve')
+
+        didox_note = self._notes(self.bugalter).filter(
+            title__contains='Didoxga yuboring',
+        ).get()
+        self.assertIn('Didoxga yuboring', didox_note.message)
+        sales_note = self._notes(self.sales).get()
+        self.assertIn('tasdiqlandi', sales_note.title)
+
+    def test_confirm_didox_notifies_bugalter_payment_awaited(self):
+        """12-§1: pul kutilmoqda xabari endi Didox tasdiqlangach keladi."""
+        self._post(self.sales, 'submit')
+        self._post(self.bugalter, 'approve')
+        self._post(self.admin, 'approve')
+        self._post(self.bugalter, 'send-didox', {'didox_number': 'DDX-1'})
+        self._post(self.bugalter, 'confirm-didox')
 
         pay_note = self._notes(self.bugalter).filter(
             title__contains='pul kutilmoqda',
         ).get()
         self.assertIn("Oldindan to'lov", pay_note.message)
-        sales_note = self._notes(self.sales).get()
-        self.assertIn('tasdiqlandi', sales_note.title)
 
     def test_reject_notifies_sales(self):
         self._post(self.sales, 'submit')

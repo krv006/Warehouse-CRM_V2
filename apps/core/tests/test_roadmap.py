@@ -46,7 +46,7 @@ class RoadmapTests(APITestCase):
         )
 
     def _to_waiting_payment(self):
-        """ZVK -> ... -> confirm-didox -> admin approve: pul kutilmoqda."""
+        """ZVK -> ... -> bugalter/admin -> Didox: pul kutilmoqda (12-§1)."""
         self.client.force_authenticate(self.sales)
         request_id = self.client.post('/api/configuration-requests/', {
             'text': '2 ta HP 880', 'base_product': self.base.id,
@@ -61,14 +61,19 @@ class RoadmapTests(APITestCase):
         configuration.refresh_from_db()
         contract = configuration.active_contract
         self.client.post(f'/api/contracts/{contract.id}/submit/')
+        # 12-§1: sales -> bugalter -> admin -> Didox -> to'lov
         self.client.force_authenticate(self.bugalter)
+        self.client.post(f'/api/contracts/{contract.id}/approve/')
+        contract.refresh_from_db()
+        if contract.status == Contract.Status.PENDING_ADMIN:
+            self.client.force_authenticate(self.admin)
+            self.client.post(f'/api/contracts/{contract.id}/approve/')
+            self.client.force_authenticate(self.bugalter)
         self.client.post(
             f'/api/contracts/{contract.id}/send-didox/',
             {'didox_number': 'DDX-1'}, format='json',
         )
         self.client.post(f'/api/contracts/{contract.id}/confirm-didox/')
-        self.client.force_authenticate(self.admin)
-        self.client.post(f'/api/contracts/{contract.id}/approve/')
         return (
             ConfigurationRequest.objects.get(pk=request_id), configuration, contract,
         )
@@ -96,7 +101,7 @@ class RoadmapTests(APITestCase):
             f'/api/configuration-requests/{request_obj.id}/roadmap/',
         )
         steps = {s['key']: s for s in response.data['steps']}
-        self.assertEqual(len(response.data['steps']), 18)
+        self.assertEqual(len(response.data['steps']), 19)
 
         self.assertEqual(steps['zvk_created']['state'], 'done')
         self.assertEqual(steps['sales_review']['state'], 'done')
@@ -274,7 +279,10 @@ class RoadmapTests(APITestCase):
         self.assertTrue(steps['admin_approve']['optional'])
 
     def test_pending_admin_step_is_current(self):
-        """10-§3: shartli qadam ustidan sakralmaydi — pending_admin'da joriy u."""
+        """10-§3: shartli qadam ustidan sakralmaydi — pending_admin'da joriy u.
+
+        12-§1: admin ruxsati Didoxdan OLDIN — bugalter tasdig'i yetadi.
+        """
         request_id, configuration = self._draft_chain()
         self.client.post(f'/api/configurations/{configuration.id}/submit/')
         self.client.force_authenticate(self.sales)
@@ -283,11 +291,7 @@ class RoadmapTests(APITestCase):
         contract = configuration.active_contract
         self.client.post(f'/api/contracts/{contract.id}/submit/')
         self.client.force_authenticate(self.bugalter)
-        self.client.post(
-            f'/api/contracts/{contract.id}/send-didox/',
-            {'didox_number': 'DDX-9'}, format='json',
-        )
-        self.client.post(f'/api/contracts/{contract.id}/confirm-didox/')
+        self.client.post(f'/api/contracts/{contract.id}/approve/')
 
         response = self.client.get(
             f'/api/configuration-requests/{request_id}/roadmap/',

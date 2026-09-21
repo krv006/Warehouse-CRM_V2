@@ -1,5 +1,6 @@
 from django.db.transaction import atomic
 from django.http import HttpResponse
+from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
 from rest_framework.response import Response
 from rest_framework.status import HTTP_400_BAD_REQUEST
@@ -235,9 +236,21 @@ class ConfigurationViewSet(BaseModelViewSet):
         return Response(self.get_serializer(configuration).data)
 
     def approve(self, request, pk=None):
-        """POST /configurations/{id}/approve/ — sales texnik yechimni tasdiqlaydi."""
+        """POST /configurations/{id}/approve/ — sales texnik yechimni tasdiqlaydi.
+
+        12-§2 (C2): tanada `contract` (id) berilsa — yangi shartnoma
+        ochilmaydi, mavjud qoralamaga yangi model qatori qo'shiladi
+        (bitta savdoda bir nechta model).
+        """
+        contract = None
+        contract_id = request.data.get('contract')
+        if contract_id:
+            from apps.sales.models import Contract
+
+            contract = get_object_or_404(Contract, pk=contract_id)
         configuration = approve_configuration(
             self.get_object(), request.user, request.data.get('comment', ''),
+            contract=contract,
         )
         self.log_action(
             ActivityLog.Action.APPROVE, configuration, 'Texnik yechim tasdiqlandi',
@@ -393,8 +406,10 @@ class ConfigurationViewSet(BaseModelViewSet):
             # Aks holda ship bazaviy modelni chiqim qilib omborni buzardi (§3.1).
             contract = configuration.active_contract
             if contract and configuration.variant_id:
+                # 12-§2 (C): qator `configuration` FK orqali topiladi — bitta
+                # shartnomada bir nechta model bo'lsa ham to'g'ri qatorga tegadi
                 moved = contract.items.filter(
-                    product=configuration.base_product,
+                    configuration=configuration,
                 ).update(product=configuration.variant)
                 if moved:
                     self.log_action(

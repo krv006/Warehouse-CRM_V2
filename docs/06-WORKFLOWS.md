@@ -1,6 +1,10 @@
 # 06 — Jarayonlar (workflow)
 
-## 1. Shartnoma: sales → bugalter → admin → pul
+## 1. Shartnoma: sales → bugalter → admin → Didox → pul
+
+> 12-§1: admin tasdig'i — RUXSAT, shuning uchun **Didoxdan oldin** so'raladi
+> (hujjat hali qonuniy kuchga kirmagan bosqichda). Eski tartib (Didoxdan
+> keyin admin) `12-CHANGELOG-TZ-2.1.md` §8.53 da qoldirilgan.
 
 ```mermaid
 stateDiagram-v2
@@ -8,8 +12,10 @@ stateDiagram-v2
     draft --> pending_bugalter: POST /submit/ (sales)
     pending_bugalter --> pending_admin: POST /approve/ (bugalter)
     pending_bugalter --> rejected: POST /reject/ (bugalter)
-    pending_admin --> approved: POST /approve/ (admin)
+    pending_admin --> ready_for_didox: POST /approve/ (admin)
     pending_admin --> rejected: POST /reject/ (admin)
+    ready_for_didox --> pending_didox: POST /send-didox/ (bugalter)
+    pending_didox --> approved: POST /confirm-didox/ (bugalter)
     approved --> active: POST /confirm-payment/ (bugalter)
     active --> active: qo'shimcha to'lovlar
     active --> completed: qoldiq = 0
@@ -22,17 +28,35 @@ Qadamlar:
 1. **Sales** clientni tanlaydi (bo'lmasa `POST /clients/` bilan qo'shadi), kerak bo'lsa configurator qiladi,
    `POST /contracts/` bilan shartnoma tuzadi. Sotuv narxi shu bosqichda ko'rinadi.
 2. `POST /contracts/{id}/submit/` — shartnoma bugalterga tushadi.
-3. **Bugalter** bandlarni ko'rib `approve` qiladi → admin bosqichiga o'tadi.
-4. **Admin** oxirgi etap sifatida `approve` qiladi → status `approved`, eslatma yaratiladi:
+3. **Bugalter** bandlarni ko'rib `approve` qiladi → chegaradan katta bo'lsa admin bosqichiga, kichik bo'lsa
+   to'g'ridan-to'g'ri `ready_for_didox` ga o'tadi (tarixda avtomatik yozuv qoladi, §11.3).
+4. **Admin** ruxsat sifatida `approve` qiladi → status `ready_for_didox` — endi Didoxga yuborilishi kerak.
+5. **Bugalter** `POST /contracts/{id}/send-didox/` (`didox_number` majburiy) → `pending_didox`, mijoz imzosi
+   kutilmoqda (orqaga yo'l yo'q — Didox rad etsa mijoz Didoxning o'zida qayta yuboradi).
+6. **Bugalter** `POST /contracts/{id}/confirm-didox/` — mijoz imzoladi → status `approved`, eslatma yaratiladi:
    *"Oldindan to'lov 30% — 150 000 000 UZS. Pul kutilmoqda."*
-5. **Bugalter** pul kelganini `confirm-payment` bilan tasdiqlaydi:
+7. **Bugalter** pul kelganini `confirm-payment` bilan tasdiqlaydi:
    - `ContractPayment` yoziladi
    - kassaga `sale` kirimi tushadi
    - `start_date = bugun`, status `active` — **shu kundan kunlar sanog'i boshlanadi**
    - **sotilgan mahsulotlar ombordan chiqim qilinadi** (yetmasa to'lov bloklanadi)
-6. Qoldiq to'liq yopilsa status `completed`.
+8. Qoldiq to'liq yopilsa status `completed`.
 
 Har bir tasdiq/rad `ContractApproval` ga (kim, qachon, izoh) va `ActivityLog` ga yoziladi.
+
+### Teskari o'tishda ikki narsa bo'lishi shart (12-§5)
+
+> Ish orqaga qaytganda (rad etish, qaytarish, aniqlashtirish so'rash)
+> **ikki narsa** bajarilishi shart:
+>
+> 1. **Eslatma** — endi ish kimda bo'lsa, o'shanga (`Notification`);
+> 2. **Navbat** — o'sha odamning `my-work`/yon panel manbasida qator
+>    paydo bo'lsin (`apps/core/services.py` — `collect_work` manbalari).
+>
+> Bittasi yetmaydi: eslatma o'qilgach yo'qoladi, navbat esa ish
+> bajarilmaguncha turadi. Yangi teskari o'tish qo'shilganda shu savol
+> berilsin: *"Bu o'tishdan keyin ish kimda? O'sha odamning yon panelida
+> sanoq o'zgaradimi?"*
 
 ### Muddat ranglari
 

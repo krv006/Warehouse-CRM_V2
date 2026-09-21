@@ -84,14 +84,19 @@ class RoadmapListTests(APITestCase):
         configuration.refresh_from_db()
         contract = configuration.active_contract
         self.client.post(f'/api/contracts/{contract.id}/submit/')
+        # 12-§1: sales -> bugalter -> admin -> Didox -> to'lov
         self.client.force_authenticate(self.bugalter)
+        self.client.post(f'/api/contracts/{contract.id}/approve/')
+        contract.refresh_from_db()
+        if contract.status == Contract.Status.PENDING_ADMIN:
+            self.client.force_authenticate(self.admin)
+            self.client.post(f'/api/contracts/{contract.id}/approve/')
+            self.client.force_authenticate(self.bugalter)
         self.client.post(
             f'/api/contracts/{contract.id}/send-didox/',
             {'didox_number': 'DDX-1'}, format='json',
         )
         self.client.post(f'/api/contracts/{contract.id}/confirm-didox/')
-        self.client.force_authenticate(self.admin)
-        self.client.post(f'/api/contracts/{contract.id}/approve/')
         request_obj.refresh_from_db()
         return request_obj
 
@@ -122,14 +127,14 @@ class RoadmapListTests(APITestCase):
         self.assertNotIn(self.request_c.number, numbers)
 
     def test_results_match_detail_roadmap_shape(self):
-        """results[i] — detal roadmap javobi bilan bir xil: 18 qadam, pul yo'q."""
+        """results[i] — detal roadmap javobi bilan bir xil: 19 qadam, pul yo'q."""
         self.client.force_authenticate(self.admin)
         response = self.client.get('/api/roadmaps/')
         row = next(
             r for r in response.data['results']
             if r['request']['number'] == self.request_a.number
         )
-        self.assertEqual(len(row['steps']), 18)
+        self.assertEqual(len(row['steps']), 19)
         self.assertEqual(row['current_key'], 'prepayment')
         self.assertEqual(row['client_name'], 'Ali Valiyev')
         raw = str(response.data)

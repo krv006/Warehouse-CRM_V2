@@ -1524,6 +1524,38 @@ zanjir testlari yangilandi. Procurement: 51/51 OK.
 
 Testlar: `apps/core/tests/test_chain_tld.py` (6).
 
+## 8.53 12-to'plam: admin ruxsati Didoxdan OLDIN 📝
+
+- **§1**: zanjir endi `sales → bugalter → admin → Didox → to'lov`. Admin
+  tasdig'i — RUXSAT, shuning uchun ishdan (Didoxga yuborishdan) oldin
+  so'raladi, hujjat hali kuchga kirmagan bosqichda. Yangi holat
+  `Contract.Status.READY_FOR_DIDOX` — "tasdiqlandi, Didoxga yuborilishi
+  kerak". `approve_contract` endi `didox_number` qabul qilmaydi (u faqat
+  `send_didox`da); `send_didox` `ready_for_didox`dan ishlaydi;
+  `confirm_didox` endi chegarani bilmaydi — natija doim `approved`.
+  Eski yozuvlar (Didoxi allaqachon tasdiqlangan `pending_admin`)
+  migratsiyasiz to'g'ridan `approved`ga o'tadi. Roadmapga yangi qadam —
+  `bugalter_check` ("Bugalter tekshiruvi"), 18 qadam endi 19 ta.
+- **§3**: engineer ishga olishdan OLDIN zayavkani qaytarsa (`returned`),
+  roadmapdagi `taken` qadami endi **sales** rolida "Sales tuzatmoqda"
+  deb ko'rinadi — avval qat'iy `engineer` edi, holbuki ish sales'da.
+- **§4**: sales'ning yon panelida endi qaytgan zayavkalar soni ko'rinadi
+  (`_request_source`, sabab `fix_and_resubmit`) — avval bu manba faqat
+  engineer uchun ishlar, sales sanog'i doim 0 edi.
+- **§6**: rad etilib qayta yuborilgan shartnomada chiziq ESKI
+  `didox_sent_at`/`didox_accepted_at` qiymatlaridan "bajarilgan" deb
+  o'ylab, joriy qadamni oldinga sakratardi. Endi bu maydonlar
+  oxirgi rad etishdan KEYIN bo'lgan-bo'lmaganiga qarab tekshiriladi
+  (`after_last_reject`). Admin/bugalter qadamlarining `at`/`who`si
+  faqat `APPROVED` qatorlardan olinadi (rad etilgan qatordan emas).
+  `contract_submitted` endi `repeats` bilan — necha marta qaytganini
+  ko'rsatadi.
+- **§5**: umumiy qoida hujjatga yozildi — `docs/06-WORKFLOWS.md`
+  "Teskari o'tishda ikki narsa bo'lishi shart" (eslatma + navbat).
+
+Testlar: `test_didox_and_threshold.py`, `test_didox_steps.py`,
+`test_seed_demo.py` yangilandi.
+
 ## 8.52 11-to'plam §3: yetkazishni sales belgilaydi 📦
 
 - Yetkazish "mol bilan ishlaydigan odam" qoidasiga qurilgan edi
@@ -1547,6 +1579,84 @@ Testlar: `apps/core/tests/test_chain_tld.py` (6).
 
 Testlar: `test_contract_flow.py`, `test_delivered_by.py`,
 `test_chain_closure.py`, `test_reservations.py` yangilandi.
+
+## 8.54 12-to'plam §2 (C-track): bitta savdoda bir nechta model 📦
+
+- Mijoz bir suhbatda ikki xil model so'rasa (masalan HP 880 va Dell),
+  bu bitta savdo — bitta shartnoma, bitta Didox, bitta to'lov, lekin
+  ikkita muhandislik ishi (har biri o'z konfiguratsiyasi).
+- `ContractItem.configuration` (SET_NULL) — qator aynan qaysi modeldan
+  kelganini biladi; migratsiya mavjud qatorlarni `contract.configuration`
+  dan to'ldiradi (`sales.0009`).
+- `POST /configurations/{id}/approve/` endi ixtiyoriy `contract` (id)
+  qabul qiladi — berilsa yangi shartnoma ochilmaydi, mavjud **qoralama**
+  shartnomaga yangi qator qo'shiladi (shartlar: draft, bir xil mijoz,
+  bir xil egasi yoki admin).
+- `Configuration.active_contract`: birinchi model `Contract.configuration`
+  FK orqali, keyingi modellar `ContractItem.configuration` orqali
+  topiladi — bitta joyda tuzatilgani `is_paid`, `finalize`, `_require_paid_chain`,
+  `change_quantity`, `chain_open_replenishment`, roadmap `resolve_chain`,
+  `cancel_chain`, procurement `receive` — hammasiga avtomatik tarqaladi.
+- `finalize`ning B6 qator ko'chirishi endi `configuration=` bo'yicha
+  (avval `product=base_product` edi) — ikki model bir xil bazaviy
+  mahsulotdan boshlansa ham to'g'ri qatorga tegadi.
+- 11-§1 "bitta ochiq TLD": endi **bir modelli** zanjirlarda shartnoma
+  tomonidagi eski (konfiguratsiyasiz) TLD ham ko'rinadi (moslik saqlandi),
+  lekin **ikki+ modelli** shartnomada bu traversal o'chadi — aks holda
+  A modeli uchun ochilgan hisob B modelini bekorga bloklab qo'yardi.
+- `archive_completed_chain`: shartnoma yopilganda **hamma** bog'langan
+  modelning zayavkasi arxivlanadi, faqat birinchisiniki emas.
+- **Qamrovdan tashqarida (keyingi bosqich, hujjatning o'zi shunday
+  tavsiya qiladi):** B-track — bitta zayavkada bir nechta qator
+  (`ConfigurationRequestLine`, sales bir zayavkada ikkita model
+  so'rashi); qisman yetkazish; bitta model bekor qilinganda pul
+  qaytarish — bularning barchasi ochiq savol sifatida hujjatda qoldi.
+
+Testlar: `apps/configurator/tests/test_multi_model_contract.py` (7).
+
+## 8.55 13-to'plam §1: shartnoma matni — bugalter yuklaydi va tahrirlaydi 📝
+
+- Hozirgacha shartnoma matnini tizim generatsiya qilar edi (barcha
+  shartnomalar uchun bir xil, `GET /contracts/{id}/print/` — bu **qoladi**,
+  faqat UI dan endi bu tugma yashiriladi). Endi bugalter matnni saytning
+  o'zida yozadi/tahrirlaydi yoki `.docx` yuklab boshlaydi.
+- Yondashuv — hujjatning o'zi tavsiya etgan **B (boy matn, `mammoth`) +
+  C (o'rin egallovchilar)**: `.docx` HTML'ga o'giriladi (formatlash
+  qisman yo'qoladi, lekin matn bizning bazamizda — qidiriladi,
+  versiyalanadi, avtomatik maydonlar bilan to'ladi). OnlyOffice (A)
+  hujjatning o'zi aytganidek — faqat Didoxga fayl **o'sha holicha**
+  ketishi kerak bo'lib chiqsa kerak bo'ladi; B dan boshlash A ga yo'lni
+  yopmaydi.
+- Yangi modellar: `ContractDocument` (bitta shartnomaga bitta, `body` +
+  `source_file`), `ContractDocumentVersion` (har saqlash — yangi versiya,
+  hujjat huquqiy).
+- Yangi endpointlar: `GET`/`PUT /contracts/{id}/document/`,
+  `POST /contracts/{id}/document/upload/`,
+  `GET /contracts/{id}/document/versions/`.
+- Tahrir qoidasi (holat bo'yicha): `draft`/`rejected`/`pending_bugalter`/
+  `pending_admin`/`ready_for_didox` — ochiq; `pending_didox` dan
+  boshlab (mijozga ketgan) — yopiq, faqat o'qish.
+- Ruxsat: **tahrir hozircha faqat bugalterda** (admin ham yo'q — talab
+  shunday), **o'qish** bugalter+admin+sales(egasi)da; engineer va
+  buyurtmachiga umuman yopiq (`ContractViewSet.get_queryset` + amal
+  ichidagi rol tekshiruvi — admin `RoleAccess` orqali avtomatik o'tib
+  ketmasligi uchun tekshiruv qasddan servis/view darajasida, ruxsat
+  klassida emas).
+- O'rin egallovchilar (`{{ contract.number }}`, `{{ contract.date }}`,
+  `{{ client.name }}`, `{{ client.inn }}`, `{{ items_table }}`,
+  `{{ total }}`, `{{ prepayment_percent }}`, `{{ term_days }}`) —
+  **ko'rsatishda** to'ladi, saqlanishda emas (summa o'zgarsa hujjat
+  ham ergashadi). Narx: `{{ total }}`/`{{ prepayment_percent }}` faqat
+  sales va adminga (mavjud `PRICE_FIELDS` chegarasi bilan bir xil qoida).
+- `.docm` (makroli) ruxsat ro'yxatida yo'q — qo'shilmadi.
+- Yangi tashqi paket: `mammoth` (+ `cobble`) — `requirements.txt`ga
+  qo'shildi.
+- **Qamrovdan tashqarida (hujjatning o'zi bosqichlashtirgan):**
+  `.docx` eksport (7-bosqich), shablonlar/"shablondan boshlash"
+  (8-bosqich), OnlyOffice integratsiyasi (agar Didoxga aynan fayl
+  kerak bo'lib chiqsa).
+
+Testlar: `apps/sales/tests/test_contract_document.py` (10).
 
 ---
 
