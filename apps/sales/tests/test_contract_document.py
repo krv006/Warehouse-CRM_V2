@@ -110,8 +110,9 @@ class ContractDocumentTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('Didoxga', str(response.data['detail']))
 
-    def test_placeholders_resolve_and_price_is_masked_for_bugalter(self):
-        """13-§1: avtomatik maydonlar; narx faqat sales/admin (mavjud PRICE_FIELDS qoidasi)."""
+    def test_placeholders_resolve_for_everyone_with_document_access(self):
+        """QOLGAN-ISHLAR #3: jami summa PRICE_FIELDS (qator narxi) qoidasiga
+        kirmaydi — hujjatga kirgan har kim (bugalter ham) uni ko'radi."""
         self.client.force_authenticate(self.bugalter)
         self.client.put(
             f'/api/contracts/{self.contract.id}/document/',
@@ -119,11 +120,22 @@ class ContractDocumentTests(APITestCase):
         )
         response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
         self.assertIn(self.contract.number, response.data['body'])
-        self.assertNotIn('13440000', response.data['body'])  # bugalterga narx yopiq
+        self.assertIn('13440000', response.data['body'])
 
         self.client.force_authenticate(self.sales)
         response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
-        self.assertIn('13440000', response.data['body'])  # egasi sales — ko'radi
+        self.assertIn('13440000', response.data['body'])
+
+    def test_body_raw_stays_unrendered_for_editing(self):
+        """QOLGAN-ISHLAR #2: `body_raw` — o'rin egallovchilar TO'LMAGAN, muharrir shuni saqlaydi."""
+        self.client.force_authenticate(self.bugalter)
+        self.client.put(
+            f'/api/contracts/{self.contract.id}/document/',
+            {'body': '{{ contract.number }} — jami {{ total }}'}, format='json',
+        )
+        response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
+        self.assertEqual(response.data['body_raw'], '{{ contract.number }} — jami {{ total }}')
+        self.assertIn(self.contract.number, response.data['body'])  # body — render qilingan
 
     def test_upload_rejects_non_docx(self):
         from django.core.files.uploadedfile import SimpleUploadedFile

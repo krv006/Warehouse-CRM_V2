@@ -15,6 +15,7 @@ from apps.configurator.models import (
     ConfigurationRemoval,
     ConfigurationRequest,
     ConfigurationRequestEvent,
+    ConfigurationRequestLine,
 )
 from apps.configurator.services import copy_factory_spec
 from apps.inventory.models import Product
@@ -302,10 +303,33 @@ class ConfigurationRequestEventSerializer(ModelSerializer):
         read_only_fields = fields
 
 
+class ConfigurationRequestLineSerializer(ModelSerializer):
+    """12-§2 (B): zayavkadagi QO'SHIMCHA talab — model yoki tovar."""
+
+    base_product_name = ReadOnlyField(source='base_product.name')
+    configuration_number = ReadOnlyField(source='configuration.number')
+    is_complete = ReadOnlyField()
+
+    class Meta:
+        model = ConfigurationRequestLine
+        fields = [
+            'id', 'kind', 'base_product', 'base_product_name', 'quantity', 'text',
+            'configuration', 'configuration_number', 'contract_item', 'is_complete',
+        ]
+        read_only_fields = ['configuration', 'contract_item']
+
+
 class ConfigurationRequestSerializer(ModelSerializer):
-    """Sales'dan Engineerga boradigan matnli zayavka."""
+    """Sales'dan Engineerga boradigan matnli zayavka.
+
+    12-§2 (B): "birinchi model" — `base_product`/`quantity` maydonlarida
+    (orqaga mos); mijoz yana narsa so'rasa, `lines[]` orqali qo'shiladi —
+    har biri `kind: "model"` (yig'iladigan) yoki `kind: "item"` (tayyor
+    tovar, konfiguratorsiz to'g'ridan shartnoma qatoriga aylanadi).
+    """
 
     events = ConfigurationRequestEventSerializer(many=True, read_only=True)
+    lines = ConfigurationRequestLineSerializer(many=True, required=False)
     status_display = ReadOnlyField(source='get_status_display')
     client_name = ReadOnlyField(source='client.display_name')
     base_product_name = ReadOnlyField(source='base_product.name')
@@ -321,6 +345,13 @@ class ConfigurationRequestSerializer(ModelSerializer):
             'base_product', 'base_product_name', 'warehouse', 'status',
             'status_display', 'configuration', 'configuration_number',
             'taken_by', 'taken_by_name', 'created_by', 'created_by_name',
-            'events', 'created_at',
+            'events', 'lines', 'created_at',
         ]
         read_only_fields = ['number', 'status', 'configuration', 'taken_by', 'created_by']
+
+    def create(self, validated_data):
+        lines_data = validated_data.pop('lines', [])
+        request_obj = super().create(validated_data)
+        for line_data in lines_data:
+            ConfigurationRequestLine.objects.create(request=request_obj, **line_data)
+        return request_obj

@@ -118,6 +118,38 @@ class RoadmapTests(APITestCase):
             steps['prepayment']['document']['number'], contract.number,
         )
 
+    def test_finalize_sla_counts_from_assembled_not_cfg_approval(self):
+        """QOLGAN-ISHLAR #3: qadam HAQIQATAN boshlangan paytdan sanaladi —
+        CFG `approved` bo'lib turgan (o'zgarmagan) paytdan emas (CFG-00052)."""
+        from datetime import timedelta
+
+        from django.utils.timezone import now
+
+        request_obj, configuration, contract = self._to_waiting_payment()
+        self.client.force_authenticate(self.bugalter)
+        self.client.post(f'/api/contracts/{contract.id}/confirm-payment/', {
+            'amount': str(contract.total_amount),
+        }, format='json')
+
+        # CFG ancha oldin approved bo'lgan — eski kod shu paytdan sanardi
+        Configuration.objects.filter(pk=configuration.pk).update(
+            status_changed_at=now() - timedelta(days=10),
+        )
+
+        # Yig'ish esa HOZIRGINA sodir bo'ladi
+        self.client.force_authenticate(self.engineer)
+        response = self.client.post(f'/api/configurations/{configuration.id}/assemble/')
+        self.assertEqual(response.status_code, 200, response.data)
+
+        response = self.client.get(
+            f'/api/configurations/{configuration.id}/roadmap/',
+        )
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['finalize']['state'], 'current')
+        # Yig'ilgan hozirgina — 10 kun oldingi CFG holatidan emas, danger emas
+        self.assertEqual(steps['finalize']['tone'], 'warning')
+        self.assertIsNone(steps['finalize']['waiting_days'])
+
     def test_roadmap_returns_no_money(self):
         """Qat'iy chegara: summa, narx, qoldiq — javobda umuman yo'q."""
         request_obj, configuration, contract = self._to_waiting_payment()
@@ -149,6 +181,24 @@ class RoadmapTests(APITestCase):
         }
         self.assertTrue(steps['sales_review']['can_open'])      # CFG — engineerda
         self.assertFalse(steps['prepayment']['can_open'])       # SHT — engineerga yopiq
+
+    def test_taken_step_has_document_link_before_it_is_taken(self):
+        """QOLGAN-ISHLAR #6: yangi (hali olinmagan) zayavkada ham `taken`
+        qadamining hujjati bo'lishi kerak — "Ishga olish" shu sahifada."""
+        self.client.force_authenticate(self.sales)
+        request_id = self.client.post('/api/configuration-requests/', {
+            'text': '2 ta HP 880', 'base_product': self.base.id,
+            'client': self.mijoz.id, 'quantity': 2,
+        }, format='json').data['id']
+
+        self.client.force_authenticate(self.engineer)
+        response = self.client.get(
+            f'/api/configuration-requests/{request_id}/roadmap/',
+        )
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['taken']['state'], 'current')
+        self.assertIsNotNone(steps['taken']['document'])
+        self.assertEqual(steps['taken']['document']['type'], 'request')
 
     def test_rejection_counts_as_repeats(self):
         """§2.1 aylanmasi ro'yxatni cho'zmaydi — repeats bilan ko'rinadi."""
@@ -325,6 +375,10 @@ class RoadmapTests(APITestCase):
         self.assertEqual(response.data['current_key'], 'procurement_sent')
         steps = {s['key']: s for s in response.data['steps']}
         self.assertEqual(steps['procurement_sent']['actor']['role'], 'engineer')
+        # QOLGAN-ISHLAR #6: TLD hali yo'q — ish CFG sahifasida bajariladi,
+        # havola shu yerga (avval `document: None` — kirib bo'lmasdi)
+        self.assertEqual(steps['procurement_sent']['document']['type'], 'configuration')
+        self.assertEqual(steps['procurement_sent']['document']['number'], configuration.number)
 
     def test_tld_step_role_and_label_follow_status(self):
         """10-§6: TLD qora quti emas — egasi va nomi holatidan."""

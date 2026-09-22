@@ -97,7 +97,15 @@ class ConfigurationViewSet(BaseModelViewSet):
         if user.is_engineer:
             return qs.filter(created_by=user)
         if user.is_sales:
-            return qs.filter(requests__created_by=user).distinct()
+            # 12-§2 (B): qo'shimcha model qatori zayavkaga faqat
+            # ConfigurationRequestLine orqali ulangan bo'lishi mumkin —
+            # aks holda sales o'z ikkinchi modelini ko'rmay/tasdiqlolmay qolardi
+            from django.db.models import Q
+
+            return qs.filter(
+                Q(requests__created_by=user)
+                | Q(extra_request_lines__request__created_by=user),
+            ).distinct()
         return qs.none()
 
     # §11.1: finalize engineerda (ConfiguratorAccess); #4: texnik tasdiq
@@ -482,7 +490,12 @@ class ConfigurationItemViewSet(BaseModelViewSet):
         if user.is_engineer:
             return qs.filter(configuration__created_by=user)
         if user.is_sales:
-            return qs.filter(configuration__requests__created_by=user).distinct()
+            from django.db.models import Q
+
+            return qs.filter(
+                Q(configuration__requests__created_by=user)
+                | Q(configuration__extra_request_lines__request__created_by=user),
+            ).distinct()
         return qs.none()
 
     def _check_draft(self, configuration):
@@ -608,7 +621,9 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
 
         Chernovik konfiguratsiya avtomatik ochiladi va zavod tarkibi yuklanadi.
         Tana (ixtiyoriy): {"base_product": id, "warehouse": id, "mode": "build|modify"}
-        — berilmasa zayavkadagi qiymatlar olinadi.
+        — berilmasa zayavkadagi qiymatlar olinadi. 12-§2 (B2): bitta amalda
+        qo'shimcha MODEL qatorlariga ham chernovik ochiladi; har biriga
+        alohida rejim — {"line_modes": {"<line_id>": "build|modify"}}.
         """
         from apps.inventory.models import Product, Warehouse
 
@@ -621,10 +636,17 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
         mode = request.data.get('mode')
         if mode and mode not in Configuration.Mode.values:
             raise ValidationError({'mode': f"Noto'g'ri rejim: {mode}. Ruxsat: build, modify."})
+        line_modes = request.data.get('line_modes') or {}
+        for line_mode in line_modes.values():
+            if line_mode not in Configuration.Mode.values:
+                raise ValidationError({
+                    'line_modes': f"Noto'g'ri rejim: {line_mode}. Ruxsat: build, modify.",
+                })
 
         request_obj = take_request(
             self.get_object(), request.user,
             base_product=base_product, warehouse=warehouse, mode=mode,
+            line_modes=line_modes,
         )
         self.log_action(
             ActivityLog.Action.UPDATE, request_obj,

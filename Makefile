@@ -88,6 +88,10 @@ resync: ## Konfiguratsiya bronlarini yagona ta'rifdan qayta quradi
 contract-first: ## Eski approved konfiguratsiyalarga shartnoma ochadi (B11)
 	$(MANAGE) migrate_to_contract_first
 
+.PHONY: fix-stale-didox
+fix-stale-didox: ## Eski Didox iziga tayanib xato 'approved' bo'lgan SHT larni tuzatadi (QOLGAN-ISHLAR #1)
+	$(MANAGE) fix_stale_didox
+
 .PHONY: static
 static: ## Static fayllarni yig'adi
 	$(MANAGE) collectstatic --noinput
@@ -192,6 +196,10 @@ docker-resync: ## Serverda konfiguratsiya bronlarini qayta quradi
 .PHONY: docker-contract-first
 docker-contract-first: ## Serverda eski approved konfiguratsiyalarga SHT ochadi (B11)
 	$(COMPOSE) exec web python manage.py migrate_to_contract_first
+
+.PHONY: docker-fix-stale-didox
+docker-fix-stale-didox: ## Serverda eski Didox iziga tayanib xato 'approved' SHT larni tuzatadi (QOLGAN-ISHLAR #1)
+	$(COMPOSE) exec web python manage.py fix_stale_didox
 
 .PHONY: docker-dbcheck
 docker-dbcheck: ## Konteyner qaysi bazani ishlatayotganini ko'rsatadi

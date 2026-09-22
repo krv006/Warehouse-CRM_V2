@@ -6,6 +6,7 @@ from apps.configurator.models import (
     ConfigurationItem,
     ConfigurationRemoval,
     ConfigurationRequest,
+    ConfigurationRequestLine,
 )
 
 
@@ -33,8 +34,14 @@ class ConfigurationAdmin(ModelAdmin):
     inlines = [ConfigurationItemInline, ConfigurationRemovalInline]
 
 
+class ConfigurationRequestLineInline(TabularInline):
+    model = ConfigurationRequestLine
+    extra = 0
+
+
 @register(ConfigurationRequest)
 class ConfigurationRequestAdmin(ModelAdmin):
     list_display = ['number', 'client', 'status', 'taken_by', 'created_by', 'created_at']
     list_filter = ['status']
     search_fields = ['number', 'text']
+    inlines = [ConfigurationRequestLineInline]

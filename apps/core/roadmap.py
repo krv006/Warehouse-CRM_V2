@@ -13,9 +13,21 @@ Front hech narsani qayta hisoblamaydi: `label`, `state`, `tone`,
 SLA — mavjud `sla_deadline`/`working_days_since` dan (yangi hisob yo'q).
 """
 
-from django.utils.timezone import localdate
+from datetime import datetime, time
+
+from django.utils.timezone import localdate, make_aware
 
 from apps.core.utils import sla_deadline, working_days_since
+
+
+def _as_datetime(value):
+    """QOLGAN-ISHLAR #3: `since` manbalari aralash — ba'zilari DateField
+    (masalan `Replenishment.delivered_at`), `sla_deadline` esa datetime
+    kutadi. `datetime`ning o'zi `hour`ga ega, oddiy `date` esa yo'q.
+    """
+    if value is None or hasattr(value, 'hour'):
+        return value
+    return make_aware(datetime.combine(value, time.min))
 
 # Qadam kalitlari va nomlari — §2 jadvali, 12-§1 dan keyin 19 qadam
 STEPS = [
@@ -79,6 +91,11 @@ def resolve_chain(document):
         configuration = document.configuration
     if configuration is not None and request_obj is None:
         request_obj = configuration.requests.order_by('-created_at').first()
+        if request_obj is None:
+            # 12-§2 (B): qo'shimcha model qatori — zayavkaga faqat
+            # ConfigurationRequestLine orqali ulangan (asosiy FK bo'sh)
+            extra_line = configuration.extra_request_lines.select_related('request').first()
+            request_obj = extra_line.request if extra_line else None
     if request_obj is not None and configuration is None:
         configuration = request_obj.configuration
     if configuration is not None and contract is None:
@@ -286,7 +303,11 @@ def _can_open(user, kind, obj, contract=None):
         if kind == 'request':
             return obj.created_by_id == user.id
         if kind == 'configuration':
-            return obj.requests.filter(created_by=user).exists()
+            # 12-§2 (B): qo'shimcha model qatori — zayavka qator orqali ulangan
+            return (
+                obj.requests.filter(created_by=user).exists()
+                or obj.extra_request_lines.filter(request__created_by=user).exists()
+            )
         if kind == 'contract':
             return obj.created_by_id == user.id
         return False
@@ -431,8 +452,10 @@ def build_roadmap(document, user):
         who=sales_owner if returned_now else engineer,
         role='sales' if returned_now else None,
         label='Sales tuzatmoqda' if returned_now else None,
-        # Qaytarilganda ochiladigan hujjat — zayavka, konfiguratsiya hali yo'q
-        doc=('request', request_obj) if returned_now else ('configuration', configuration),
+        # QOLGAN-ISHLAR #6: joriy bo'lganda hujjat har doim bo'lishi kerak —
+        # konfiguratsiya hali yo'q bo'lsa (new yoki returned), ish zayavka
+        # sahifasida bajariladi ("Ishga olish" o'sha yerda bosiladi)
+        doc=('configuration', configuration) if configuration else ('request', request_obj),
         # 9-to'plam §2: "ishga olish" necha marta qaytadan boshlangani —
         # rad etilganlar (returned) + hovuzga qaytarilganlar (released)
         repeats=len(returned) + len(released),
@@ -595,12 +618,17 @@ def build_roadmap(document, user):
         done=tld_needed,
         at=replenishment.created_at if replenishment else None,
         who=replenishment.created_by if replenishment else None,
-        doc=('replenishment', replenishment),
+        # QOLGAN-ISHLAR #6: bu qadam AYNAN TLD yo'q paytda joriy bo'ladi —
+        # ishning o'zi (hisob ochish) konfiguratsiya sahifasida bajariladi
+        doc=('replenishment', replenishment) if replenishment else ('configuration', configuration),
         skipped=procurement_skipped,
         # 10-to'plam §3: to'lov keldi, yetishmovchilik bor, TLD hali
         # ochilmagan — ish ENGINEERDA ("Buyurtmachiga yuborish"); aks holda
         # chiziq bajarib bo'lmaydigan "Yig'ish"ni joriy deb ko'rsatardi
         current_override=bool(paid and not tld_needed and not procurement_skipped),
+        # QOLGAN-ISHLAR #3: SLA hujjat holatidan emas, qadam HAQIQATAN
+        # boshlangan paytdan — CFG `approved` bo'lib turgan payt emas
+        since=first_payment.paid_at if first_payment else None,
     )
     tld_delivered = bool(
         replenishment and replenishment.status == Replenishment.Status.DELIVERED
@@ -634,12 +662,21 @@ def build_roadmap(document, user):
         skipped=procurement_skipped,
         # TLD ochiq — ish haqiqatan zanjir ichida ketmoqda: joriy shu yerda
         current_override=bool(replenishment and not tld_delivered),
+        # QOLGAN-ISHLAR #3: TLD ochilgan paytdan — CFG holatidan emas
+        since=replenishment.created_at if replenishment else None,
     )
     data['assemble'] = dict(
         done=assembled,
         at=configuration.assembled_at if configuration else None,
         who=engineer,
         doc=('configuration', configuration),
+        # QOLGAN-ISHLAR #3: mol kelgan (TLD yetkazilgan) yoki to'lov kelgan
+        # paytdan — ikkalasi ham "yig'ishga tayyor bo'lgan payt"ni aytadi.
+        # `delivered_at` DateField — `_as_datetime` datetime'ga keltiradi
+        since=_as_datetime(
+            replenishment.delivered_at if tld_needed and replenishment
+            else (first_payment.paid_at if first_payment else None)
+        ),
     )
     finalized = bool(configuration and configuration.status in ('ready', 'sold'))
     data['finalize'] = dict(
@@ -647,6 +684,8 @@ def build_roadmap(document, user):
         at=None,
         who=engineer,
         doc=('configuration', configuration),
+        # QOLGAN-ISHLAR #3: yig'ilgan paytdan — CFG `approved` bo'lgan paytdan emas
+        since=configuration.assembled_at if configuration else None,
     )
     data['ship'] = dict(
         done=delivered,
@@ -718,11 +757,14 @@ def build_roadmap(document, user):
     profile = CompanyProfile.load()
     cutoff, days = profile.sla_cutoff_hour, profile.sla_working_days
 
-    # SLA manbai — joriy bosqich qaysi hujjatda turgan bo'lsa o'sha
-    def sla_for(doc_pair):
+    # SLA manbai — joriy bosqich qaysi hujjatda turgan bo'lsa o'sha.
+    # QOLGAN-ISHLAR #3: bir nechta qadam bitta hujjat holati ichida ketma-ket
+    # bajariladi (masalan CFG `approved` bo'lib turganda to'rtta qadam) —
+    # `since` berilsa, u qadam HAQIQATAN boshlangan payt sifatida ustunlik qiladi
+    def sla_for(doc_pair, since=None):
         kind, obj = doc_pair
         source = obj if obj is not None else (contract or configuration or request_obj)
-        entered = getattr(source, 'status_changed_at', None) if source else None
+        entered = since or (getattr(source, 'status_changed_at', None) if source else None)
         if entered is None:
             return 'warning', None, None
         deadline = sla_deadline(entered, cutoff, days)
@@ -745,7 +787,7 @@ def build_roadmap(document, user):
                 state, tone = 'cancelled', 'cancelled'
             else:
                 state = 'current'
-                tone, waiting_days, deadline = sla_for((doc_kind, doc_obj))
+                tone, waiting_days, deadline = sla_for((doc_kind, doc_obj), since=row.get('since'))
         else:
             # navbat kelmagan; 13–16 to'lovgacha qulf (B4) — blocked
             if key in PAYMENT_GATED and not paid and not row['done']:

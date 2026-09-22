@@ -204,14 +204,15 @@ def _configuration_source(user):
     if user.is_sales:
         # #4: sales ko'rigidagi konfiguratsiyalar — mijozga ko'rsatib
         # tasdiqlash; 9-to'plam §1: engineer savoli ham sales navbatida
+        # 12-§2 (B): qo'shimcha model qatori ham (qator orqali ulangan)
         qs = (
             Configuration.objects
             .filter(
+                Q(requests__created_by=user) | Q(extra_request_lines__request__created_by=user),
                 status__in=[
                     Configuration.Status.PENDING_SALES,
                     Configuration.Status.PENDING_CLARIFICATION,
                 ],
-                requests__created_by=user,
             )
             .distinct()
         )

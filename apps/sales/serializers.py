@@ -27,6 +27,10 @@ class ContractItemSerializer(ModelSerializer):
     subtotal = ReadOnlyField()
     vat_amount = ReadOnlyField()
     total_with_vat = ReadOnlyField()
+    # QOLGAN-ISHLAR #4: raqami ham kerak — aks holda front ikkita modelli
+    # shartnomada qatorlarni ajratish uchun har konfiguratsiyaga alohida
+    # so'rov yuborishga majbur bo'lardi
+    configuration_number = ReadOnlyField(source='configuration.number')
 
     contract = PrimaryKeyRelatedField(
         queryset=Contract.objects.all(), required=False,
@@ -39,7 +43,7 @@ class ContractItemSerializer(ModelSerializer):
             'subtotal', 'vat_percent', 'vat_amount', 'total_with_vat',
             # 12-§2 (C): qator qaysi modeldan kelgani — bitta shartnomada
             # bir nechta model bo'lsa front shu bilan ajratadi
-            'configuration',
+            'configuration', 'configuration_number',
         ]
         read_only_fields = ['configuration']
 
@@ -212,6 +216,10 @@ class ContractDocumentSerializer(ModelSerializer):
     """13-§1: shartnoma matni — o'rin egallovchilar ko'rsatishda to'ldiriladi."""
 
     body = SerializerMethodField()
+    # QOLGAN-ISHLAR #2: muharrir uchun XOM matn — `body` render qilingan
+    # (o'rin egallovchilar to'lgan), uni qaytadan PUT qilsa ular yo'qolib
+    # qolardi. Muharrir hamisha `body_raw`ni yuklab, `body_raw`ni saqlaydi
+    body_raw = ReadOnlyField(source='body')
     versions_count = ReadOnlyField(source='versions.count')
     updated_by_name = ReadOnlyField(source='updated_by.display_name')
     can_edit = SerializerMethodField()
@@ -219,7 +227,7 @@ class ContractDocumentSerializer(ModelSerializer):
     class Meta:
         model = ContractDocument
         fields = [
-            'id', 'contract', 'body', 'versions_count',
+            'id', 'contract', 'body', 'body_raw', 'versions_count',
             'updated_by', 'updated_by_name', 'updated_at', 'can_edit',
         ]
         read_only_fields = [
@@ -230,8 +238,7 @@ class ContractDocumentSerializer(ModelSerializer):
     def get_body(self, obj):
         from apps.sales.services import render_contract_document
 
-        user = getattr(self.context.get('request'), 'user', None)
-        return render_contract_document(obj.contract, obj.body, user)
+        return render_contract_document(obj.contract, obj.body)
 
     def get_can_edit(self, obj):
         from apps.sales.services import CONTRACT_DOCUMENT_EDITABLE_STATUSES

@@ -69,3 +69,18 @@ class ConfigurationRequest(StatusTrackedModel):
         if not self.number:
             self.number = next_number(ConfigurationRequest, 'ZVK')
         super().save(*args, **kwargs)
+
+    @property
+    def primary_line_done(self):
+        """Birinchi (asosiy) model o'z yo'lini bosib o'tdimi (12-§2 B3)."""
+        return bool(
+            self.configuration_id
+            and self.configuration.status in ('approved', 'ready', 'sold'),
+        )
+
+    @property
+    def is_fully_done(self):
+        """Zayavka DONE bo'lishi uchun — HAMMA qatori (asosiy + qo'shimcha) tugagan bo'lsin."""
+        if not self.primary_line_done:
+            return False
+        return all(line.is_complete for line in self.lines.select_related('configuration'))

@@ -84,7 +84,16 @@ class StatusChangedAtTests(APITestCase):
         contract.save()
         self.assertEqual(contract.status_changed_at, first)
 
-        # Holat o'zgarishi yangilaydi
+        # Holat o'zgarishi yangilaydi. QOLGAN-ISHLAR #5: ikkala save() bir
+        # xil mikrosekundda bajarilishi mumkin (ayniqsa Windowsda) — vaqtni
+        # ataylab orqaga suramiz, shunda `>` determinlashadi
+        from datetime import timedelta
+
+        from django.utils.timezone import now
+
+        Contract.objects.filter(pk=contract.pk).update(
+            status_changed_at=now() - timedelta(seconds=1),
+        )
         contract = Contract.objects.get(pk=contract.pk)
         contract.status = Contract.Status.PENDING_BUGALTER
         contract.save()

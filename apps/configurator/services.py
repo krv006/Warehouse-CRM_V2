@@ -94,12 +94,30 @@ def resolve_variant(configuration):
     return variant, True
 
 
+def _owning_request(configuration, **filters):
+    """Konfiguratsiya ortidagi zayavka — 12-§2 (B): qo'shimcha model qatori
+    bo'lsa, `ConfigurationRequest.configuration` bo'sh qoladi (faqat
+    `ConfigurationRequestLine.configuration` to'ladi), shuning uchun
+    asosiy FK topolmasa qator orqali ham qidiriladi.
+    """
+    request_obj = (
+        configuration.requests.filter(**filters).order_by('-created_at').first()
+    )
+    if request_obj is not None:
+        return request_obj
+    line = (
+        configuration.extra_request_lines
+        .filter(**{f'request__{k}': v for k, v in filters.items()})
+        .select_related('request')
+        .order_by('-id')
+        .first()
+    )
+    return line.request if line else None
+
+
 def _configuration_owner_sales(configuration):
     """Konfiguratsiya ortidagi zayavka egasi (sales) — tasdiq va xabarlar unga."""
-    request_obj = (
-        configuration.requests.filter(created_by__isnull=False)
-        .order_by('-created_at').first()
-    )
+    request_obj = _owning_request(configuration, created_by__isnull=False)
     return request_obj.created_by if request_obj else None
 
 
@@ -228,7 +246,7 @@ def request_prices(configuration, user):
 
     names = ', '.join(item.component.name for item in no_price)
     log_request_event(
-        configuration.requests.order_by('-created_at').first(),
+        _owning_request(configuration),
         ConfigurationRequestEvent.Stage.PRICE_ASKED, user, names,
     )
     return [item.component.name for item in no_price]
@@ -294,7 +312,7 @@ def price_arrived(product, user):
         from apps.configurator.models import ConfigurationRequestEvent
 
         log_request_event(
-            configuration.requests.order_by('-created_at').first(),
+            _owning_request(configuration),
             ConfigurationRequestEvent.Stage.PRICE_GIVEN, user, product.name,
         )
 
@@ -413,10 +431,7 @@ def _configuration_client(configuration):
     """Zanjir mijozi: konfiguratsiyada, bo'lmasa zayavkada ko'rsatilgani."""
     if configuration.client_id:
         return configuration.client
-    request_obj = (
-        configuration.requests.filter(client__isnull=False)
-        .order_by('-created_at').first()
-    )
+    request_obj = _owning_request(configuration, client__isnull=False)
     return request_obj.client if request_obj else None
 
 
@@ -431,7 +446,7 @@ def approve_configuration(configuration, user, comment='', contract=None):
     (mijoz bir suhbatda ikki xil narsa so'raganda). Yangi shartnoma
     ochilmaydi, aksincha shu MAVJUD qoralamaga yangi qator qo'shiladi.
     """
-    from apps.configurator.models import Configuration, ConfigurationApproval, ConfigurationRequest
+    from apps.configurator.models import Configuration, ConfigurationApproval
     from apps.core.models import Notification
     from rest_framework.exceptions import ValidationError
 
@@ -471,10 +486,6 @@ def approve_configuration(configuration, user, comment='', contract=None):
     from apps.core.services import resolve_notifications
 
     resolve_notifications('Configuration', configuration.pk, user=user)
-    # Zayavka holati ergashadi: texnik yechim qabul qilindi
-    configuration.requests.filter(
-        status=ConfigurationRequest.Status.IN_PROGRESS,
-    ).update(status=ConfigurationRequest.Status.DONE)
 
     if contract is not None:
         _attach_configuration_to_contract(configuration, contract)
@@ -485,6 +496,10 @@ def approve_configuration(configuration, user, comment='', contract=None):
         create_contract_from_configuration(configuration, user, client)
 
     resolved_contract = configuration.active_contract
+    # 12-§2 (B3): zayavka holati ergashadi — lekin faqat BARCHA qatorlari
+    # (qo'shimcha model va tovar qatorlari ham) tugagach; shu paytda hali
+    # qo'shilmagan TOVAR qatorlari ham shartnomaga o'tadi
+    _advance_request_after_configuration_approval(configuration, resolved_contract)
     if configuration.created_by:
         Notification.objects.create(
             user=configuration.created_by,
@@ -500,6 +515,46 @@ def approve_configuration(configuration, user, comment='', contract=None):
             object_id=str(configuration.pk),
         )
     return configuration
+
+
+def _advance_request_after_configuration_approval(configuration, contract):
+    """12-§2 (B3): zayavka faqat BARCHA qatori tugagach DONE bo'ladi.
+
+    "Qator" ikki xil: MODEL (bu funksiya chaqirilganda ANIQ shu
+    konfiguratsiya orqali tugaydi) va TOVAR (konfiguratorsiz — shartnoma
+    mavjud bo'lishi bilanoq, hali qo'shilmagan bo'lsa, shu yerda
+    ContractItem sifatida qo'shiladi). Bitta qatorli (oddiy) zayavkada bu
+    darhol DONE degani — eski xulq o'zgarmaydi.
+    """
+    from apps.configurator.models import ConfigurationRequest, ConfigurationRequestLine
+
+    request_obj = ConfigurationRequest.objects.filter(configuration=configuration).first()
+    if request_obj is None:
+        line = configuration.extra_request_lines.select_related('request').first()
+        request_obj = line.request if line else None
+    if request_obj is None or request_obj.status != ConfigurationRequest.Status.IN_PROGRESS:
+        return
+
+    if contract is not None:
+        from apps.sales.models import ContractItem
+
+        pending_items = list(request_obj.lines.filter(
+            kind=ConfigurationRequestLine.Kind.ITEM, contract_item__isnull=True,
+        ))
+        for line in pending_items:
+            item = ContractItem.objects.create(
+                contract=contract, product=line.base_product, quantity=line.quantity,
+                unit_price=line.base_product.stock_price,
+            )
+            line.contract_item = item
+            line.save(update_fields=['contract_item'])
+        if pending_items:
+            contract.total_amount = contract.items_total_with_vat
+            contract.save(update_fields=['total_amount'])
+
+    if request_obj.is_fully_done:
+        request_obj.status = ConfigurationRequest.Status.DONE
+        request_obj.save(update_fields=['status'])
 
 
 def _attach_configuration_to_contract(configuration, contract):
@@ -1054,16 +1109,23 @@ def copy_factory_spec(configuration):
         )
 
 
-def take_request(request_obj, user, base_product=None, warehouse=None, mode=None):
+def take_request(request_obj, user, base_product=None, warehouse=None, mode=None, line_modes=None):
     """Engineer zayavkani ishga oladi — chernovik konfiguratsiya avtomatik ochiladi.
 
     Bazaviy model: so'rov tanasidagi `base_product` > zayavkada yozilgani.
     Ikkalasi ham bo'lmasa 400 — konfiguratsiya modelsiz yaratilmaydi.
+
+    12-§2 (B2): bitta amal — agar zayavkada QO'SHIMCHA MODEL qatorlari
+    bo'lsa (`ConfigurationRequestLine.Kind.MODEL`), ularga ham shu yerda,
+    bitta ishga olishda, alohida chernovik ochiladi. `line_modes` —
+    `{line_id: 'build'|'modify'}`, har biriga alohida rejim; berilmasa
+    umumiy `mode` (yoki BUILD) qo'llanadi. TOVAR qatorlariga (`Kind.ITEM`)
+    konfiguratsiya kerak emas — ular shartnoma ochilganda to'g'ridan qatorga aylanadi.
     """
     from django.db.transaction import atomic
     from rest_framework.exceptions import PermissionDenied, ValidationError
 
-    from apps.configurator.models import Configuration, ConfigurationRequest
+    from apps.configurator.models import Configuration, ConfigurationRequest, ConfigurationRequestLine
     from apps.inventory.models import Product
 
     if not (user.is_admin or user.is_engineer):
@@ -1080,12 +1142,16 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
         raise ValidationError({'base_product': 'Faqat tayyor model tanlanadi.'})
 
     from apps.inventory.services import main_warehouse
+    from apps.inventory.services import sync_configuration_reservations
+
+    line_modes = line_modes or {}
+    used_warehouse = warehouse or request_obj.warehouse or main_warehouse()
 
     with atomic():
         configuration = Configuration.objects.create(
             base_product=base_product,
             client=request_obj.client,
-            warehouse=warehouse or request_obj.warehouse or main_warehouse(),
+            warehouse=used_warehouse,
             mode=mode or Configuration.Mode.BUILD,
             # #3: mijoz nechta so'ragani zayavkadan ko'chadi (engineer
             # chernovikda o'zgartira oladi)
@@ -1094,16 +1160,39 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
             created_by=user,
         )
         copy_factory_spec(configuration)
-
         # §11.4: chernovik butlovchilarni "Rejada" deb belgilaydi (yumshoq bron)
-        from apps.inventory.services import sync_configuration_reservations
-
         sync_configuration_reservations(configuration)
 
         request_obj.status = ConfigurationRequest.Status.IN_PROGRESS
         request_obj.taken_by = user
         request_obj.configuration = configuration
         request_obj.save()
+
+        # 12-§2 (B2): qo'shimcha MODEL qatorlari — har biriga o'z chernovigi
+        for line in request_obj.lines.filter(
+            kind=ConfigurationRequestLine.Kind.MODEL, configuration__isnull=True,
+        ):
+            if line.base_product.kind != Product.Kind.MACHINE:
+                raise ValidationError({
+                    'detail': (
+                        f'{line.base_product.name}: model turidagi qator faqat '
+                        "tayyor model bo'lishi mumkin — tovar bo'lsa `item` turini tanlang."
+                    ),
+                })
+            line_configuration = Configuration.objects.create(
+                base_product=line.base_product,
+                client=request_obj.client,
+                warehouse=used_warehouse,
+                mode=line_modes.get(line.id) or line_modes.get(str(line.id)) or Configuration.Mode.BUILD,
+                quantity=line.quantity,
+                note=f'{request_obj.number}: {line.text or line.base_product.name}',
+                created_by=user,
+            )
+            copy_factory_spec(line_configuration)
+            sync_configuration_reservations(line_configuration)
+            line.configuration = line_configuration
+            line.save(update_fields=['configuration'])
+
         # B15: zayavka tarixi — roadmap (B8) aylanma qadamlarni shundan o'qiydi
         from apps.configurator.models import ConfigurationRequestEvent
 
@@ -1314,20 +1403,28 @@ def release_request(request_obj, user, comment):
             'comment': 'Izoh majburiy — zanjir nega to\'xtaganining yagona izi.',
         })
 
-    configuration = request_obj.configuration
-    if configuration and configuration.status not in {
-        Configuration.Status.CANCELLED, Configuration.Status.SOLD,
-    }:
-        configuration.status = Configuration.Status.CANCELLED
-        configuration.cancel_reason = comment  # 8-to'plam §4
-        configuration.save()
-        from apps.inventory.services import release_reservations
+    from apps.inventory.services import release_reservations
 
-        release_reservations(
-            configuration=configuration, user=user,
-            note=f'{request_obj.number} hovuzga qaytarildi: {comment}',
-        )
+    # 12-§2 (B): asosiy model + qo'shimcha MODEL qatorlarining hammasi —
+    # yarim tarkiblar egasiz qolib, keyingi engineerni chalg'itmasin
+    configurations = [request_obj.configuration] if request_obj.configuration else []
+    configurations += [
+        line.configuration for line in request_obj.lines.select_related('configuration')
+        if line.configuration_id
+    ]
+    for configuration in configurations:
+        if configuration.status not in {
+            Configuration.Status.CANCELLED, Configuration.Status.SOLD,
+        }:
+            configuration.status = Configuration.Status.CANCELLED
+            configuration.cancel_reason = comment  # 8-to'plam §4
+            configuration.save()
+            release_reservations(
+                configuration=configuration, user=user,
+                note=f'{request_obj.number} hovuzga qaytarildi: {comment}',
+            )
 
+    request_obj.lines.filter(configuration__isnull=False).update(configuration=None)
     request_obj.status = ConfigurationRequest.Status.NEW
     request_obj.taken_by = None
     request_obj.configuration = None
@@ -1413,7 +1510,8 @@ def cancel_chain(document, user, reason):
         request_obj = document
         configuration = document.configuration
     if configuration is not None and request_obj is None:
-        request_obj = configuration.requests.order_by('-created_at').first()
+        # 12-§2 (B): qo'shimcha model qatori bo'lsa qator orqali ham qidiriladi
+        request_obj = _owning_request(configuration)
     if configuration is not None and contract is None:
         # 12-§2 (C): ikkinchi model bo'lsa `active_contract` qator orqali topadi
         contract = configuration.active_contract or (
@@ -1470,6 +1568,18 @@ def cancel_chain(document, user, reason):
             configuration.save()
             release_reservations(configuration=configuration, user=user, note=reason)
             cancelled['configuration'] = configuration.number
+
+        # 12-§2 (B): qo'shimcha MODEL qatorlarining chernoviklari ham —
+        # butun zanjir to'xtaganda ular egasiz yarim tarkib bo'lib qolmasin
+        if request_obj is not None:
+            for line in request_obj.lines.select_related('configuration'):
+                extra_config = line.configuration
+                if extra_config is None or extra_config.status == Configuration.Status.CANCELLED:
+                    continue
+                extra_config.status = Configuration.Status.CANCELLED
+                extra_config.cancel_reason = reason
+                extra_config.save()
+                release_reservations(configuration=extra_config, user=user, note=reason)
 
         if request_obj is not None and request_obj.status != ConfigurationRequest.Status.CANCELLED:
             request_obj.status = ConfigurationRequest.Status.CANCELLED

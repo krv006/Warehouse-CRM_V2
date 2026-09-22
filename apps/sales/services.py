@@ -1,6 +1,6 @@
 from decimal import Decimal
 
-from django.db.models import Sum
+from django.db.models import Max, Sum
 from django.db.transaction import atomic
 from django.utils.timezone import localdate, now
 from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -8,6 +8,24 @@ from rest_framework.exceptions import PermissionDenied, ValidationError
 from apps.core.models import Notification
 from apps.finance.services import record_transaction
 from apps.sales.models import Contract, ContractApproval, ContractItem, ContractPayment, Lead
+
+
+def _didox_valid_for_current_cycle(contract):
+    """QOLGAN-ISHLAR #1: eski yozuv moslik sharti §6 bilan zid ishlagan.
+
+    `didox_accepted_at` rad etishda TOZALANMAYDI (§6 — sana tarixiy iz).
+    Shuning uchun "Didox allaqachon bo'lgan" savoliga shu maydonning
+    o'zi emas, u OXIRGI RAD ETISHDAN KEYIN bo'lganimi javob berishi
+    kerak — aks holda rad etilib qayta boshlangan shartnoma eski
+    (endi haqiqiy emas) Didox izidan to'g'ridan `approved`ga sakraydi
+    va mijozdan hujjatsiz pul so'raladi (jonli holat: SHT-00058).
+    """
+    if not contract.didox_accepted_at:
+        return False
+    last_reject_at = contract.approvals.filter(
+        decision=ContractApproval.Decision.REJECTED,
+    ).aggregate(m=Max('created_at'))['m']
+    return last_reject_at is None or contract.didox_accepted_at > last_reject_at
 
 
 def link_lead_to_contract(contract):
@@ -239,9 +257,11 @@ def approve_contract(contract, user, comment=''):
         step = ContractApproval.Step.ADMIN
         # 12-§1 eski yozuvlar: eski tartibda (Didoxdan keyin admin) ketgan
         # shartnomaning Didoxi allaqachon tasdiqlangan bo'lishi mumkin —
-        # ikkinchi marta Didoxga yuborilmasin, to'g'ridan approved
+        # ikkinchi marta Didoxga yuborilmasin, to'g'ridan approved.
+        # QOLGAN-ISHLAR #1: lekin faqat shu JORIY aylanishda — rad etilib
+        # qayta boshlangan bo'lsa eski Didox izi endi haqiqiy emas
         contract.status = (
-            Contract.Status.APPROVED if contract.didox_accepted_at
+            Contract.Status.APPROVED if _didox_valid_for_current_cycle(contract)
             else Contract.Status.READY_FOR_DIDOX
         )
     else:
@@ -881,19 +901,23 @@ def _contract_document_placeholders(contract):
     }
 
 
-def render_contract_document(contract, body, user=None):
+def render_contract_document(contract, body):
     """O'rin egallovchilarni KO'RSATISHDA to'ldiradi — saqlashda emas.
 
     Shunda summa o'zgarsa (masalan partiya soni) hujjat ham ergashadi.
-    Narx — qator bo'yicha xuddi shartnomaning o'zidagidek faqat sales va
-    adminga (PRICE_FIELDS qoidasi bilan bir xil chegara).
+
+    QOLGAN-ISHLAR #3: `total`/`prepayment_percent` — shartnomaning JAMI
+    summasi, `PRICE_FIELDS` qoidasi bunga tegishli emas (u faqat QATOR
+    narxini — `unit_price` va h.k. — sales/adminga cheklaydi). Jami
+    summani bugalter ham allaqachon shartnoma kartasida ko'radi, hujjatda
+    yashirish esa uni yozayotgan odamdan asosiy raqamni olib qo'yardi.
+    Hujjatning o'zi bugalter/admin/sales(egasi)dan boshqasiga umuman
+    ochilmaydi (view darajasida), shuning uchun bu yerda qo'shimcha
+    maskalash shart emas.
     """
     import re
 
     values = _contract_document_placeholders(contract)
-    if not (user and (user.is_admin or user.is_sales)):
-        values['total'] = '•••'
-        values['prepayment_percent'] = '•••'
 
     def repl(match):
         key = match.group(1).strip()

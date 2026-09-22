@@ -1658,6 +1658,105 @@ Testlar: `apps/configurator/tests/test_multi_model_contract.py` (7).
 
 Testlar: `apps/sales/tests/test_contract_document.py` (10).
 
+## 8.56 QOLGAN-ISHLAR #2–#5: kichik, lekin frontni to'suvchi tuzatishlar 🔧
+
+- **#2**: `ContractDocumentSerializer.body` — render qilingan (o'rin
+  egallovchilar to'lgan) matn, muharrir shuni saqlasa ular yo'qolardi.
+  Yangi `body_raw` (xom, render qilinmagan) — muharrir shuni yuklab,
+  `PUT`da shuni yuboradi.
+- **#3**: hujjatdagi `{{ total }}`/`{{ prepayment_percent }}` bugalterdan
+  ham yashirilgan edi — bu `PRICE_FIELDS` qoidasiga (qator narxi:
+  `unit_price` va h.k.) tegishli emas, shartnomaning JAMI summasi.
+  Hujjat allaqachon faqat bugalter/admin/sales(egasi)ga ochiq, shuning
+  uchun qo'shimcha maskalash olib tashlandi.
+- **#4**: `ContractItemSerializer`ga `configuration_number` qo'shildi —
+  bitta shartnomada bir nechta model bo'lsa (12-§2 C), front qatorlarni
+  N ta alohida so'rovsiz ajrata oladi.
+- **#5**: `test_sla.StatusChangedAtTests` beqaror edi — ikkita `save()`
+  bir xil mikrosekundda bajarilsa (asosan Windows) `assertGreater`
+  yiqilardi. Endi status o'zgarishidan oldin vaqt ataylab orqaga
+  suriladi — test determinlashdi.
+
+## 8.57 12-to'plam §2 (B-track): bitta zayavkada bir nechta talab 📋
+
+- Talab: **bitta ishga ikkita zayavka ochilmasin** — mijoz ikkita model
+  so'rasa, zayavka bitta bo'ladi, engineer uni bir marta ishga oladi va
+  modellarni birma-bir yig'ib, birma-bir tasdiqqa yuboradi.
+- Yangi model `ConfigurationRequestLine` — birinchi model
+  `ConfigurationRequest.base_product`/`quantity`da qoladi (orqaga mos,
+  mavjud kod/testlar o'zgarmaydi), qo'shimcha talablar shu qatorlarda.
+- **Dizayn tuzatishi** (hujjatning o'zidagi xato topildi va tuzatildi):
+  "har qatordan bitta konfiguratsiya" aralash buyurtmada noto'g'ri edi
+  (`10 ta HP 880 + 20 ta zapas SSD` — ikkinchisi tayyor tovar, yig'iladigan
+  narsa yo'q). Qator endi ikki turli: **model** (yig'iladigan —
+  konfigurator orqali) va **tovar** (tayyor, konfiguratorsiz — to'g'ridan
+  shartnoma qatoriga aylanadi, xuddi 8-§1 dagi "konfiguratsiyasiz
+  shartnoma" mexanizmi kabi).
+- `POST /configuration-requests/` — ixtiyoriy `lines[]` bilan yaratiladi.
+- `take_request` — bitta amalda barcha `model` turidagi qatorlarga ham
+  chernovik ochadi (`line_modes` — har biriga alohida `build`/`modify`).
+  `item` turidagi qatorga konfiguratsiya kerak emas.
+- `approve_configuration` (istalgan qator uchun, C-track bilan bir xil
+  mexanizm) — shartnoma mavjud bo'lishi bilanoq, hali qo'shilmagan
+  `item` qatorlari ham avtomatik `ContractItem` sifatida qo'shiladi.
+- Zayavka endi `ConfigurationRequest.is_fully_done` orqali — barcha
+  qatori (asosiy + qo'shimcha model + tovar) tugagunicha `done` bo'lmaydi.
+- `release_request`/`cancel_chain` — qo'shimcha qatorlarning
+  chernoviklari ham bekor qilinadi (avval faqat asosiysi).
+- **Muhim tuzatish**: `Configuration`ga faqat `ConfigurationRequestLine`
+  orqali ulangan (asosiy `ConfigurationRequest.configuration` FK bo'sh)
+  konfiguratsiyalar sales'ning ko'rish/tasdiqlash ruxsatidan tashqarida
+  qolib ketardi (`ConfigurationViewSet`/`ConfigurationItemViewSet`
+  `get_queryset`, `core.services._configuration_source`,
+  `roadmap._can_open`, `configurator.services._owning_request` va
+  undan foydalanuvchi barcha joylar) — hammasi `extra_request_lines`
+  orqali ham qidiradigan qilib tuzatildi (12-§2 C-trackdagi
+  `active_contract` bilan bir xil naqsh).
+- **Qamrovdan tashqarida**: qator darajasida alohida tahrirlash
+  endpointi (miqdor/matn o'zgartirish `ConfigurationRequestLine`da —
+  front B5 bilan birga keladi); front (B5, alohida ish).
+
+Testlar: `apps/configurator/tests/test_request_lines.py` (7).
+
+## 8.58 QOLGAN-ISHLAR #1/#3/#6: jonli topilgan uchta xato 🐛
+
+- **#1 (jiddiy, jonli holat — SHT-00058)**: 12-§1 dagi orqaga moslik
+  sharti ("Didoxi allaqachon tasdiqlangan bo'lsa to'g'ridan `approved`")
+  12-§6 dagi qoidani hisobga olmagan edi: `didox_accepted_at` rad
+  etishda TOZALANMAYDI. Natijada rad etilib qayta boshlangan shartnoma
+  ESKI (endi haqiqiy emas) Didox izidan to'g'ridan `approved`ga
+  sakrab, mijozdan HUJJATSIZ pul so'raladi. Yechim —
+  `_didox_valid_for_current_cycle(contract)`: Didox faqat OXIRGI rad
+  etishdan KEYIN tasdiqlangan bo'lsa haqiqiy hisoblanadi (roadmapdagi
+  `after_last_reject` bilan bir xil mantiq, endi ikkala tomon ham shu
+  qoidaga amal qiladi). **Jonli serverda `SHT-00058` shu holatda
+  qolgan — qo'lda tuzatish kerak** (pastda).
+- **#3**: SLA hujjatning oxirgi holat o'zgarishidan (`status_changed_at`)
+  sanalardi — lekin bir nechta qadam (`procurement_sent`,
+  `procurement_chain`, `assemble`, `finalize`) bitta holat (CFG
+  `approved`) ichida ketma-ket bajariladi, ya'ni to'rttasi ham bitta
+  vaqtdan "kechikardi". Endi har biri **o'z boshlanish vaqtidan**
+  (`since=` — to'lov, TLD ochilishi, mol kelishi, yig'ilish paytidan).
+- **#6**: joriy qadamda hujjat bo'lmasa (`procurement_sent` TLD hali
+  yo'q paytda, `taken` konfiguratsiya hali yo'q paytda) — havola endi
+  ISH BAJARILADIGAN sahifaga (mos ravishda konfiguratsiya va zayavka),
+  natija hujjatiga emas (u hali yo'q, bu qoidaning o'zi).
+
+### `SHT-00058`ni tuzatish (bir martalik) — yangi komanda
+
+Tuzatishdan keyin ham eski yozuv o'zi to'g'irlanmaydi — statusi
+allaqachon `approved`. Shu holatdagi BARCHA yozuvlarni (nafaqat
+SHT-00058) topib, pul hali kelmaganlarini xavfsiz qaytaradigan
+komanda qo'shildi:
+
+```bash
+make docker-fix-stale-didox           # yoki avval --dry-run bilan ko'rish:
+docker compose -f docker-compose.yml -f docker-compose.caddy.yml exec web \
+  python manage.py fix_stale_didox --dry-run
+```
+
+Testlar: `test_didox_steps.py` (+1), `test_roadmap.py` (+3).
+
 ---
 
 ## 9. Nima o'zgarmadi

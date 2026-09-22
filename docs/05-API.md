@@ -162,7 +162,7 @@ Engineer configuratorda tayyorlab, konfiguratsiyani zayavkaga biriktiradi
 | Metod | Manzil | Kim |
 |---|---|---|
 | GET | `/configuration-requests/` | hamma; filtr: `status`, `client`, `taken_by`, `configuration` |
-| POST | `/configuration-requests/` | sales (admin) — engineerlarga notification tushadi |
+| POST | `/configuration-requests/` | sales (admin) — engineerlarga notification tushadi. 12-§2 (B): ixtiyoriy `lines[]` — mijoz bir suhbatda yana narsa so'rasa (`{"kind": "model"\|"item", "base_product": id, "quantity": n, "text": "..."}`); `model` — yig'iladigan (konfigurator), `item` — tayyor tovar (konfiguratorsiz, to'g'ridan shartnoma qatoriga aylanadi) |
 | GET/PUT/PATCH/DELETE | `/configuration-requests/{id}/` | sales, engineer, admin |
 | ~~complete~~ | — olib tashlandi (#4): endi engineer konfiguratsiyani `submit` qiladi, zayavka sales `approve`sida `done` bo'ladi |
 | GET | `/configuration-requests/{id}/roadmap/` | B8: **zanjir ko'zgusi** — 19 qadam (12-§1: `bugalter_check` qo'shildi), uch kirish nuqtasi bir xil javob; barcha rollar to'liq ko'radi, **pul yo'q**; `label`/`state`/`tone`/`waiting_days`/`deadline`/`can_open`/`repeats`/`current_key` tayyor keladi |
@@ -176,7 +176,7 @@ Engineer configuratorda tayyorlab, konfiguratsiyani zayavkaga biriktiradi
 | POST | `/configuration-requests/{id}/cancel/` | B17: zanjirni bekor qilish — eng ko'p ishlatiladigan kirish nuqtasi (shartnoma hali ochilmagan payt) |
 | POST | `/configurations/{id}/cancel/` | B12: zanjirni bekor qilish (sales egasi / admin) |
 | POST | `/contracts/{id}/cancel/` | B12: zanjirni bekor qilish; **pul qabul qilingan bo'lsa 400** |
-| POST | `/configuration-requests/{id}/take/` | **engineer** — ishga oladi, chernovik konfiguratsiya avtomatik ochiladi |
+| POST | `/configuration-requests/{id}/take/` | **engineer** — ishga oladi, chernovik konfiguratsiya avtomatik ochiladi. 12-§2 (B2): bitta amal — qo'shimcha `model` turidagi qatorlarga ham shu yerda, birma-bir, o'z chernovigi ochiladi; har biriga alohida rejim — `{"line_modes": {"<line_id>": "build"\|"modify"}}` (berilmasa `mode`/BUILD) |
 | POST | `/configuration-requests/{id}/complete/` | **engineer** — konfiguratsiyani biriktiradi |
 
 ```json
@@ -569,12 +569,12 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | POST | `/contracts/{id}/confirm-payment/` | bugalter; YANGI-OQIM: bu **ish boshlanish signali** — CFG broni qattiqlashadi, engineer xabar oladi, 13–16 qadamlar ochiladi |
 | GET | `/contracts/{id}/timeline/` | hamma |
 | GET | `/contracts/{id}/print/` | **faqat sales, admin** — chop etish shakli (qator narxlari bor) |
-| GET | `/contracts/{id}/document/` | 13-§1: **bugalter, admin, sales (egasi)** — hujjat matni; `body` o'rin egallovchilar bilan (`{{ contract.number }}`, `{{ total }}` …) KO'RSATISHDA to'ldirilgan holda keladi, `can_edit` (faqat bugalterda `true`), `versions_count`; birinchi murojaatda bo'sh hujjat avtomatik ochiladi |
-| PUT | `/contracts/{id}/document/` | 13-§1: **faqat bugalter** (admin ham yo'q — "hozircha"); `body` saqlanadi, har saqlashda yangi versiya yoziladi; shartnoma `pending_didox`/`approved`/`active`/`completed`/`cancelled` bo'lsa 400 (hujjat huquqiy, Didoxdan keyin yopiq) |
+| GET | `/contracts/{id}/document/` | 13-§1: **bugalter, admin, sales (egasi)** — hujjat matni; `body` o'rin egallovchilar bilan (`{{ contract.number }}`, `{{ total }}` …) KO'RSATISHDA to'ldirilgan holda keladi, `body_raw` — QOLGAN-ISHLAR #2: XOM matn (placeholder'lar to'lmagan) muharrir uchun — shuni yuklab, shuni saqlash kerak, aks holda o'rin egallovchilar birinchi saqlashda yo'qoladi; `can_edit` (faqat bugalterda `true`), `versions_count`; birinchi murojaatda bo'sh hujjat avtomatik ochiladi |
+| PUT | `/contracts/{id}/document/` | 13-§1: **faqat bugalter** (admin ham yo'q — "hozircha"); tanadagi `body` — XOM matn (frontdagi `body_raw`), saqlanadi va har saqlashda yangi versiya yoziladi; shartnoma `pending_didox`/`approved`/`active`/`completed`/`cancelled` bo'lsa 400 (hujjat huquqiy, Didoxdan keyin yopiq) |
 | POST | `/contracts/{id}/document/upload/` | 13-§1: **faqat bugalter**; `.docx` fayl (`file`) `mammoth` bilan HTML'ga o'giriladi va `body`ga yoziladi, asl fayl `source_file`da saqlanadi; boshqa format 400 |
 | GET | `/contracts/{id}/document/versions/` | 13-§1: tarix — har versiya `body`, kim va qachon saqlagani (`-created_at`) |
 | GET | `/contracts/deadlines/` | hamma |
-| GET/POST | `/contract-items/` | admin, sales |
+| GET/POST | `/contract-items/` | admin, sales; javobda `configuration_number` (QOLGAN-ISHLAR #4) — bitta shartnomada bir nechta model bo'lsa qatorni ajratish uchun, alohida so'rovsiz |
 | GET/POST | `/contract-payments/` | admin, bugalter; POST `confirm-payment` bilan bir xil yo'ldan o'tadi: `paid_at` ixtiyoriy (default: hozir), kassaga kirim, balans yopilsa `completed`; §3: summa qoldiqdan oshsa yoki ≤0 bo'lsa `400` |
 | GET | `/contract-approvals/` | faqat o'qish |
 

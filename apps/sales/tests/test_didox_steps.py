@@ -1,3 +1,4 @@
+from datetime import timedelta
 from decimal import Decimal
 
 from django.utils.timezone import now
@@ -166,6 +167,37 @@ class DidoxStepsTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         contract.refresh_from_db()
         self.assertEqual(contract.status, Contract.Status.APPROVED)
+
+    def test_legacy_didox_ignored_after_rejection_and_resubmit(self):
+        """QOLGAN-ISHLAR #1 (SHT-00058): Didox eski tartibda tasdiqlangan,
+        SO'NG admin rad etgan va qayta yuborilgan — eski Didox izi endi
+        haqiqiy emas, admin approve'i to'g'ridan `approved`ga sakramasin,
+        Didoxdan qaytadan o'tsin.
+        """
+        contract = self._pending_contract()
+        past = now() - timedelta(days=3)
+        Contract.objects.filter(pk=contract.pk).update(
+            status=Contract.Status.PENDING_ADMIN,
+            didox_number='1/1605', didox_sent_at=past, didox_accepted_at=past,
+        )
+        contract.refresh_from_db()
+        ContractApproval.objects.create(
+            contract=contract, step=ContractApproval.Step.ADMIN,
+            decision=ContractApproval.Decision.REJECTED,
+            comment='Summalar noto\'g\'ri', decided_by=self.admin,
+        )
+        # Sales tuzatib qayta yubordi — bugalter yana tekshirdi
+        Contract.objects.filter(pk=contract.pk).update(
+            status=Contract.Status.PENDING_ADMIN,
+        )
+        contract.refresh_from_db()
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f'/api/contracts/{contract.id}/approve/')
+        self.assertEqual(response.status_code, 200, response.data)
+        contract.refresh_from_db()
+        # Eski (rad etishdan oldingi) Didox endi hisobga olinmaydi
+        self.assertEqual(contract.status, Contract.Status.READY_FOR_DIDOX)
 
     def test_prepayment_percent_locked_after_draft(self):
         """B14: foiz faqat qoralamada tuziladi — keyin admin ham o'zgartira olmaydi."""

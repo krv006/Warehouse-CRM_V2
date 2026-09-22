@@ -101,6 +101,12 @@ class MultiModelContractTests(APITestCase):
         item_b = contract.items.get(configuration=cfg_b)
         self.assertEqual(item_b.product, self.dell)
 
+        # QOLGAN-ISHLAR #4: front qatorlarni raqam bilan ajrata olsin
+        self.client.force_authenticate(self.sales)
+        response = self.client.get(f'/api/contracts/{contract.id}/')
+        numbers = {row['configuration_number'] for row in response.data['items']}
+        self.assertEqual(numbers, {cfg_a.number, cfg_b.number})
+
     def test_cannot_attach_to_non_draft_contract(self):
         """Bugalterga ketgan (draft emas) shartnomaga yangi model qo'shilmaydi."""
         cfg_a = self._take_config(self.engineer, self.hp)

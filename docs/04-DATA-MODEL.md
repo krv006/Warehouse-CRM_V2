@@ -227,6 +227,25 @@ bir xil shakl); roadmap (B8) aylanma qadamlarni shundan o'qiydi.
 Yaratilganda barcha faol engineerlarga Notification boradi; `take` chernovik
 konfiguratsiyani zavod tarkibi bilan ochadi; `complete` da sales'ga xabar qaytadi.
 
+### `ConfigurationRequestLine` — 12-§2 (B): zayavkadagi QO'SHIMCHA talab
+Birinchi model `ConfigurationRequest.base_product`/`quantity`da qoladi
+(orqaga mos); mijoz yana narsa so'rasa, shu qatorlar orqali qo'shiladi.
+
+| Maydon | Tur |
+|---|---|
+| `request` | FK `ConfigurationRequest` (CASCADE, `lines`) |
+| `kind` | `model` (yig'iladigan — konfigurator orqali) / `item` (tayyor tovar — konfiguratorsiz) |
+| `base_product` | FK `inventory.Product` (PROTECT) |
+| `quantity` | PositiveInteger, default 1 |
+| `text` | Text, blank — shu qatorga tegishli izoh |
+| `configuration` | FK `configurator.Configuration` (SET_NULL, null) — faqat `kind=model`; `take`da to'ladi |
+| `contract_item` | FK `sales.ContractItem` (SET_NULL, null) — faqat `kind=item`; shartnoma ochilganda to'ladi |
+
+Property: `is_complete` (kind=item — `contract_item` bor; kind=model —
+konfiguratsiya `approved`/`ready`/`sold`). Zayavka faqat BARCHA qatori
+(asosiy + qo'shimchalar) tugagach `done` bo'ladi
+(`ConfigurationRequest.is_fully_done`).
+
 ---
 
 ## purchases
