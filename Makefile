@@ -210,6 +210,14 @@ docker-dbcheck: ## Konteyner qaysi bazani ishlatayotganini ko'rsatadi
 docker-shell: ## Konteyner ichidagi bash
 	$(COMPOSE) exec web bash
 
+.PHONY: collabora-up
+collabora-up: ## 15-§A: Collabora Online (WOPI) xizmatini ham ko'taradi
+	$(COMPOSE) --profile with-collabora up -d --build
+
+.PHONY: collabora-down
+collabora-down: ## Collabora Online xizmatini to'xtatadi
+	$(COMPOSE) --profile with-collabora stop collabora
+
 .PHONY: deploy
 deploy: ## Serverda yangilash: git pull + to'liq o'rnatish skripti
 	git pull

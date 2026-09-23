@@ -616,10 +616,11 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | POST | `/contracts/{id}/confirm-payment/` | bugalter; YANGI-OQIM: bu **ish boshlanish signali** — CFG broni qattiqlashadi, engineer xabar oladi, 13–16 qadamlar ochiladi |
 | GET | `/contracts/{id}/timeline/` | hamma |
 | GET | `/contracts/{id}/print/` | **faqat sales, admin** — chop etish shakli (qator narxlari bor) |
-| GET | `/contracts/{id}/document/` | 13-§1: **bugalter, admin, sales (egasi)** — hujjat matni; `body` o'rin egallovchilar bilan (`{{ contract.number }}`, `{{ total }}` …) KO'RSATISHDA to'ldirilgan holda keladi, `body_raw` — QOLGAN-ISHLAR #2: XOM matn (placeholder'lar to'lmagan) muharrir uchun — shuni yuklab, shuni saqlash kerak, aks holda o'rin egallovchilar birinchi saqlashda yo'qoladi; `can_edit` (faqat bugalterda `true`), `versions_count`; birinchi murojaatda bo'sh hujjat avtomatik ochiladi |
+| GET | `/contracts/{id}/document/` | 13-§1: **bugalter, admin, sales (egasi)** — hujjat matni; `body` o'rin egallovchilar bilan (`{{ contract.number }}`, `{{ total }}` …) KO'RSATISHDA to'ldirilgan holda keladi, `body_raw` — QOLGAN-ISHLAR #2: XOM matn (placeholder'lar to'lmagan) muharrir uchun — shuni yuklab, shuni saqlash kerak, aks holda o'rin egallovchilar birinchi saqlashda yo'qoladi; `can_edit` (faqat bugalterda `true`), `versions_count`; birinchi murojaatda bo'sh hujjat avtomatik ochiladi. 15-§3: `source_file` (URL), `source_file_name`, `source_uploaded_at` — yuklangan asl `.docx`ni qaytadan yuklab olish uchun (o'girish yo'qotishli bo'lsa ham, asl fayl yo'qolmaydi); yuklanmagan bo'lsa uchalasi ham `null` |
 | PUT | `/contracts/{id}/document/` | 13-§1: **faqat bugalter** (admin ham yo'q — "hozircha"); tanadagi `body` — XOM matn (frontdagi `body_raw`), saqlanadi va har saqlashda yangi versiya yoziladi; shartnoma `pending_didox`/`approved`/`active`/`completed`/`cancelled` bo'lsa 400 (hujjat huquqiy, Didoxdan keyin yopiq) |
-| POST | `/contracts/{id}/document/upload/` | 13-§1: **faqat bugalter**; `.docx` fayl (`file`) `mammoth` bilan HTML'ga o'giriladi va `body`ga yoziladi, asl fayl `source_file`da saqlanadi; boshqa format 400 |
+| POST | `/contracts/{id}/document/upload/` | 13-§1/15-§A: **faqat bugalter**; `.docx` fayl (`file`) yuklanadi — 15-§A: avval o'rin egallovchilar (`{{ contract.number }}`, `{{ client.name }}`, `{{ total }}` …) `docxtpl` bilan STATIK to'ldiriladi (Didoxga shu fayl aynan shu holicha ketadi — piksel-piksel), keyin `mammoth` shu (to'lgan) fayldan faqat KO'RISH uchun `body` yasaydi; shablonda `{{ }}` xato bo'lsa 400 (`file`), oddiy `.docx` (tag'siz) ham muammosiz o'tadi; boshqa format (`.pdf` va h.k.) 400 |
 | GET | `/contracts/{id}/document/versions/` | 13-§1: tarix — har versiya `body`, kim va qachon saqlagani (`-created_at`) |
+| POST | `/contracts/{id}/document/edit-session/` | 15-§A: **faqat bugalter**; Collabora Online (WOPI) tahrir sessiyasi ochadi — javob `{"edit_url": "https://collabora.../browser/dist/cool.html?WOPISrc=...&access_token=..."}`, front shu URL'ni `<iframe>`ga qo'yadi; `.docx` hali yuklanmagan bo'lsa 400 ("Avval .docx shablon yuklansin") |
 | GET | `/contracts/deadlines/` | hamma |
 | GET/POST | `/contract-items/` | admin, sales; javobda `configuration_number` (QOLGAN-ISHLAR #4) — bitta shartnomada bir nechta model bo'lsa qatorni ajratish uchun, alohida so'rovsiz |
 | GET/POST | `/contract-payments/` | admin, bugalter; POST `confirm-payment` bilan bir xil yo'ldan o'tadi: `paid_at` ixtiyoriy (default: hozir), kassaga kirim, balans yopilsa `completed`; §3: summa qoldiqdan oshsa yoki ≤0 bo'lsa `400` |
@@ -748,6 +749,27 @@ deb olinadi (`400`, `500` emas).
 > Eslatma: `items[].unit_price`, `subtotal`, `vat_percent`, `vat_amount`,
 > `total_with_vat` faqat sales va admin javobida bo'ladi (bugalterga umumiy
 > `total_amount`, `items_total`, `vat_total` ko'rinadi).
+
+### Shartnoma hujjatini Collabora'da tahrirlash (15-§A) — WOPI host
+
+13-§1 dagi "avtomatik yangilanadigan HTML" g'oyasi Didoxga **aynan shu
+`.docx` ketishi** talabiga zid chiqdi (formatlash — markaz, shrift, jadval
+— o'girishda yo'qoladi). Yechim: fayl endi **o'zi asl** — brauzerda
+Collabora Online (WOPI) orqali to'g'ridan-to'g'ri tahrirlanadi, biz esa
+Collabora uchun **WOPI host** rolini o'ynaymiz (`/api/wopi/files/{id}`).
+
+1. Bugalter `.docx` shablon yuklaydi (`document/upload/`) — o'rin
+   egallovchilar shu yerda statik to'ladi.
+2. Front `document/edit-session/` dan `edit_url` oladi, `<iframe src={edit_url}>` ochadi.
+3. Collabora shu `iframe` ichida **bizning backendga** (`WOPISrc`) ulanadi:
+   - `GET /wopi/files/{id}?access_token=...` — **CheckFileInfo** (`BaseFileName`, `Size`, `Version`, `UserCanWrite` …)
+   - `GET /wopi/files/{id}/contents?access_token=...` — **GetFile** (xom `.docx` baytlar)
+   - `POST /wopi/files/{id}?access_token=...` + `X-WOPI-Override: LOCK`/`UNLOCK`/`REFRESH_LOCK` + `X-WOPI-Lock: <id>` — tahrir qulfi (WOPI spetsifikatsiyasi; qulf band bo'lsa **409** + `X-WOPI-Lock` sarlavhasida joriy qulf)
+   - `POST /wopi/files/{id}/contents?access_token=...` — **PutFile**, bugalter saqlagan sari Collabora shu yerga yangi `.docx` yuboradi — `source_file` yangilanadi, `body` (ko'rish rejimi) `mammoth` bilan qayta o'giriladi, yangi `ContractDocumentVersion` yoziladi
+
+`access_token` — `contracts/{id}/document/edit-session/` javobidagi imzolangan, muddatli token (standart JWT emas — Collabora bizning login oynamizni bilmaydi); bu ikki manzil **autentifikatsiyasiz** (token o'zi tekshiradi), shuning uchun ular `/api/` ostidagi boshqa endpointlardan farqli — faqat token orqali ishlaydi. Manzillar ataylab **slashsiz** — Collabora `WOPISrc` ga `/contents` ni to'g'ridan-to'g'ri ulaydi.
+
+Serverga qo'shimcha `collabora` Docker xizmati kerak (`docker-compose.yml`), `.env` da `COLLABORA_URL` (Collabora'ning o'zi) va `WOPI_PUBLIC_URL` (Collabora bizga qaytib ulanadigan tashqi manzil).
 
 ---
 

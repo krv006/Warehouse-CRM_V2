@@ -30,3 +30,28 @@ services:
       - ./media:/var/www/media:ro
     depends_on:
       - web
+
+  # 15-§A: shartnoma .docx'ini brauzerda tahrirlash (Collabora Online, WOPI).
+  # Ixtiyoriy: docker compose --profile with-collabora up -d --build
+  # Websocket (wss://) uchun tashqi reverse proxy (Caddy) ulanishi kerak —
+  # bu docker-compose faqat konteynerni ko'taradi, domen/SSL alohida sozlanadi.
+  collabora:
+    profiles:
+      - with-collabora
+    image: collabora/code:latest
+    container_name: ombor-crm-collabora
+    restart: unless-stopped
+    cap_add:
+      - MKNOD
+    env_file:
+      - .env
+    environment:
+      # Faqat shu WOPI hostga (bizning backendimizga) ishonadi — .env dagi
+      # WOPI_PUBLIC_URL bilan bir xil bo'lishi shart
+      - aliasgroup1=${WOPI_PUBLIC_URL}
+      - username=${COLLABORA_ADMIN_USER:-admin}
+      - password=${COLLABORA_ADMIN_PASSWORD:-changeme}
+      - DONT_GEN_SSL_CERT=set
+      - extra_params=--o:ssl.enable=false --o:ssl.termination=true
+    ports:
+      - "127.0.0.1:${COLLABORA_PORT:-9980}:9980"

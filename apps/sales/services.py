@@ -909,31 +909,238 @@ def save_contract_document(contract, user, body):
     return document
 
 
+def _contract_document_docxtpl_context(contract):
+    """15-§A: `.docx` shablon uchun — dot-notation ishlashi uchun ICHMA-ICH lug'at."""
+    client = contract.client
+    return {
+        'contract': {
+            'number': contract.number,
+            'date': contract.signed_at.strftime('%d.%m.%Y') if contract.signed_at else '',
+        },
+        'client': {
+            'name': client.display_name if client else '',
+            'inn': getattr(client, 'inn', '') or '',
+        },
+        'total': str(contract.items_total_with_vat),
+        'prepayment_percent': str(contract.prepayment_percent or ''),
+        'term_days': str(contract.term_days),
+    }
+
+
+def fill_contract_document_template(contract, file):
+    """15-§A: shablondagi `{{ }}` o'rin egallovchilarni STATIK to'ldiradi.
+
+    Fayl Didoxga aynan shu holicha ketadi (Collabora'da tahrirlanadi),
+    shuning uchun avtomatik yangilanish endi yo'q — summa o'zgarsa
+    bugalter qayta yuklaydi. Shablonda tag bo'lmasa (oddiy .docx) —
+    docxtpl hech narsani o'zgartirmay saqlaydi, xato bermaydi.
+    """
+    from io import BytesIO
+
+    from docxtpl import DocxTemplate
+
+    template = DocxTemplate(file)
+    try:
+        template.render(_contract_document_docxtpl_context(contract))
+    except Exception as exc:
+        raise ValidationError({
+            'file': f"Shablondagi o'rin egallovchida xatolik: {exc}",
+        })
+    buffer = BytesIO()
+    template.save(buffer)
+    return buffer.getvalue()
+
+
 @atomic
 def upload_contract_document(contract, user, file):
-    """`.docx` yuklash — `mammoth` bilan toza HTML'ga o'giradi (13-§1 bosqich 3).
+    """`.docx` yuklash (13-§1 bosqich 3, 15-§A bilan yangilangan).
 
-    Asl fayl (`source_file`) o'chirilmaydi — o'girish yo'qotishli, kerak
-    bo'lsa yuklab olinadi yoki qayta o'giriladi.
+    15-§A: fayl endi Didoxga AYNAN shu holicha ketadi (piksel-piksel) —
+    shuning uchun `mammoth`ning "toza HTML"si energa faqat KO'RISH uchun
+    (o'qish rejimi), tahrir Collabora Online orqali `source_file`ning
+    o'zida bo'ladi (`edit_contract_document_session`). O'rin
+    egallovchilar shu yerda, yuklashda, statik to'ldiriladi (`docxtpl`).
     """
-    import mammoth
-
     _require_document_editable(contract)
     name = (getattr(file, 'name', '') or '').lower()
     if not name.endswith('.docx'):
         raise ValidationError({
             'file': 'Matnga o\'girish faqat .docx uchun ishlaydi — .doc/boshqa formatlar hali qo\'llab-quvvatlanmaydi.',
         })
-    result = mammoth.convert_to_html(file)
-    file.seek(0)
+    filled = fill_contract_document_template(contract, file)
+    preview = _mammoth_html(filled)
 
     document = get_or_create_contract_document(contract)
-    document.body = result.value
-    document.source_file = file
+    document.body = preview
+    _save_document_file(document, getattr(file, 'name', 'shartnoma.docx'), filled)
+    document.source_uploaded_at = now()
+    document.docx_version += 1
     document.updated_by = user
     document.save()
     document.versions.create(body=document.body, created_by=user)
     return document
+
+
+def _mammoth_html(docx_bytes):
+    from io import BytesIO
+
+    import mammoth
+
+    return mammoth.convert_to_html(BytesIO(docx_bytes)).value
+
+
+def _save_document_file(document, name, content_bytes):
+    from django.core.files.base import ContentFile
+
+    document.source_file.save(name, ContentFile(content_bytes), save=False)
+
+
+# ---------------------------------------------------------------------------
+# 15-§A: Collabora Online (WOPI) — `.docx` brauzerda to'g'ridan-to'g'ri
+# tahrirlanadi, Didoxga AYNAN shu fayl ketadi (piksel-piksel bir xil).
+# ---------------------------------------------------------------------------
+
+_WOPI_SIGNER_SALT = 'contract-document-wopi'
+
+
+def create_wopi_token(document, user):
+    """Collabora `access_token=` sifatida yuboradigan, muddatli imzolangan token."""
+    from django.core.signing import TimestampSigner
+
+    return TimestampSigner(salt=_WOPI_SIGNER_SALT).sign(f'{document.pk}:{user.pk}')
+
+
+def verify_wopi_token(token):
+    """Tokenni tekshiradi — muddati o'tgan/soxta bo'lsa `(None, None)`."""
+    from django.conf import settings
+    from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
+
+    from apps.accounts.models import User
+    from apps.sales.models import ContractDocument
+
+    signer = TimestampSigner(salt=_WOPI_SIGNER_SALT)
+    try:
+        raw = signer.unsign(token or '', max_age=settings.WOPI_TOKEN_TTL_MINUTES * 60)
+    except (BadSignature, SignatureExpired):
+        return None, None
+    try:
+        document_id, user_id = raw.split(':')
+        document = ContractDocument.objects.select_related('contract').get(pk=document_id)
+        user = User.objects.get(pk=user_id)
+    except (ValueError, ContractDocument.DoesNotExist, User.DoesNotExist):
+        return None, None
+    return document, user
+
+
+def edit_contract_document_session(contract, user):
+    """`POST /contracts/{id}/document/edit-session/` — Collabora iframe manzili.
+
+    Faqat `.docx` allaqachon yuklangan bo'lsa (Collabora bo'sh hujjatni
+    bilmaydi — shablon avval `document/upload/` orqali keladi).
+    """
+    from urllib.parse import urlencode
+
+    from django.conf import settings
+
+    _require_document_editable(contract)
+    document = get_or_create_contract_document(contract)
+    if not document.source_file:
+        raise ValidationError({
+            'detail': "Avval .docx shablon yuklansin (document/upload/) — tahrir shundan keyin ochiladi.",
+        })
+    token = create_wopi_token(document, user)
+    wopi_src = f'{settings.WOPI_PUBLIC_URL}/api/wopi/files/{document.pk}'
+    query = urlencode({'WOPISrc': wopi_src, 'access_token': token})
+    return {
+        'edit_url': f'{settings.COLLABORA_URL}/browser/dist/cool.html?{query}',
+        'wopi_src': wopi_src,
+    }
+
+
+def wopi_check_file_info(document, user):
+    """WOPI `CheckFileInfo` — Collabora tahrirni ochishdan oldin so'raydi."""
+    return {
+        'BaseFileName': _wopi_file_name(document),
+        'Size': document.source_file.size if document.source_file else 0,
+        'OwnerId': str(document.updated_by_id or 'system'),
+        'UserId': str(user.pk),
+        'UserFriendlyName': user.display_name,
+        'Version': str(document.docx_version),
+        'UserCanWrite': True,
+        'SupportsLocks': True,
+        'SupportsUpdate': True,
+    }
+
+
+def _wopi_file_name(document):
+    if document.source_file:
+        return document.source_file.name.rsplit('/', 1)[-1]
+    return f'{document.contract.number}.docx'
+
+
+def wopi_get_file_content(document):
+    """WOPI `GetFile` — Collabora tahrir boshida faylni shu yerdan o'qiydi."""
+    document.source_file.open('rb')
+    try:
+        return document.source_file.read()
+    finally:
+        document.source_file.close()
+
+
+def _wopi_lock_expiry():
+    from datetime import timedelta
+
+    from django.conf import settings
+
+    return now() + timedelta(minutes=settings.WOPI_LOCK_TTL_MINUTES)
+
+
+@atomic
+def wopi_lock_file(document, lock_id):
+    """WOPI `LOCK` — boshqa sessiya qulfini egallab turgan bo'lsa `False`."""
+    if document.wopi_lock_active and document.wopi_lock != lock_id:
+        return False
+    document.wopi_lock = lock_id
+    document.wopi_lock_expires_at = _wopi_lock_expiry()
+    document.save(update_fields=['wopi_lock', 'wopi_lock_expires_at'])
+    return True
+
+
+@atomic
+def wopi_unlock_file(document, lock_id):
+    """WOPI `UNLOCK` — boshqa qulf bo'lsa `False` (Collabora 409 qaytaradi)."""
+    if document.wopi_lock_active and document.wopi_lock != lock_id:
+        return False
+    document.wopi_lock = ''
+    document.wopi_lock_expires_at = None
+    document.save(update_fields=['wopi_lock', 'wopi_lock_expires_at'])
+    return True
+
+
+def wopi_refresh_lock(document, lock_id):
+    """WOPI `REFRESH_LOCK` — muddatni uzaytiradi, qulf o'zi bilan bir xil."""
+    return wopi_lock_file(document, lock_id)
+
+
+@atomic
+def wopi_put_file(document, user, content, lock_id):
+    """WOPI `PutFile` — Collabora tahrirlangan faylni shu yerga saqlaydi.
+
+    15-§A: bu — asl (Didoxga ketadigan) fayl, qulf mos kelmasa rad
+    etiladi (`False` — chaqiruvchi 409 qaytaradi). `body` ham qayta
+    o'giriladi — saytdagi ko'rish rejimi Collabora'dan chiqqan versiyaga
+    ergashsin.
+    """
+    if document.wopi_lock_active and document.wopi_lock != lock_id:
+        return False
+    _save_document_file(document, _wopi_file_name(document), content)
+    document.body = _mammoth_html(content)
+    document.docx_version += 1
+    document.source_uploaded_at = now()
+    document.updated_by = user
+    document.save()
+    document.versions.create(body=document.body, created_by=user)
+    return True
 
 
 def _contract_document_placeholders(contract):

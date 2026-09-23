@@ -10,6 +10,8 @@ from apps.sales.views import (
     ContractApprovalViewSet,
     ContractPaymentViewSet,
     LeadViewSet,
+    WopiFileContentsView,
+    WopiFileInfoView,
 )
 
 urlpatterns = [
@@ -71,6 +73,14 @@ urlpatterns = [
     path('contracts/<int:pk>/document/versions/', ContractViewSet.as_view({
         'get': 'document_versions',
     }), name='contract-document-versions'),
+    # 15-§A: Collabora Online (WOPI) — brauzerda to'g'ridan-to'g'ri tahrirlash
+    path('contracts/<int:pk>/document/edit-session/', ContractViewSet.as_view({
+        'post': 'document_edit_session',
+    }), name='contract-document-edit-session'),
+    # WOPI host — Collabora shu ikkitasini so'raydi; slashsiz ataylab (WOPI
+    # klienti WOPISrc'ga "/contents"ni to'g'ridan-to'g'ri ulab chaqiradi)
+    path('wopi/files/<int:pk>', WopiFileInfoView.as_view(), name='wopi-file-info'),
+    path('wopi/files/<int:pk>/contents', WopiFileContentsView.as_view(), name='wopi-file-contents'),
 
     path('contract-items/', ContractItemViewSet.as_view(LIST), name='contractitem-list'),
     path('contract-items/<int:pk>/', ContractItemViewSet.as_view(DETAIL), name='contractitem-detail'),

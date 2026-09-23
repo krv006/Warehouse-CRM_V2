@@ -1805,6 +1805,46 @@ Testlar: `apps/configurator/tests/test_deal.py` (yangi, 20).
 
 ---
 
+## 8.60 15-to'plam §A/§3: shartnoma `.docx`si Collabora'da, aynan o'sha holicha 📄
+
+13-to'plam §1 dagi `mammoth`+HTML yondashuvi hujjatning **ko'rinishini**
+(markazga tekislash, shrift o'lchami, jadval) yo'qotardi — Didoxga esa
+fayl piksel-piksel bir xil ketishi kerak edi. Qaror: **A yo'li** —
+Collabora Online (WOPI) orqali bugalter `.docx`ni brauzerda **aynan
+Word'dagidek** tahrirlaydi.
+
+- **`GET /contracts/{id}/document/` javobiga qo'shildi** (15-§3, A
+  yo'lidan mustaqil, alohida bajarilgan): `source_file`, `source_file_name`,
+  `source_uploaded_at` — yuklangan asl fayl endi qaytib olinadi (avval
+  serverda yotib, hech qanday yo'l bilan yetib bo'lmas edi).
+- **Yuklashda o'rin egallovchilar statik to'ladi** (`docxtpl`):
+  `document/upload/` endi avval `{{ contract.number }}`, `{{ client.name }}`,
+  `{{ total }}` va h.k.ni to'ldiradi, keyin shu (to'lgan) fayl saqlanadi —
+  Didoxga ketadigan aynan shu. `mammoth` endi faqat KO'RISH (`body`)
+  uchun — tahrir emas. Summa keyin o'zgarsa, bugalter qayta yuklaydi.
+- **`POST /contracts/{id}/document/edit-session/`** (faqat bugalter) —
+  Collabora iframe manzilini qaytaradi (`edit_url`, muddatli
+  `access_token` bilan); `.docx` hali yo'q bo'lsa 400.
+- **WOPI host** — `GET/POST /wopi/files/{id}` (CheckFileInfo +
+  LOCK/UNLOCK/REFRESH_LOCK) va `GET/POST /wopi/files/{id}/contents`
+  (GetFile/PutFile) — standart JWT emas, `access_token=` orqali; Collabora
+  saqlagan sari `source_file` yangilanadi, `docx_version` +1, yangi
+  `ContractDocumentVersion` yoziladi.
+- **Infratuzilma**: `docker-compose.yml`ga ixtiyoriy `collabora` xizmati
+  (`--profile with-collabora`), `.env`da `COLLABORA_URL`/`WOPI_PUBLIC_URL`;
+  yangi kutubxonalar — `docxtpl`, `python-docx`, `Jinja2`, `lxml`.
+
+**Ma'lum cheklov**: o'rin egallovchilar endi avtomatik YANGILANMAYDI
+(13-§1dagi asl g'oyaning bir qismidan voz kechildi — buning o'rniga
+Didoxga aynan bir xil fayl ketishi tanlandi, 15-to'plam §1 dagi ikki
+javobdan biri). Jadval qatorlarini avtomatik to'ldirish (`items_table`)
+A yo'lida hali yo'q — alohida ish.
+
+Testlar: `apps/sales/tests/test_contract_document.py` (+9, jumladan
+yangi `CollaboraWopiTests`).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

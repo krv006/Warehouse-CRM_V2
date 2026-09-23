@@ -301,8 +301,13 @@ mumkin, qator aynan qaysi konfiguratsiyadan kelganini biladi. Property:
 ### `ContractDocument`
 13-§1: shartnoma MATNI — bugalter yuklaydi va saytda tahrirlaydi.
 `contract` (OneToOne, CASCADE, `document`), `body` (TextField, blank — HTML,
-o'rin egallovchilar ko'rsatishda to'ladi), `source_file` (FileField, `.docx`
-va h.k., o'girishdan keyin ham saqlanadi), `updated_by` (SET_NULL).
+KO'RISH rejimi — 15-§A dan keyin tahrirlanmaydi, faqat `mammoth` bilan
+qayta o'giriladi), `source_file` (FileField, `.docx` — 15-§A: endi ASL
+hujjat, Collabora shuni tahrirlaydi), `source_uploaded_at` (DateTime,
+ixtiyoriy — faylning yuklangan/saqlangan vaqti, `updated_at`dan alohida),
+`docx_version` (PositiveInteger, default 0 — WOPI `Version`, har saqlashda
++1), `wopi_lock` / `wopi_lock_expires_at` (CharField / DateTime, ixtiyoriy —
+Collabora tahrir sessiyasi qulfi), `updated_by` (SET_NULL).
 
 ### `ContractDocumentVersion`
 Har saqlash — yangi versiya (hujjat huquqiy, tarixi kerak). `document`

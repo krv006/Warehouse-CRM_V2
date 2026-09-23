@@ -223,22 +223,32 @@ class ContractDocumentSerializer(ModelSerializer):
     versions_count = ReadOnlyField(source='versions.count')
     updated_by_name = ReadOnlyField(source='updated_by.display_name')
     can_edit = SerializerMethodField()
+    # 15-§3: asl `.docx` yo'qolmasin — o'girish yo'qotishli bo'lsa ham,
+    # bugalter faylni qaytadan yuklab olib, Word'da tuzatib qayta yuklaydi
+    source_file_name = SerializerMethodField()
 
     class Meta:
         model = ContractDocument
         fields = [
             'id', 'contract', 'body', 'body_raw', 'versions_count',
             'updated_by', 'updated_by_name', 'updated_at', 'can_edit',
+            'source_file', 'source_file_name', 'source_uploaded_at',
         ]
         read_only_fields = [
             'id', 'contract', 'versions_count',
             'updated_by', 'updated_by_name', 'updated_at', 'can_edit',
+            'source_file', 'source_file_name', 'source_uploaded_at',
         ]
 
     def get_body(self, obj):
         from apps.sales.services import render_contract_document
 
         return render_contract_document(obj.contract, obj.body)
+
+    def get_source_file_name(self, obj):
+        import os
+
+        return os.path.basename(obj.source_file.name) if obj.source_file else None
 
     def get_can_edit(self, obj):
         from apps.sales.services import CONTRACT_DOCUMENT_EDITABLE_STATUSES

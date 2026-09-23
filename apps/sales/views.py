@@ -35,7 +35,8 @@ BUGALTER_ACTIONS = {
     'approve', 'reject', 'confirm_payment', 'send_didox', 'confirm_didox',
     # 13-§1: hujjat matnini tahrirlash — hozircha FAQAT bugalter (view metodi
     # ichida admin ham qaytarib yuboriladi — talab shunday, "hozircha")
-    'document_update', 'document_upload',
+    # 15-§A: Collabora tahrir sessiyasi ham shu cheklovda
+    'document_update', 'document_upload', 'document_edit_session',
 }
 # 11-§3: yetkazishni shartnoma egasi sales bosadi — buyurtmachi/bugalter emas
 SHIP_ACTIONS = {'ship'}
@@ -384,6 +385,17 @@ class ContractViewSet(BaseModelViewSet):
             ContractDocumentSerializer(document, context={'request': request}).data,
         )
 
+    def document_edit_session(self, request, pk=None):
+        """POST /contracts/{id}/document/edit-session/ — Collabora iframe manzili (15-§A)."""
+        from rest_framework.exceptions import PermissionDenied
+
+        from apps.sales.services import edit_contract_document_session
+
+        if not request.user.is_bugalter:
+            raise PermissionDenied("Hujjat matnini hozircha faqat bugalter tahrirlaydi.")
+        contract = self.get_object()
+        return Response(edit_contract_document_session(contract, request.user))
+
     def document_versions(self, request, pk=None):
         """GET /contracts/{id}/document/versions/ — tarix (13-§1)."""
         from rest_framework.exceptions import PermissionDenied
@@ -576,3 +588,97 @@ class LeadViewSet(BaseModelViewSet):
         if user.is_sales:
             return qs.filter(created_by=user)
         return qs.none()
+
+
+# ---------------------------------------------------------------------------
+# 15-§A: WOPI host — Collabora Online shu ikki manzil orqali `.docx`ni
+# o'qiydi/yozadi. JWT emas, `access_token=` query parametri bilan ishlaydi
+# (WOPI spetsifikatsiyasi shunday talab qiladi — Collabora bizning login
+# oynamizni bilmaydi), shuning uchun standart autentifikatsiya o'chirilgan.
+# Slash bilan TUGAMAYDI ataylab — Collabora WOPISrc'ga "/contents" ni
+# to'g'ridan-to'g'ri ulab so'raydi, oxirida slash bo'lsa ikkilanib qoladi.
+# ---------------------------------------------------------------------------
+
+from rest_framework.views import APIView  # noqa: E402
+
+
+class WopiFileInfoView(APIView):
+    """`GET` — CheckFileInfo; `POST` (`X-WOPI-Override`) — LOCK/UNLOCK/REFRESH_LOCK."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def _resolve(self, request, pk):
+        from apps.sales.services import verify_wopi_token
+
+        document, user = verify_wopi_token(request.GET.get('access_token', ''))
+        if document is None or document.pk != int(pk):
+            return None, None
+        return document, user
+
+    def get(self, request, pk):
+        from apps.sales.services import wopi_check_file_info
+
+        document, user = self._resolve(request, pk)
+        if document is None:
+            return Response(status=401)
+        return Response(wopi_check_file_info(document, user))
+
+    def post(self, request, pk):
+        from apps.sales.services import wopi_lock_file, wopi_refresh_lock, wopi_unlock_file
+
+        document, user = self._resolve(request, pk)
+        if document is None:
+            return Response(status=401)
+        handler = {
+            'LOCK': wopi_lock_file,
+            'UNLOCK': wopi_unlock_file,
+            'REFRESH_LOCK': wopi_refresh_lock,
+        }.get(request.headers.get('X-WOPI-Override', ''))
+        if handler is None:
+            return Response(status=501)
+        if not handler(document, request.headers.get('X-WOPI-Lock', '')):
+            response = Response(status=409)
+            response['X-WOPI-Lock'] = document.wopi_lock
+            return response
+        return Response(status=200)
+
+
+class WopiFileContentsView(APIView):
+    """`GET` — GetFile (xom baytlar); `POST` — PutFile (Collabora saqlaganda)."""
+
+    authentication_classes = []
+    permission_classes = []
+
+    def _resolve(self, request, pk):
+        from apps.sales.services import verify_wopi_token
+
+        document, user = verify_wopi_token(request.GET.get('access_token', ''))
+        if document is None or document.pk != int(pk):
+            return None, None
+        return document, user
+
+    def get(self, request, pk):
+        from django.http import HttpResponse
+
+        from apps.sales.services import wopi_get_file_content
+
+        document, _user = self._resolve(request, pk)
+        if document is None:
+            return HttpResponse(status=401)
+        return HttpResponse(
+            wopi_get_file_content(document),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        )
+
+    def post(self, request, pk):
+        from apps.sales.services import wopi_put_file
+
+        document, user = self._resolve(request, pk)
+        if document is None:
+            return Response(status=401)
+        if not wopi_put_file(document, user, request.body, request.headers.get('X-WOPI-Lock', '')):
+            response = Response(status=409)
+            response['X-WOPI-Lock'] = document.wopi_lock
+            return response
+        return Response(status=200)
