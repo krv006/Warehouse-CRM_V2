@@ -152,6 +152,7 @@ class ConfigurationSerializer(ModelSerializer):
     ready_variant = SerializerMethodField()
     procurement = SerializerMethodField()
     sent_to_procurement = SerializerMethodField()
+    deal = SerializerMethodField()
 
     class Meta:
         model = Configuration
@@ -160,7 +161,7 @@ class ConfigurationSerializer(ModelSerializer):
             'warehouse', 'act', 'act_number', 'mode', 'mode_display',
             'quantity', 'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
-            'ready_variant', 'missing', 'missing_count', 'contract',
+            'ready_variant', 'missing', 'missing_count', 'contract', 'deal',
             'procurement', 'sent_to_procurement', 'cancel_reason',
             'assembled_at', 'removals', 'approvals',
             'created_by', 'created_by_name', 'created_at',
@@ -234,6 +235,14 @@ class ConfigurationSerializer(ModelSerializer):
     def get_sent_to_procurement(self, obj):
         """Yetishmayotganlar buyurtmachida va jarayon hali tugamagan — qisqa flag."""
         return obj.open_replenishment is not None
+
+    def get_deal(self, obj):
+        """14-§2: savdo bloki — ko'p modelli zayavkada N model + M tovar,
+        bitta shartnoma/TLD/ACT. Bitta modelli zayavkada `None`.
+        """
+        from apps.configurator.services import _owning_request, build_deal
+
+        return build_deal(_owning_request(obj))
 
     def get_ready_variant(self, obj):
         """Xuddi shu tarkib omborda tayyor pozitsiya sifatida bormi (TZ 6.2)."""
@@ -337,17 +346,24 @@ class ConfigurationRequestSerializer(ModelSerializer):
     # Ikki xodim: kim so'radi (sales) va kim bajaryapti (engineer) — EGALIK §5.5
     taken_by_name = ReadOnlyField(source='taken_by.display_name')
     created_by_name = ReadOnlyField(source='created_by.display_name')
+    deal = SerializerMethodField()
 
     class Meta:
         model = ConfigurationRequest
         fields = [
             'id', 'number', 'client', 'client_name', 'text', 'quantity',
             'base_product', 'base_product_name', 'warehouse', 'status',
-            'status_display', 'configuration', 'configuration_number',
+            'status_display', 'configuration', 'configuration_number', 'deal',
             'taken_by', 'taken_by_name', 'created_by', 'created_by_name',
             'events', 'lines', 'created_at',
         ]
         read_only_fields = ['number', 'status', 'configuration', 'taken_by', 'created_by']
+
+    def get_deal(self, obj):
+        """14-§2: xuddi shu shakl — front bitta komponent yozadi."""
+        from apps.configurator.services import build_deal
+
+        return build_deal(obj)
 
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])

@@ -54,10 +54,15 @@ class ConfigurationRequestLine(TimeStampedModel):
 
     @property
     def is_complete(self):
-        """Bu qator o'z yo'lini bosib o'tdimi — zayavka DONE bo'lishi uchun."""
+        """Bu qator o'z yo'lini bosib o'tdimi — zayavka DONE bo'lishi uchun.
+
+        14-§5(a): bekor qilingan model ham "tugagan" — aks holda savdodan
+        chiqarilgan (`detach target=cancel`) model zayavkani abadiy ochiq
+        qoldirardi (`is_fully_done` hech qachon rost bo'lmasdi).
+        """
         if self.kind == self.Kind.ITEM:
             return bool(self.contract_item_id)
         return bool(
             self.configuration_id
-            and self.configuration.status in ('approved', 'ready', 'sold'),
+            and self.configuration.status in ('approved', 'ready', 'sold', 'cancelled'),
         )

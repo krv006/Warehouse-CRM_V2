@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **504 ta test, hammasi OK**.
+Hozirgi holat: **524 ta test, hammasi OK**.
 
 ---
 
@@ -102,6 +102,7 @@ Hozirgi holat: **504 ta test, hammasi OK**.
 | `apps/configurator/tests/test_front_fixes.py` | Front topgan xatolar regressiyasi: configuration-items'da `configuration` maydoni (400, 500 emas), engineer notificationlari, `configuration` filtri, ready/attached qulfi, take'da zavod tarkibi va tana ustuvorligi, komponent bazaviy bo'la olmasligi, sales finalize tanadagi ACT bilan (engineer'ga 403), sales ACT yarata olishi |
 | `apps/finance/tests/test_kassa.py` (`LoanRepaidBugTests`) | Qarz bug'i regressiyasi: yangi qarzda repaid=0, qisman/to'liq qaytarish, ortiqcha to'lov va yopiq qarzga 400 |
 | `apps/core/tests/test_dashboard_and_audit.py` | dashboard bo'limlari va balans, `ActivityLog` yozilishi, audit faqat adminga, `check_deadlines` eslatmalari va idempotentligi, kelishuv aloqa eslatmasi (bugun/ertaga sariq, o'tgan sana qizil, salesga shaxsan; sanasiz/yopiqlarga yozilmasligi), notification `mark-read` |
+| `apps/configurator/tests/test_deal.py` | 14-to'plam "bitta zayavka — bitta savdo": bitta modelli zanjirda `deal: null` regressiyasi, ko'p modelli `deal` bloki shakli, ikkinchi model `contract` bermasdan mavjud qoralamaga qo'shilishi (`separate_contract` bilan yangisi, yuborilgan shartnomaga urinishda tushunarli 400), tugamagan model bo'lsa shartnoma yuborish bloklanishi (`pending_models`), `detach` (cancel/separate, to'langanida 400), roadmap qadamlarining eng orqada qolgan model bo'yicha kutishi, ko'p modelli savdoda BITTA TLD (qo'shilishi, `pending_admin`da yangisiga ruxsat, bitta modelli zanjir tegilmasligi), `finalize`da sibling ACT qayta ishlatilishi va savdo darajasidagi ACT matni |
 
 ---
 

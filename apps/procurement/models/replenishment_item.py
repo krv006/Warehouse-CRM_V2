@@ -1,6 +1,7 @@
 from django.db.models import (
     CASCADE,
     PROTECT,
+    SET_NULL,
     CharField,
     DecimalField,
     ForeignKey,
@@ -19,6 +20,13 @@ class ReplenishmentItem(TimeStampedModel):
 
     replenishment = ForeignKey('procurement.Replenishment', CASCADE, related_name='items')
     product = ForeignKey('inventory.Product', PROTECT, related_name='replenishment_items')
+    # 14-§6: ko'p modelli savdoda bitta TLD barcha modellarning
+    # yetishmovchiligini ko'taradi — bu qator qaysi model uchun.
+    # Eski (bitta modelli) TLDlarda bo'sh qoladi.
+    configuration = ForeignKey(
+        'configurator.Configuration', SET_NULL, related_name='replenishment_items',
+        null=True, blank=True,
+    )
     quantity = DecimalField(max_digits=18, decimal_places=2, default=1)
     unit_price = DecimalField(max_digits=18, decimal_places=2, default=0)
     vat_percent = DecimalField('QQS %', max_digits=5, decimal_places=2, default=0)

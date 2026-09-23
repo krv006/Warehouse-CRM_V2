@@ -31,6 +31,8 @@ from apps.configurator.services import (
     build_configuration_workbook,
     cancel_chain,
     change_quantity,
+    deal_act_suggestion_text,
+    detach_configuration,
     log_request_event,
     reject_request,
     release_request,
@@ -113,7 +115,7 @@ class ConfigurationViewSet(BaseModelViewSet):
     # 6-to'plam §4: partiya sonini ham SALES belgilaydi (mijoz bilan kelishadi)
     def get_permissions(self):
         if self.action in (
-            'approve', 'reject', 'cancel', 'change_quantity', 'answer',
+            'approve', 'reject', 'cancel', 'change_quantity', 'answer', 'detach',
         ):
             from apps.accounts.permissions import IsAdminOrSales
 
@@ -158,6 +160,25 @@ class ConfigurationViewSet(BaseModelViewSet):
         self.log_action(
             ActivityLog.Action.UPDATE, configuration,
             f"Zanjir bekor qilindi: {result['reason']}",
+        )
+        return Response(result)
+
+    def detach(self, request, pk=None):
+        """POST /configurations/{id}/detach/ — modelni savdodan chiqarish (14-§5).
+
+        Butun zanjirni emas — BITTA modelni: mijoz voz kechdi yoki moli
+        oylab kelmayapti, savdodagi boshqa model esa tayyor.
+        Tana: {"reason": "...", "target": "cancel" | "separate"}.
+        """
+        configuration = self.get_object()
+        result = detach_configuration(
+            configuration, request.user,
+            reason=str(request.data.get('reason', '') or ''),
+            target=str(request.data.get('target', 'cancel') or 'cancel'),
+        )
+        self.log_action(
+            ActivityLog.Action.UPDATE, configuration,
+            f"Savdodan chiqarildi ({result['target']}): {result['reason']}",
         )
         return Response(result)
 
@@ -248,7 +269,10 @@ class ConfigurationViewSet(BaseModelViewSet):
 
         12-§2 (C2): tanada `contract` (id) berilsa — yangi shartnoma
         ochilmaydi, mavjud qoralamaga yangi model qatori qo'shiladi
-        (bitta savdoda bir nechta model).
+        (bitta savdoda bir nechta model). 14-§3: `contract` berilmasa,
+        savdodagi boshqa modelning DRAFT shartnomasi endi AVTOMATIK
+        topiladi va shunga qo'shiladi; `separate_contract: true` — mijoz
+        buni ataylab alohida shartnoma qilishni so'ragan holat uchun.
         """
         contract = None
         contract_id = request.data.get('contract')
@@ -259,6 +283,7 @@ class ConfigurationViewSet(BaseModelViewSet):
         configuration = approve_configuration(
             self.get_object(), request.user, request.data.get('comment', ''),
             contract=contract,
+            separate_contract=bool(request.data.get('separate_contract', False)),
         )
         self.log_action(
             ActivityLog.Action.APPROVE, configuration, 'Texnik yechim tasdiqlandi',
@@ -372,6 +397,27 @@ class ConfigurationViewSet(BaseModelViewSet):
                     status=HTTP_400_BAD_REQUEST,
                 )
             configuration.act = act
+        if not configuration.act:
+            # 14-§7 (1): savdodagi boshqa modelga ACT allaqachon biriktirilgan
+            # bo'lsa — engineer ikkinchi modelni yakunlaganda uni qayta
+            # tanlamaydi, o'sha ACT avtomatik olinadi
+            from apps.configurator.services import (
+                _deal_models_for_request,
+                _owning_request,
+                deal_has_multiple_models,
+            )
+
+            request_obj = _owning_request(configuration)
+            if deal_has_multiple_models(request_obj):
+                sibling_act = next(
+                    (
+                        cfg.act for cfg in _deal_models_for_request(request_obj)
+                        if cfg.act_id and cfg.id != configuration.id
+                    ),
+                    None,
+                )
+                if sibling_act:
+                    configuration.act = sibling_act
         if not configuration.act:
             return Response(
                 {'detail': 'Yakunlash uchun ACT biriktirilishi shart.'},
@@ -550,6 +596,16 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
     search_fields = ['number', 'text', 'client__full_name', 'client__company_name']
     filterset_fields = ['status', 'client', 'taken_by', 'configuration', 'created_by']
     ordering_fields = ['created_at', 'number', 'created_by']
+
+    def act_suggestion(self, request, pk=None):
+        """GET /configuration-requests/{id}/act-suggestion/ — 14-§7 (2).
+
+        Savdo darajasidagi ACT matni: har YIG'ILGAN model uchun bitta
+        abzats (hali yig'ilmaganlar kirmaydi). Bitta modelli zayavkada
+        javob `assemble` javobidagi bitta modellik matn bilan bir xil.
+        """
+        request_obj = self.get_object()
+        return Response({'act_suggestion': deal_act_suggestion_text(request_obj)})
 
     def get_queryset(self):
         """EGALIK §3.3: engineer `new` hammasini ko'radi (kim birinchi olsa

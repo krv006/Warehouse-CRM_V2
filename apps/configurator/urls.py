@@ -57,6 +57,10 @@ urlpatterns = [
     path('configurations/<int:pk>/cancel/', ConfigurationViewSet.as_view({
         'post': 'cancel',
     }), name='configuration-cancel'),
+    # 14-§5: modelni savdodan chiqarish — butun zanjir emas, bitta model
+    path('configurations/<int:pk>/detach/', ConfigurationViewSet.as_view({
+        'post': 'detach',
+    }), name='configuration-detach'),
     # B8: roadmap — zanjir ko'zgusi (o'z ruxsati, pul yo'q)
     path('configurations/<int:pk>/roadmap/', RoadmapView.as_view(
         kind='configuration',
@@ -74,6 +78,10 @@ urlpatterns = [
     path('configuration-requests/<int:pk>/take/', ConfigurationRequestViewSet.as_view({
         'post': 'take',
     }), name='configurationrequest-take'),
+    # 14-§7 (2): savdo darajasidagi ACT matni — har yig'ilgan model uchun abzats
+    path('configuration-requests/<int:pk>/act-suggestion/', ConfigurationRequestViewSet.as_view({
+        'get': 'act_suggestion',
+    }), name='configurationrequest-act-suggestion'),
     # B15: engineer izoh bilan qaytaradi, sales tuzatib qayta yuboradi
     path('configuration-requests/<int:pk>/reject/', ConfigurationRequestViewSet.as_view({
         'post': 'reject',

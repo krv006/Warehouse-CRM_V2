@@ -43,6 +43,9 @@ class ReplenishmentItemSerializer(ModelSerializer):
     vat_amount = ReadOnlyField()
     total_with_vat = ReadOnlyField()
     needs_price = ReadOnlyField()
+    # 14-§6: ko'p modelli savdoda bitta TLD — bu qator qaysi model uchun
+    configuration_number = ReadOnlyField(source='configuration.number')
+    configuration_product_name = ReadOnlyField(source='configuration.base_product.name')
 
     class Meta:
         model = ReplenishmentItem
@@ -52,7 +55,9 @@ class ReplenishmentItemSerializer(ModelSerializer):
             'product_display', 'product_code', 'quantity', 'unit_price',
             'subtotal', 'vat_percent', 'vat_amount', 'total_with_vat',
             'needs_price', 'supplier', 'note',
+            'configuration', 'configuration_number', 'configuration_product_name',
         ]
+        read_only_fields = ['configuration']
 
     def validate(self, attrs):
         has_product = attrs.get('product') or (self.instance and self.instance.product_id)

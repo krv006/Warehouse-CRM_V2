@@ -346,6 +346,9 @@ Konstanta: `DEBT_TERM_DAYS = 60` (TZ 7.2 — mahsulot kelgandan keyin 2 oy).
 ### `ReplenishmentItem`
 `replenishment` (CASCADE, `items`), `product` (PROTECT), `quantity`, `unit_price`
 (QQS'siz), `vat_percent` (default 0), `supplier`, `note`.
+`configuration` (SET_NULL, `replenishment_items`, ixtiyoriy) — 14-§6: ko'p
+modelli savdoda qaysi model uchun ekanini bildiradi (bitta TLD, bir nechta
+model); bitta modelli zanjirda bo'sh qoladi.
 Property: `subtotal`, `vat_amount`, `total_with_vat`, `needs_price`.
 
 ### `ReplenishmentApproval`

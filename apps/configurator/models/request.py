@@ -72,10 +72,16 @@ class ConfigurationRequest(StatusTrackedModel):
 
     @property
     def primary_line_done(self):
-        """Birinchi (asosiy) model o'z yo'lini bosib o'tdimi (12-§2 B3)."""
+        """Birinchi (asosiy) model o'z yo'lini bosib o'tdimi (12-§2 B3).
+
+        14-§5(b): asosiy model bekor qilinsa ham "tugagan" — xuddi
+        `ConfigurationRequestLine.is_complete` dagi kabi asimmetriya
+        shu yerda ham takrorlanadi (birinchi model FK'da, qolgani
+        qatorlarda), shuning uchun ikkala joyda ham tuzatiladi.
+        """
         return bool(
             self.configuration_id
-            and self.configuration.status in ('approved', 'ready', 'sold'),
+            and self.configuration.status in ('approved', 'ready', 'sold', 'cancelled'),
         )
 
     @property

@@ -20,6 +20,27 @@ from django.utils.timezone import localdate, make_aware
 from apps.core.utils import sla_deadline, working_days_since
 
 
+def _deal_step(models, done_pred):
+    """14-§8: qadamni savdo darajasida yig'adi — ENG ORQADA qolgan model
+    bo'yicha (savdo "bajarildi" emas, toki HAMMA model bajarilmaguncha).
+
+    Qaytaradi: `(hammasi_tugadimi, orqada_qolgan_konfiguratsiya, models_bloki)`.
+    Hammasi tugagan bo'lsa "orqada qolgan" — ro'yxatdagi oxirgi model
+    (ko'rsatish uchun neytral tanlov).
+    """
+    pending = [cfg for cfg in models if not done_pred(cfg)]
+    lagging = pending[0] if pending else models[-1]
+    return (
+        not pending,
+        lagging,
+        {
+            'done': len(models) - len(pending),
+            'total': len(models),
+            'pending': [{'id': cfg.id, 'number': cfg.number} for cfg in pending],
+        },
+    )
+
+
 def _as_datetime(value):
     """QOLGAN-ISHLAR #3: `since` manbalari aralash — ba'zilari DateField
     (masalan `Replenishment.delivered_at`), `sla_deadline` esa datetime
@@ -687,6 +708,28 @@ def build_roadmap(document, user):
         # QOLGAN-ISHLAR #3: yig'ilgan paytdan — CFG `approved` bo'lgan paytdan emas
         since=configuration.assembled_at if configuration else None,
     )
+
+    # 14-§8: ko'p modelli savdoda `taken`dan keyingi model bosqichlari —
+    # `submitted`/`sales_review`/`assemble`/`finalize` — savdo darajasida
+    # ENG ORQADA qolgan model bo'yicha hisoblanadi: savdo "ko'rikka
+    # yuborildi" emas, toki HAMMA model yuborilmaguncha. Shartnoma
+    # ochilgandan keyingi qadamlar (u allaqachon bitta) tegilmaydi.
+    # Bitta modelli savdoda (`deal_models` bo'sh) hech narsa o'zgarmaydi.
+    from apps.configurator.services import _deal_models_for_request
+
+    deal_models = _deal_models_for_request(request_obj)
+    if len(deal_models) > 1:
+        for key, pred in (
+            ('submitted', lambda cfg: cfg.status in ({'pending_sales'} | cfg_done_states)),
+            ('sales_review', lambda cfg: cfg.status in cfg_done_states),
+            ('assemble', lambda cfg: bool(cfg.assembled_at)),
+            ('finalize', lambda cfg: cfg.status in ('ready', 'sold')),
+        ):
+            all_done, lagging, models_block = _deal_step(deal_models, pred)
+            data[key]['done'] = all_done
+            data[key]['doc'] = ('configuration', lagging)
+            data[key]['models'] = models_block
+
     data['ship'] = dict(
         done=delivered,
         at=contract.delivered_at if contract else None,
@@ -818,6 +861,8 @@ def build_roadmap(document, user):
             'document': _document(doc_kind, doc_obj),
             'can_open': _can_open(user, doc_kind, doc_obj, contract),
             'repeats': row.get('repeats', 0),
+            # 14-§8: ko'p modelli savdoda {done, total, pending}; aks holda null
+            'models': row.get('models'),
         })
 
     client = None

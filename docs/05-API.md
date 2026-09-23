@@ -177,6 +177,7 @@ Engineer configuratorda tayyorlab, konfiguratsiyani zayavkaga biriktiradi
 | POST | `/configurations/{id}/cancel/` | B12: zanjirni bekor qilish (sales egasi / admin) |
 | POST | `/contracts/{id}/cancel/` | B12: zanjirni bekor qilish; **pul qabul qilingan bo'lsa 400** |
 | POST | `/configuration-requests/{id}/take/` | **engineer** — ishga oladi, chernovik konfiguratsiya avtomatik ochiladi. 12-§2 (B2): bitta amal — qo'shimcha `model` turidagi qatorlarga ham shu yerda, birma-bir, o'z chernovigi ochiladi; har biriga alohida rejim — `{"line_modes": {"<line_id>": "build"\|"modify"}}` (berilmasa `mode`/BUILD) |
+| GET | `/configuration-requests/{id}/act-suggestion/` | 14-§7: **savdo darajasidagi** ACT matni — har bir yig'ilgan (`assembled_at`) modelning `act_suggestion` matni bitta javobda, abzats-abzats birlashtirilgan (`{"act_suggestion": "..."}`); hali yig'ilmagan modellar matnga kirmaydi |
 | POST | `/configuration-requests/{id}/complete/` | **engineer** — konfiguratsiyani biriktiradi |
 
 ```json
@@ -244,14 +245,15 @@ keyin kelgani keyingi ish kuni oxirigacha (`/company/` da `sla_cutoff_hour`,
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
 | POST | `/configurations/{id}/submit/` | #4: engineer texnik yechimni **sales ko'rigiga** yuboradi (`pending_sales`); zayavka egasiga xabar; YANGI-OQIM B2: **narxsiz qator bo'lsa 400** (nol qatorlar avval ombordan qayta o'qiladi) |
-| POST | `/configurations/{id}/approve/` | #4: **sales** (admin) texnik yechimni tasdiqlaydi (`approved`), zayavka `done`; tarix — `approvals[]`; YANGI-OQIM B1: **shu yerda draft SHT avtomatik ochiladi** (egasi — zayavka sales'i, javobdagi `contract` maydonida); mijoz aniqlanmasa **400** (B10). 12-§2 (C2): tanada ixtiyoriy `contract` (id) — berilsa yangi shartnoma ochilmaydi, mavjud **qoralamaga** yangi model qatori qo'shiladi (bitta savdo, bir nechta model); shartlar: `draft`, bir xil mijoz, bir xil egasi (yoki admin) — aks holda 400 |
+| POST | `/configurations/{id}/approve/` | #4: **sales** (admin) texnik yechimni tasdiqlaydi (`approved`), zayavka `done`; tarix — `approvals[]`; YANGI-OQIM B1: **shu yerda draft SHT avtomatik ochiladi** (egasi — zayavka sales'i, javobdagi `contract` maydonida); mijoz aniqlanmasa **400** (B10). 12-§2 (C2): tanada ixtiyoriy `contract` (id) — berilsa yangi shartnoma ochilmaydi, mavjud **qoralamaga** yangi model qatori qo'shiladi (bitta savdo, bir nechta model); shartlar: `draft`, bir xil mijoz, bir xil egasi (yoki admin) — aks holda 400. 14-§3: `contract` berilmasa ham — savdoda (`ConfigurationRequestLine`) boshqa modelning ochiq shartnomasi bo'lsa, avtomatik o'sha **qoralamaga** qo'shiladi; topilgan shartnoma `draft` emas bo'lsa **400** (`{"detail": "...", "contract": id, "contract_status": "..."}` — eski yozuv/admin aralashuvi); tanada `separate_contract: true` — bu avtomatikani o'chirib, har doim **yangi** shartnoma ochadi |
 | POST | `/configurations/{id}/reject/` | #4: sales izoh bilan qaytaradi (`draft`ga) — engineer xabar oladi, izoh tarixda |
-| POST | `/configurations/{id}/finalize/` | #4: shartlari `approved` + yig'ilgan (`assembled_at`) + ACT (tanada `{"act": 2}`); YANGI-OQIM: shartnoma bu yerda OCHILMAYDI (u `approve`da ochilgan) — qatordagi bazaviy model **yig'ilgan variantga ko'chadi** (B6, son/narx tegilmaydi), CFG `ready` (shartnoma `active` bo'lsa `sold`), bron shartnomaga o'tadi |
+| POST | `/configurations/{id}/finalize/` | #4: shartlari `approved` + yig'ilgan (`assembled_at`) + ACT (tanada `{"act": 2}`); YANGI-OQIM: shartnoma bu yerda OCHILMAYDI (u `approve`da ochilgan) — qatordagi bazaviy model **yig'ilgan variantga ko'chadi** (B6, son/narx tegilmaydi), CFG `ready` (shartnoma `active` bo'lsa `sold`), bron shartnomaga o'tadi. 14-§7: ACT berilmasa — savdodagi boshqa (sibling) modelda ACT bo'lsa, **shu avtomatik biriktiriladi** (ikkinchi model uchun ACT qayta so'ralmaydi); topilmasa hamon **400 "ACT biriktirilishi shart"** |
 | POST | `/configurations/{id}/assemble/` | #4/§10.1: yig'ish — faqat `approved` yechim; **B4: shartnoma `active`/`completed` bo'lishi shart** (400: "Boshlang'ich to'lov kutilmoqda — SHT-…"; rad etilgan/bekor qilinganida boshqa matn); build: butlovchilar chiqadi, variant kiradi; modify: tayyor mahsulot fizik o'zgartiriladi (tana: `{"removals": {...}}`); yetmasa 400 (nomlar bilan) — mol TLD orqali kelgach qayta bosiladi; javobda `act_suggestion` (#4D) |
 | POST | `/configurations/{id}/request-prices/` | YANGI-OQIM B2 + 10-§1/2: narx so'rovi — **TLD emas**; eslatma endi **mahsulotga** ishora qiladi (`entity=Product`, har bir narxsiz mahsulotga alohida — buyurtmachi CFG'ni ko'ra olmaydi, mahsulot kartasi esa ochiq); takrorida yangilanadi (kalit user+Product); faqat `draft`/`pending_clarification`/`pending_sales` da (keyin 400 — narx shartnomaga kirib bo'lgan); narx kelgach mahsulot eslatmasi yopiladi va **sales** xabar oladi |
-| POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan TLD ochadi; #4: faqat `approved` konfiguratsiyada; **B4: faqat to'langan zanjirda** (shartnoma `active`) — mol pulga bog'lanadi; hammasi omborda bo'lsa 400; ochiq TLD bor bo'lsa ham 400 — 11-§1: tekshiruv **butun zanjir** bo'yicha (shartnoma eshigidan ochilgani ham hisobga kiradi) |
+| POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan TLD ochadi; #4: faqat `approved` konfiguratsiyada; **B4: faqat to'langan zanjirda** (shartnoma `active`) — mol pulga bog'lanadi; hammasi omborda bo'lsa 400; bitta modelli zanjirda ochiq TLD bor bo'lsa ham 400 — 11-§1: tekshiruv **butun zanjir** bo'yicha (shartnoma eshigidan ochilgani ham hisobga kiradi). 14-§6: ko'p modelli savdoda **BITTA** TLD — savdodagi barcha tasdiqlangan modellarning yetishmovchiligi shu bitta hisobga tushadi (`ReplenishmentItem.configuration` — qaysi model), ochiq hisob hali `draft`/`pending_sales`/`pending_bugalter`/`rejected` bo'lsa yangi qator **o'sha hisobga qo'shiladi** (takroriy so'rov — o'zgarishsiz o'sha hisob qaytadi); `pending_admin`+ bo'lsa mavjudi tegilmaydi va **yangi TLD ochishga ruxsat beriladi** (eski raqam jimgina o'zgarib qolmasin) |
 | POST | `/configurations/{id}/change-quantity/` | 4-to'plam §2 + 6-to'plam §4: partiya sonini o'zgartirish — **sales** (admin; u mijoz bilan kelishadi, engineer emas), tana `{"quantity": 100, "comment": "..."}`; `draft`/`pending_sales`/`approved` da; bron qayta hisoblanadi, zayavka soni ergashadi, `approved` bo'lsa **`pending_sales`ga qaytadi** (narx-muddat qayta kelishiladi); yig'ilgan (`assembled_at`) yoki chernovikdan o'tgan ochiq TLD bo'lsa 400 (TLD raqami bilan); chernovik TLD to'smaydi; **B13: to'lov kelgach 400 — hech narsa o'zgarmaydi**; pul kelmagan draft SHT esa songa ergashadi (qator miqdori va jami qayta yig'iladi) |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
+| POST | `/configurations/{id}/detach/` | 14-§5: **sales (egasi)** (admin) — ko'p modelli savdodan bitta modelni ajratadi, butun zanjirni bekor qilmaydi; tana `{"reason": "...", "target": "cancel"\|"separate"}`; `cancel` — konfiguratsiya `cancelled`, bron bo'shaydi; `separate` — model o'z alohida **yangi qoralama shartnomasi**ga ko'chadi; ikkalasida ham umumiy shartnomadan qator olib tashlanadi, `total_amount` qayta hisoblanadi; faqat shartnoma `draft` bo'lganda (aks holda 400 — yuborilgan/pul kelgan shartnomadan model olib tashlanmaydi) |
 | GET/POST | `/configuration-items/` | qatorni alohida qo'shish — `configuration` majburiy, faqat `draft`; bazada yo'q tovar uchun `new_component_name` |
 | GET/PUT/PATCH/DELETE | `/configuration-items/{id}/` | filtr: `configuration`, `component`; faqat `draft` da o'zgaradi |
 
@@ -366,6 +368,15 @@ shartnomada ZVK/CFG qadamlari chizilmaydi ("hali boshlanmagan" bo'lib
 ko'rinmaydi); qoida: keyingi bosqich hujjati bor-u, oldingisi yo'q bo'lsa,
 oldingisi endi hech qachon paydo bo'lmaydi.
 
+**14-§8: ko'p modelli savdoda qadamlar zanjir bo'yicha aggregatsiya qilinadi.**
+`submitted`, `sales_review`, `assemble`, `finalize` qadamlari savdodagi
+**eng orqada qolgan model**ga qarab hisoblanadi (barchasi tugagandagina
+`done`), `document`/`can_open` shu LAGGING modelga ishora qiladi; qo'shimcha
+`models` kaliti (`{"done": 1, "total": 2, "pending": [{"id": 46, "number": "CFG-00046"}]}`)
+— bitta modelli zanjirda `null`. `taken` qadami alohida tegilmaydi (barcha
+model chernovigi `take`da bir vaqtda ochiladi, sinxron); Didox/to'lov/yetkazish
+kabi shartnoma-darajasidagi qadamlar ham allaqachon umumiy edi.
+
 **`GET /roadmaps/?state=open&limit=10` (7-to'plam §1)** — bosh sahifa uchun
 joriy foydalanuvchi QATNASHAYOTGAN zanjirlar ro'yxati. Qatnashish (10-§5): zanjirga
 **qo'l tekkizgan har bir odam** — egalar, tasdiqlar, to'lovlar, eventlar,
@@ -384,6 +395,42 @@ vaqti bo'yicha kamayish.
 adashtirilmasin). `steps` doim 18 ta va tartibda; `repeats` — aylanma
 necha marta aylangani; `can_open` — kim qaysi hujjat ichiga kira olishi
 (§3.13 matritsasi backendda). **Javobda pulga oid maydon yo'q.**
+
+**`deal` bloki (14-to'plam §2)** — savdo = bitta `ConfigurationRequest`,
+ichida N ta model (`Configuration`) + M ta tovar (`ConfigurationRequestLine`,
+`kind=item`). `GET /configurations/{id}/` va `GET /configuration-requests/{id}/`
+javobida `deal` maydoni bor — **bitta modelli zanjirda `null`** (hech narsa
+o'zgarmagan), ko'p modelli savdoda:
+```json
+GET /api/configurations/45/
+{
+  "...": "...",
+  "deal": {
+    "request": 12, "request_number": "ZVK-00012",
+    "models": [
+      {"id": 45, "number": "CFG-00045", "base_product_name": "HP 880",
+       "quantity": 10, "mode": "build", "status": "approved",
+       "status_display": "Tasdiqlangan", "missing_count": 0,
+       "assembled_at": null, "is_primary": true},
+      {"id": 46, "number": "CFG-00046", "base_product_name": "Dell OptiPlex 7010",
+       "quantity": 20, "mode": "build", "status": "draft",
+       "status_display": "Chernovik", "missing_count": 1,
+       "assembled_at": null, "is_primary": false}
+    ],
+    "items": [
+      {"id": 3, "product": 27, "product_name": "Zapas SSD 1TB",
+       "quantity": 20, "contract_item": 9}
+    ],
+    "contract": {"id": 7, "number": "SHT-00007", "status": "draft"},
+    "replenishment": {"id": 4, "number": "TLD-00004", "status": "draft", "is_open": true},
+    "act": null
+  }
+}
+```
+Bir xil `deal` shakli `configurations/{id}/`, ikkinchi (sibling) modeldan ham,
+va `configuration-requests/{id}/`dan ham qaytadi — front bittasini ko'rsa
+bo'ldi. `contract`/`replenishment`/`act` — savdoning umumiy hujjatlari,
+hali ochilmagan bo'lsa `null`.
 
 **`GET /products/?needs_price=true` (10-to'plam §1)** — narxi
 KUTILAYOTGAN mahsulotlar: ochiq konfiguratsiyada (`draft` /
@@ -559,7 +606,7 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 |---|---|---|
 | GET/POST | `/leads/` | admin, sales |
 | GET/POST | `/contracts/` | admin, sales; filtr: `status`, `client`, `currency`, `configuration`; 8-to'plam §3: `configuration` bilan ikkinchi shartnoma ochilmaydi (400 — yangi oqimda u tasdiqda avtomatik ochiladi); qo'lda tuzish ombordan to'g'ridan-to'g'ri sotuv uchun |
-| POST | `/contracts/{id}/submit/` | sales; bugalterga bildirishnoma tushadi |
+| POST | `/contracts/{id}/submit/` | sales; bugalterga bildirishnoma tushadi. 14-§4: ko'p modelli savdoda — zayavkadagi (`model` turidagi) biror model hali tayyor emas (`draft`/`pending_sales`/... — `approved`/`ready`/`sold`/`cancelled` emas) bo'lsa **400**: `{"detail": "...", "pending_models": [{"id","number","status","status_display"}, ...]}`; majburlash yo'q — hammasi tasdiqlangach yuboriladi |
 | POST | `/contracts/{id}/approve/` | 12-§1: **admin ruxsati Didoxdan OLDIN** — sales → bugalter → admin → Didox → to'lov. Bugalter bosqichi (`pending_bugalter` → `pending_admin`, yoki chegaradan past bo'lsa to'g'ridan `ready_for_didox`, §11.3); admin bosqichi (`pending_admin` → `ready_for_didox`); eski yozuv (Didoxi allaqachon tasdiqlangan) to'g'ridan `approved`; har bosqichda keyingi bosqich egasiga bildirishnoma |
 | POST | `/contracts/{id}/send-didox/` | B3: **bugalter** — «Didoxga yubordim»; faqat `ready_for_didox`dan (admin ruxsati olingandan keyin); `didox_number` majburiy, `ready_for_didox` → `pending_didox`, `didox_sent_at`/`signed_at` to'ladi |
 | POST | `/contracts/{id}/confirm-didox/` | B3: **bugalter** — «Didox tasdiqladi (mijoz imzoladi)»; `didox_accepted_at` yoziladi, natija doim `approved` (chegara mantig'i endi `approve`da, Didoxdan oldin); Didox rad javobi kiritilmaydi — `pending_didox`dan orqaga yo'l yo'q |

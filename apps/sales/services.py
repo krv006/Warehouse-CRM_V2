@@ -181,6 +181,26 @@ def _require_role(user, *, bugalter=False, admin=False, sales=False):
 
 
 @atomic
+def _contract_deal_request(contract):
+    """14-§4: shartnoma ortidagi savdo (ZVK) — bog'langan istalgan model orqali.
+
+    `contract.configuration` — savdoning birinchi modeli (bo'lmasligi
+    mumkin, masalan ombordan to'g'ridan sotuvda); topilmasa qatorlar
+    orqali ham qidiriladi (`ContractItem.configuration`, 12-§2 C).
+    """
+    from apps.configurator.services import _owning_request
+
+    if contract.configuration_id:
+        request_obj = _owning_request(contract.configuration)
+        if request_obj is not None:
+            return request_obj
+    item = (
+        contract.items.filter(configuration__isnull=False)
+        .select_related('configuration').first()
+    )
+    return _owning_request(item.configuration) if item else None
+
+
 def submit_contract(contract, user):
     """Sales shartnomani bugalter tasdig'iga yuboradi."""
     _require_role(user, sales=True)
@@ -197,6 +217,40 @@ def submit_contract(contract, user):
         raise ValidationError('Faqat qoralama shartnoma yuboriladi.')
     if not contract.items.exists():
         raise ValidationError('Shartnoma qatorlari kiritilmagan.')
+
+    # 14-§4: savdoda (ZVK) tugamagan model bo'lsa yuborilmaydi — aks holda
+    # ikkinchi modelning boradigan joyi qolmaydi. Majburlash yo'q (`force`
+    # yo'q) — bitta modelli zayavkada bu tekshiruv hech narsa qilmaydi.
+    from apps.configurator.models import ConfigurationRequestLine
+    from apps.configurator.services import deal_has_multiple_models
+
+    request_obj = _contract_deal_request(contract)
+    if deal_has_multiple_models(request_obj):
+        pending = []
+        if not request_obj.primary_line_done and request_obj.configuration_id:
+            pending.append(request_obj.configuration)
+        pending += [
+            line.configuration
+            for line in request_obj.lines.filter(
+                kind=ConfigurationRequestLine.Kind.MODEL, configuration__isnull=False,
+            ).select_related('configuration')
+            if not line.is_complete
+        ]
+        if pending:
+            raise ValidationError({
+                'detail': (
+                    f'{request_obj.number} da yana {len(pending)} ta model '
+                    "tayyor emas — hammasi tasdiqlangach yuboring."
+                ),
+                'pending_models': [
+                    {
+                        'id': cfg.id, 'number': cfg.number,
+                        'status': cfg.status, 'status_display': cfg.get_status_display(),
+                    }
+                    for cfg in pending
+                ],
+            })
+
     contract.status = Contract.Status.PENDING_BUGALTER
     contract.save()
     # §11.4: muddat o'tib bron bo'shagan bo'lsa, yuborishda qayta band qilinadi

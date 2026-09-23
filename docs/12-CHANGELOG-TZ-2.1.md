@@ -1759,6 +1759,52 @@ Testlar: `test_didox_steps.py` (+1), `test_roadmap.py` (+3).
 
 ---
 
+## 8.59 14-to'plam: "bitta zayavka — bitta savdo" 🧷
+
+Ko'p modelli savdo (12-§2) endi haqiqatan **bitta savdo** bo'lib ishlaydi:
+savdo = bitta `ConfigurationRequest`, ichida N ta model (`Configuration`)
+va M ta tovar (`ConfigurationRequestLine`, `kind=item`) — hammasiga
+**bitta shartnoma, bitta TLD, bitta ACT, bitta yo'l xaritasi**. Har bir
+yangi qoida faqat ko'p modelli savdoda ishlaydi
+(`request.lines.filter(kind=model).exists()`) — bitta modelli zanjirlar
+baytma-bayt eskicha qoladi.
+
+- **`deal` bloki**: `GET /configurations/{id}/` va
+  `GET /configuration-requests/{id}/` javobida savdoning umumiy ko'rinishi
+  — barcha modellar/tovarlar, umumiy shartnoma/TLD/ACT (§2, yuqorida
+  05-API.md da namuna bilan).
+- **Shartnoma avtomatik birlashadi**: ikkinchi model `approve` qilinganda
+  `contract` berilmasa ham — savdodagi boshqa modelning ochiq shartnomasiga
+  qo'shiladi (agar `draft` bo'lsa); `draft` bo'lmasa tushunarli 400
+  (`contract`, `contract_status` bilan) — eski yozuv/admin aralashuvi
+  uchun; `separate_contract: true` bilan bu avtomatika o'chiriladi.
+- **Yuborish bloklanadi**: savdodagi biror model hali tayyor bo'lmasa
+  (`draft`/`pending_sales`/...), shartnomani bugalterga yuborish (`submit`)
+  **400** qaytaradi — `pending_models` ro'yxati bilan. Majburlash yo'q.
+- **`detach`** — `POST /configurations/{id}/detach/`: bitta modelni
+  savdodan chiqarish (butun zanjir emas) — `target=cancel` (bekor) yoki
+  `target=separate` (o'z alohida yangi shartnomasi); faqat umumiy
+  shartnoma `draft`da.
+- **Roadmap** — `submitted`/`sales_review`/`assemble`/`finalize`
+  qadamlari savdodagi **eng orqada qolgan model**ga qarab hisoblanadi,
+  javobda qo'shimcha `models: {done, total, pending}` kaliti.
+- **Bitta TLD** — savdodagi barcha tasdiqlangan modellarning
+  yetishmovchiligi bitta `Replenishment`ga tushadi
+  (`ReplenishmentItem.configuration` — qaysi model uchun); ochiq hisob
+  hali tasdiq yo'liga chiqmagan bo'lsa yangi qator o'sha hisobga
+  qo'shiladi, `pending_admin`+ bo'lsa mavjudi tegilmay yangi TLD ochiladi.
+- **Bitta ACT** — `finalize`da ACT berilmasa, savdodagi boshqa yig'ilgan
+  modelning ACT'i avtomatik biriktiriladi; savdo darajasidagi ACT matni —
+  `GET /configuration-requests/{id}/act-suggestion/` (har yig'ilgan model
+  uchun abzats).
+
+**Qamrovdan tashqarida**: mijoz savdo boshlangandan keyin yangi model/tovar
+qo'shishi — alohida masala, PM bilan muhokamada.
+
+Testlar: `apps/configurator/tests/test_deal.py` (yangi, 20).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
