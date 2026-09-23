@@ -266,6 +266,9 @@ def build_deal(request_obj):
     }
 
 
+_TLD_ADDABLE_STATUSES = ('draft', 'pending_sales', 'pending_bugalter', 'rejected')
+
+
 def detach_configuration(configuration, user, reason, target='cancel'):
     """14-§5: modelni savdodan chiqarish — mijoz voz kechdi yoki moli oylab
     kelmayapti, birinchisi esa tayyor. `cancel_chain` butun zanjirni (SHT
@@ -279,6 +282,14 @@ def detach_configuration(configuration, user, reason, target='cancel'):
     Ruxsat: shartnoma (yoki savdo — hali shartnomasiz bo'lsa) egasi sales,
     yoki admin. Bloklanadi: shartnoma `draft` emas bo'lsa — pul kelgan
     shartnomadan model olib tashlanmaydi (qaytarish/bekor qilish oqimi bor).
+
+    16-§B5: (a) chiqarilayotgan model uchun ochilgan TLD qatorlari —
+    hisob hali tasdiq yo'liga chiqmagan bo'lsa o'chiriladi, aks holda
+    (mol baribir keladi) qoladi va `warnings`da aytiladi; (b) allaqachon
+    yig'ilgan model uchun ombor harakatlari qaytarilmaydi — variant
+    omborda qoladi, `warnings`da aytiladi; (c) chiqarilayotgan ASOSIY
+    model bo'lsa, savdodagi eng eski tirik model asosiy bo'lib ko'tariladi
+    (tirik model umuman qolmasa — 400, `cancel` orqali butun savdo yopiladi).
     """
     from django.db.transaction import atomic
     from rest_framework.exceptions import PermissionDenied, ValidationError
@@ -311,6 +322,24 @@ def detach_configuration(configuration, user, reason, target='cancel'):
             'contract_status': contract.status,
         })
 
+    is_primary = bool(request_obj and request_obj.configuration_id == configuration.id)
+    is_deal = deal_has_multiple_models(request_obj)
+    promoted = None
+    if is_primary and is_deal:
+        remaining = [
+            cfg for cfg in _deal_models_for_request(request_obj)
+            if cfg.id != configuration.id and cfg.status != Configuration.Status.CANCELLED
+        ]
+        if not remaining:
+            raise ValidationError({
+                'detail': (
+                    f"{configuration.number} — savdodagi yagona tirik model. "
+                    "Uni detach bilan emas, butun savdoni `cancel` bilan yoping."
+                ),
+            })
+        promoted = min(remaining, key=lambda cfg: cfg.id)
+
+    warnings = []
     with atomic():
         if contract is not None:
             removed = contract.items.filter(configuration=configuration).first()
@@ -321,6 +350,25 @@ def detach_configuration(configuration, user, reason, target='cancel'):
             from apps.inventory.services import sync_contract_reservations
 
             sync_contract_reservations(contract)
+
+        # 16-§B5(a): TLD qatorlari — hisob hali tasdiq yo'liga chiqmagan
+        # bo'lsa o'chiriladi, aks holda mol baribir keladi va omborga tushadi
+        for item in configuration.replenishment_items.select_related('replenishment'):
+            rep = item.replenishment
+            if rep.status in _TLD_ADDABLE_STATUSES:
+                item.delete()
+            else:
+                warnings.append(
+                    f'{rep.number}: {configuration.number} uchun buyurtma '
+                    "qilingan mol baribir keladi va omborga kirim bo'ladi.",
+                )
+
+        # 16-§B5(b): yig'ilgan bo'lsa ombor harakatlari qaytarilmaydi
+        if configuration.assembled_at and configuration.variant_id:
+            warnings.append(
+                f"{configuration.number} allaqachon yig'ilgan — "
+                f'{configuration.variant.sku} omborda qoladi.',
+            )
 
         new_contract = None
         if target == 'cancel':
@@ -336,10 +384,19 @@ def detach_configuration(configuration, user, reason, target='cancel'):
 
             new_contract = create_contract_from_configuration(configuration, user, client)
 
+        # 16-§B5(c): asosiy model chiqmoqda — eng eski tirik model ko'tariladi
+        if promoted is not None:
+            request_obj.configuration = promoted
+            request_obj.save(update_fields=['configuration'])
+            promoted_line = request_obj.lines.filter(configuration=promoted).first()
+            if promoted_line is not None:
+                promoted_line.delete()
+
         log_request_event(
             request_obj, ConfigurationRequestEvent.Stage.NOTE, user,
             f"{configuration.number}: savdodan chiqarildi "
-            f"({'bekor qilindi' if target == 'cancel' else 'alohida shartnoma oldi'}) — {reason}",
+            f"({'bekor qilindi' if target == 'cancel' else 'alohida shartnoma oldi'}) — {reason}"
+            + (f' Yangi asosiy model: {promoted.number}.' if promoted is not None else ''),
         )
 
     return {
@@ -350,7 +407,192 @@ def detach_configuration(configuration, user, reason, target='cancel'):
             {'id': new_contract.id, 'number': new_contract.number}
             if new_contract else None
         ),
+        'promoted_primary': promoted.number if promoted is not None else None,
+        'warnings': warnings,
     }
+
+
+def _deal_contract_for_request(request_obj):
+    """16-§B3: savdodagi (istalgan model orqali) ochilgan shartnoma bormi?
+
+    `_deal_sibling_contract` dan farqi — bu yerda "o'zini" chiqarib
+    tashlaydigan konfiguratsiya yo'q (yangi qator hali mavjud emas).
+    """
+    for cfg in _deal_models_for_request(request_obj):
+        if cfg.active_contract is not None:
+            return cfg.active_contract
+    return None
+
+
+def add_request_line(request_obj, user, *, kind, base_product, quantity, text='', mode=None):
+    """16-§B2: savdo boshlangandan keyin YANGI model/tovar qo'shish.
+
+    Bugungacha bunga umuman yo'l yo'q edi — `lines[]` faqat zayavka
+    YARATILGANDA o'qilardi. Mijoz fikridan qaytsa ("bu emas, manabu
+    kerak") yoki qo'shimcha narsa so'rasa, endi shu orqali qo'shiladi —
+    "almashtirish" alohida amal emas, shu + `detach` (16-§B4).
+
+    Kim: zayavka egasi sales yoki admin — bu mijozning xohishi, texnik
+    qaror emas (engineer emas, B2).
+
+    Zayavka allaqachon ishga olingan bo'lsa (`in_progress` va undan
+    keyin) — MODEL turidagi qatorga darhol chernovik ochiladi, xuddi
+    `take_request` dagi kabi. Hali `new` bo'lsa — ochilmaydi, engineer
+    ishga olganda hammasi birga ochiladi (bugungi xulq, B2).
+    """
+    from django.db.transaction import atomic
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import Configuration, ConfigurationRequest, ConfigurationRequestLine
+    from apps.core.models import Notification
+    from apps.inventory.models import Product
+    from apps.sales.models import Contract
+
+    if not (user.is_admin or user.is_sales):
+        raise PermissionDenied("Savdoga model/tovar qo'shishni sales (yoki admin) bajaradi.")
+    if not user.is_admin and request_obj.created_by_id != user.id:
+        raise PermissionDenied('Bu savdo sizniki emas.')
+    if kind not in ConfigurationRequestLine.Kind.values:
+        raise ValidationError({
+            'kind': f"Ruxsat etilgan qiymatlar: {', '.join(ConfigurationRequestLine.Kind.values)}.",
+        })
+    if base_product is None:
+        raise ValidationError({'base_product': 'Mahsulot tanlanishi shart.'})
+    try:
+        quantity = int(quantity)
+    except (TypeError, ValueError):
+        raise ValidationError({'quantity': "Miqdor butun son bo'lishi kerak."})
+    if quantity < 1:
+        raise ValidationError({'quantity': 'Miqdor kamida 1 dona bo\'ladi.'})
+    if kind == ConfigurationRequestLine.Kind.MODEL and base_product.kind != Product.Kind.MACHINE:
+        raise ValidationError({
+            'base_product': (
+                "model turidagi qator faqat tayyor model bo'lishi mumkin — "
+                'tovar bo\'lsa `item` turini tanlang.'
+            ),
+        })
+    if mode and mode not in Configuration.Mode.values:
+        raise ValidationError({'mode': f"Noto'g'ri rejim: {mode}."})
+    if request_obj.status in (
+        ConfigurationRequest.Status.CANCELLED, ConfigurationRequest.Status.ARCHIVED,
+    ):
+        raise ValidationError({
+            'detail': f"{request_obj.number} yopilgan — savdoga yangi narsa qo'shilmaydi.",
+        })
+
+    configuration = None
+    regressed = False
+    with atomic():
+        request_obj = ConfigurationRequest.objects.select_for_update().get(pk=request_obj.pk)
+
+        # B3: shartnoma allaqachon bugalterga (yoki undan nariga) ketgan
+        # bo'lsa — hujjat qulflangan, yangi model qo'shib bo'lmaydi
+        contract = _deal_contract_for_request(request_obj)
+        if contract is not None and contract.status != Contract.Status.DRAFT:
+            raise ValidationError({
+                'detail': (
+                    f'{request_obj.number} {contract.get_status_display().lower()} '
+                    "— savdoga yangi model qo'shib bo'lmaydi. Bugalter "
+                    "shartnomani qaytarsin, keyin qo'shing."
+                ),
+                'contract': contract.pk,
+                'contract_status': contract.status,
+            })
+
+        line = ConfigurationRequestLine.objects.create(
+            request=request_obj, kind=kind, base_product=base_product,
+            quantity=quantity, text=text,
+        )
+
+        if (
+            kind == ConfigurationRequestLine.Kind.MODEL
+            and request_obj.status != ConfigurationRequest.Status.NEW
+        ):
+            from apps.inventory.services import main_warehouse, sync_configuration_reservations
+
+            configuration = Configuration.objects.create(
+                base_product=base_product,
+                client=request_obj.client,
+                warehouse=request_obj.warehouse or main_warehouse(),
+                mode=mode or Configuration.Mode.BUILD,
+                quantity=quantity,
+                note=f'{request_obj.number}: {text or base_product.name}',
+                created_by=request_obj.taken_by,
+            )
+            copy_factory_spec(configuration)
+            sync_configuration_reservations(configuration)
+            line.configuration = configuration
+            line.save(update_fields=['configuration'])
+
+            # B5(e): savdo allaqachon ko'rikdan o'tayotgan bo'lsa (biror
+            # sibling DRAFTdan nariga o'tgan) — yangi model uni orqaga
+            # qaytaradi (`_deal_step` o'zi hisoblaydi), sales bundan xabardor bo'lsin
+            regressed = any(
+                cfg.status != Configuration.Status.DRAFT
+                for cfg in _deal_models_for_request(request_obj)
+                if cfg.id != configuration.id
+            )
+
+    if configuration is not None and request_obj.taken_by_id:
+        Notification.objects.create(
+            user=request_obj.taken_by,
+            title=f"{request_obj.number}: yangi model qo'shildi",
+            message=f"{configuration.number} ({base_product.name}) ishingizga qo'shildi.",
+            level=Notification.Level.INFO,
+            entity='Configuration',
+            object_id=str(configuration.pk),
+        )
+    if regressed and request_obj.created_by_id:
+        Notification.objects.create(
+            user=request_obj.created_by,
+            title=f'{request_obj.number}: savdo o\'zgardi',
+            message="Yangi model qo'shildi — ko'rikdagi savdo qayta tekshiriladi.",
+            level=Notification.Level.WARNING,
+            entity='ConfigurationRequest',
+            object_id=str(request_obj.pk),
+        )
+    return line, configuration
+
+
+def delete_request_line(line, user):
+    """16-§B5(f): tovar (`kind=item`) qatorini savdodan olib tashlash.
+
+    Model qatorlari konfiguratsiyasi bor — ular `detach` orqali chiqadi
+    (14-§5); bu funksiya faqat konfiguratorsiz TOVAR qatorlari uchun.
+    Qatorning o'zini o'chirish chaqiruvchida (view `perform_destroy`,
+    audit logi bilan birga) — bu funksiya faqat shartnoma tomonidagi
+    yon ta'sirni (bog'liq `ContractItem`) tozalaydi va qulf tekshiradi.
+    """
+    from django.db.transaction import atomic
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import ConfigurationRequestLine
+    from apps.sales.models import Contract
+
+    if line.kind != ConfigurationRequestLine.Kind.ITEM:
+        raise ValidationError({
+            'detail': "Model turidagi qator faqat `detach` orqali chiqariladi.",
+        })
+    request_obj = line.request
+    if not user.is_admin and not (user.is_sales and request_obj.created_by_id == user.id):
+        raise PermissionDenied('Bu savdo sizniki emas.')
+
+    with atomic():
+        contract_item = line.contract_item
+        if contract_item is not None:
+            contract = contract_item.contract
+            if contract.status != Contract.Status.DRAFT:
+                raise ValidationError({
+                    'detail': (
+                        f'{contract.number} qoralama emas — pul kelgan '
+                        "shartnomadan qator olib tashlanmaydi."
+                    ),
+                    'contract': contract.pk,
+                    'contract_status': contract.status,
+                })
+            contract_item.delete()
+            contract.total_amount = contract.items_total_with_vat
+            contract.save(update_fields=['total_amount'])
 
 
 def _configuration_owner_sales(configuration):
@@ -1036,6 +1278,254 @@ def deal_act_suggestion_text(request_obj):
     return '\n\n'.join(paragraphs)
 
 
+# ---------------------------------------------------------------------------
+# 16-§A: amallar savdo (ConfigurationRequest) darajasida.
+#
+# A0: qaror savdoniki (bitta bosish — submit/approve/reject/request-prices/
+# finalize), mehnat modelniki (yig'ish — atomar emas, model-model qaytadi).
+# Model darajasidagi funksiyalar (submit_configuration va h.k.) O'ZGARMAYDI
+# va o'chirilmaydi — bitta modelli zayavkada yagona yo'l, ko'p modelli
+# savdoda ham qoladi (admin bitta modelni qo'lda surishi kerak bo'lganda).
+# Bu funksiyalar ularning ustidan savdo bo'yicha yuradi.
+# ---------------------------------------------------------------------------
+
+def deal_submit(request_obj, user):
+    """16-§A2: savdodagi barcha `draft` modellarni ko'rikka yuboradi.
+
+    Hammasi yoki hech nima: biror model tayyor bo'lmasa (tarkib bo'sh,
+    narxsiz qator, yoki allaqachon boshqa bosqichda/bekor qilingan) —
+    HECH biri o'zgarmaydi, `blocked` ro'yxati sabab bilan qaytadi.
+    Bekor qilingan modellar hisobga kirmaydi (o'lik, yo'lni to'smaydi).
+    """
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import Configuration
+
+    if not (user.is_admin or user.is_engineer):
+        raise PermissionDenied('Texnik yechimni Engineer yuboradi.')
+
+    active = [
+        cfg for cfg in _deal_models_for_request(request_obj)
+        if cfg.status != Configuration.Status.CANCELLED
+    ]
+    if not active:
+        raise ValidationError({'detail': "Savdoda tirik model yo'q."})
+
+    blocked = []
+    for cfg in active:
+        if cfg.status != Configuration.Status.DRAFT:
+            blocked.append({
+                'id': cfg.id, 'number': cfg.number, 'reason': 'wrong_status',
+                'message': f"'{cfg.get_status_display()}' holatida — chernovik emas.",
+            })
+            continue
+        if not cfg.items.exists():
+            blocked.append({
+                'id': cfg.id, 'number': cfg.number, 'reason': 'no_items',
+                'message': "Tarkib bo'sh",
+            })
+            continue
+        for item in cfg.items.filter(unit_price=0):
+            item.save()
+        if cfg.items_without_price:
+            blocked.append({
+                'id': cfg.id, 'number': cfg.number, 'reason': 'needs_price',
+                'message': 'Narxsiz qator bor',
+            })
+    if blocked:
+        raise ValidationError({
+            'detail': f'{len(active)} ta modeldan {len(blocked)} tasi yuborishga tayyor emas.',
+            'blocked': blocked,
+        })
+
+    return [submit_configuration(cfg, user) for cfg in active]
+
+
+def deal_approve(request_obj, user, comment=''):
+    """16-§A2: savdodagi barcha `pending_sales` modellarni tasdiqlaydi.
+
+    Har biri o'zining `approve_configuration`sidan o'tadi — 14-§3 dagi
+    avtomatik birlashtirish (ikkinchi modeldan boshlab mavjud qoralamaga
+    qo'shiladi) shu bilan BITTA shartnomani o'zi kafolatlaydi.
+    `separate_contract` bu yerda qabul qilinmaydi — savdo darajasidagi
+    tasdiq ta'rifan bitta shartnoma degani.
+    """
+    from rest_framework.exceptions import ValidationError
+
+    from apps.configurator.models import Configuration
+
+    pending = [
+        cfg for cfg in _deal_models_for_request(request_obj)
+        if cfg.status == Configuration.Status.PENDING_SALES
+    ]
+    if not pending:
+        raise ValidationError({'detail': "Sales ko'rigidagi model yo'q."})
+    return [approve_configuration(cfg, user, comment) for cfg in pending]
+
+
+def deal_reject(request_obj, user, comment=''):
+    """16-§A2: bitta izoh bilan barcha `pending_sales` modellarni qaytaradi."""
+    from rest_framework.exceptions import ValidationError
+
+    from apps.configurator.models import Configuration
+
+    if not (comment or '').strip():
+        raise ValidationError({'comment': "Izoh majburiy — engineer nimani tuzatishni bilsin."})
+    pending = [
+        cfg for cfg in _deal_models_for_request(request_obj)
+        if cfg.status == Configuration.Status.PENDING_SALES
+    ]
+    if not pending:
+        raise ValidationError({'detail': "Sales ko'rigidagi model yo'q."})
+    return [reject_configuration(cfg, user, comment) for cfg in pending]
+
+
+def deal_request_prices(request_obj, user):
+    """16-§A2: savdodagi BARCHA modellarning narxsiz qatorlarini yig'ib,
+    buyurtmachiga bitta to'plam qilib yuboradi.
+
+    Eslatma baribir mahsulot bo'yicha (10-§1) — ikki modelda bir xil
+    butlovchi bo'lsa bitta eslatma chiqadi (o'zi shunday ishlaydi, bu
+    funksiya faqat javobda qaysi model uchun so'ralganini birlashtiradi).
+    """
+    from rest_framework.exceptions import ValidationError
+
+    from apps.configurator.models import Configuration
+
+    eligible_statuses = {
+        Configuration.Status.DRAFT, Configuration.Status.PENDING_CLARIFICATION,
+        Configuration.Status.PENDING_SALES,
+    }
+    by_product = {}
+    for cfg in _deal_models_for_request(request_obj):
+        if cfg.status not in eligible_statuses:
+            continue
+        for item in cfg.items.filter(unit_price=0):
+            item.save()
+        no_price = cfg.items_without_price
+        if not no_price:
+            continue
+        request_prices(cfg, user)
+        for item in no_price:
+            row = by_product.setdefault(
+                item.component_id, {'product': item.component, 'configurations': []},
+            )
+            row['configurations'].append(cfg.number)
+    if not by_product:
+        raise ValidationError({'detail': "Barcha qatorlarda narx bor — so'rov shart emas."})
+    return [
+        {'product': row['product'].id, 'name': row['product'].name, 'configurations': row['configurations']}
+        for row in by_product.values()
+    ]
+
+
+def deal_assemble(request_obj, user):
+    """16-§A2: savdodagi barcha `approved` modellarni ketma-ket yig'adi.
+
+    A0: bu MEHNAT — atomar emas. Bitta model yig'ilsa ham muvaffaqiyat;
+    qolgani mol kelgach qayta bosiladi. 400 faqat HECH BIRI yig'ilmaganda
+    (yoki to'lov hali kelmagan bo'lsa — hammasi bitta shartnomaga bog'liq
+    bo'lgani uchun bu holat baribir barchasiga baravar taalluqli).
+    """
+    from rest_framework.exceptions import ValidationError
+
+    from apps.configurator.models import Configuration
+
+    candidates = [
+        cfg for cfg in _deal_models_for_request(request_obj)
+        if cfg.status == Configuration.Status.APPROVED
+    ]
+    if not candidates:
+        raise ValidationError({'detail': "Yig'ish uchun tasdiqlangan model yo'q."})
+
+    assembled, pending = [], []
+    for cfg in candidates:
+        ok, missing = assemble_configuration(cfg, user, strict=False)
+        if ok:
+            assembled.append(cfg.number)
+        else:
+            pending.append({'number': cfg.number, 'missing': missing})
+    if not assembled:
+        raise ValidationError({
+            'detail': "Hech biri yig'ilmadi — butlovchilar yetmayapti.",
+            'pending': pending,
+        })
+    return {'assembled': assembled, 'pending': pending}
+
+
+def deal_finalize(request_obj, user, *, act=None, client=None):
+    """16-§A2: savdodagi barcha YIG'ILGAN modellarni yakunlaydi, BITTA ACT
+    biriktiradi. ACT tanada bir marta beriladi — har bir modelga xuddi
+    shu obyekt beriladi (birinchisidan keyingilar sibling-fallback bilan
+    emas, aniq shu bilan bog'lanadi). Yig'ilmagan model yakunlanmaydi —
+    `pending`da qaytadi.
+    """
+    from rest_framework.exceptions import ValidationError
+
+    from apps.configurator.models import Configuration
+
+    models = _deal_models_for_request(request_obj)
+    candidates = [
+        cfg for cfg in models
+        if cfg.status == Configuration.Status.APPROVED and cfg.assembled_at
+    ]
+    if not candidates:
+        raise ValidationError({'detail': "Yig'ilgan model yo'q — avval yig'ing (assemble)."})
+
+    finalized, contract = [], None
+    for cfg in candidates:
+        cfg_result, cfg_contract, _moved = finalize_configuration(cfg, user, act=act, client=client)
+        finalized.append(cfg_result.number)
+        contract = contract or cfg_contract
+
+    pending = [
+        cfg.number for cfg in models
+        if cfg.status == Configuration.Status.APPROVED and not cfg.assembled_at
+    ]
+    return {'finalized': finalized, 'pending': pending, 'contract': contract}
+
+
+def deal_ask_sales(request_obj, user, comment):
+    """16-§A3: savdoning yozishmasi = ASOSIY modelning yozishmasi.
+
+    Savol asosiy modelga yoziladi (bitta suhbat, qaysi model sahifasida
+    tursangiz ham xuddi shu ko'rinadi — serializer §A3.3), lekin
+    savdodagi BARCHA `draft` modellar `pending_clarification`ga o'tadi:
+    javobsiz turganda ikkinchi model ustida ishlashning ma'nosi yo'q —
+    `submit` baribir bloklanadi. Butun savdo to'xtashi xato emas, maqsad.
+    """
+    from rest_framework.exceptions import ValidationError
+
+    from apps.configurator.models import Configuration
+
+    primary = request_obj.configuration
+    if primary is None:
+        raise ValidationError({'detail': "Zayavkada asosiy model yo'q."})
+    result = ask_sales(primary, user, comment)
+    for cfg in _deal_models_for_request(request_obj):
+        if cfg.id != primary.id and cfg.status == Configuration.Status.DRAFT:
+            cfg.status = Configuration.Status.PENDING_CLARIFICATION
+            cfg.save(update_fields=['status'])
+    return result
+
+
+def deal_answer(request_obj, user, comment):
+    """16-§A3: sales javobi — teskarisi, barcha modellarni `draft`ga qaytaradi."""
+    from rest_framework.exceptions import ValidationError
+
+    from apps.configurator.models import Configuration
+
+    primary = request_obj.configuration
+    if primary is None:
+        raise ValidationError({'detail': "Zayavkada asosiy model yo'q."})
+    result = answer_clarification(primary, user, comment)
+    for cfg in _deal_models_for_request(request_obj):
+        if cfg.id != primary.id and cfg.status == Configuration.Status.PENDING_CLARIFICATION:
+            cfg.status = Configuration.Status.DRAFT
+            cfg.save(update_fields=['status'])
+    return result
+
+
 def chain_open_replenishment(configuration=None, contract=None):
     """Zanjirdagi ochiq TLD — qaysi eshikdan kirilganidan qat'i nazar (11-§1).
 
@@ -1171,6 +1661,95 @@ def assemble_configuration(configuration, user, *, removals=None, strict=True):
         resolve_notifications('Configuration', configuration.pk, user=user)
     configuration.save()
     return assembled, missing
+
+
+def finalize_configuration(configuration, user, *, act=None, client=None):
+    """Yakunlash (#4/§11.1) — shartlari: `approved` + yig'ilgan + ACT.
+
+    16-to'plam: bu funksiya avval to'g'ridan-to'g'ri view'da yozilgan edi;
+    `deal_finalize` (16-§A2) ham xuddi shu yo'ldan o'tishi kerak bo'lgani
+    uchun bu yerga — servis qatlamiga — ko'chirildi. Xulq bitta belgigacha
+    o'zgarmagan: `act`/`client` allaqachon resolve qilingan obyekt sifatida
+    keladi (id → instance — view'ning ishi), bu yerda faqat biznes qoidasi.
+    """
+    from django.db.transaction import atomic
+    from rest_framework.exceptions import ValidationError
+
+    from apps.configurator.models import Configuration
+
+    if configuration.status != Configuration.Status.APPROVED:
+        raise ValidationError({
+            'detail': (
+                'Avval texnik yechim tasdiqlansin: engineer submit -> '
+                'sales approve — shundan keyin yakunlanadi.'
+            ),
+        })
+    if not configuration.assembled_at:
+        raise ValidationError({
+            'detail': "Avval mahsulot yig'ilsin (assemble) — yakunlash tayyor mahsulot bilan bo'ladi.",
+        })
+    if act is not None:
+        configuration.act = act
+    if not configuration.act:
+        # 14-§7 (1): savdodagi boshqa modelga ACT allaqachon biriktirilgan
+        # bo'lsa — ikkinchi modelni yakunlaganda uni qayta tanlamaydi
+        request_obj = _owning_request(configuration)
+        if deal_has_multiple_models(request_obj):
+            sibling_act = next(
+                (
+                    cfg.act for cfg in _deal_models_for_request(request_obj)
+                    if cfg.act_id and cfg.id != configuration.id
+                ),
+                None,
+            )
+            if sibling_act:
+                configuration.act = sibling_act
+    if not configuration.act:
+        raise ValidationError({'detail': 'Yakunlash uchun ACT biriktirilishi shart.'})
+
+    no_price = configuration.items_without_price
+    if no_price:
+        raise ValidationError({
+            'detail': 'Narxi kiritilmagan butlovchilar bor.',
+            'items': [item.component.name for item in no_price],
+        })
+
+    variant_moved = False
+    with atomic():
+        if client and not configuration.client_id:
+            configuration.client = client
+        configuration.status = Configuration.Status.READY
+        configuration.save()
+
+        from apps.core.services import resolve_notifications
+
+        resolve_notifications('Configuration', configuration.pk, user=user)
+
+        from apps.inventory.services import (
+            sync_configuration_reservations,
+            sync_contract_reservations,
+        )
+
+        # YANGI OQIM: shartnoma allaqachon bor (B1, approve'da ochilgan).
+        # B6: qatordagi bazaviy model yig'ilgan VARIANTGA ko'chadi — son va
+        # narx tegilmaydi, faqat SKU aniqlashadi (12-§2 C: qator
+        # `configuration` FK orqali topiladi — bir nechta model bo'lsa ham to'g'ri)
+        contract = configuration.active_contract
+        if contract and configuration.variant_id:
+            variant_moved = bool(
+                contract.items.filter(configuration=configuration)
+                .update(product=configuration.variant),
+            )
+        # B7: pul allaqachon kelgan bo'lsa zanjir yopildi — sold
+        if contract and contract.status in ('active', 'completed'):
+            configuration.status = Configuration.Status.SOLD
+            configuration.save()
+
+        sync_configuration_reservations(configuration)
+        if contract:
+            sync_contract_reservations(contract)
+
+    return configuration, contract, variant_moved
 
 
 def assemble_variant(configuration, user, *, strict=True):

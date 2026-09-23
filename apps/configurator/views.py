@@ -1,4 +1,3 @@
-from django.db.transaction import atomic
 from django.http import HttpResponse
 from django.shortcuts import get_object_or_404
 from rest_framework.exceptions import ValidationError
@@ -15,15 +14,19 @@ from apps.configurator.models import (
     Configuration,
     ConfigurationItem,
     ConfigurationRequest,
+    ConfigurationRequestLine,
 )
 from apps.configurator.serializers import (
     ActSerializer,
     ConfigurationSerializer,
     ConfigurationItemSerializer,
+    ConfigurationRequestLineSerializer,
     ConfigurationRequestSerializer,
 )
 from apps.configurator.services import (
+    _deal_models_for_request,
     act_suggestion_text,
+    add_request_line,
     answer_clarification,
     approve_configuration,
     ask_sales,
@@ -32,6 +35,15 @@ from apps.configurator.services import (
     cancel_chain,
     change_quantity,
     deal_act_suggestion_text,
+    deal_answer,
+    deal_approve,
+    deal_ask_sales,
+    deal_assemble,
+    deal_finalize,
+    deal_reject,
+    deal_request_prices,
+    deal_submit,
+    delete_request_line,
     detach_configuration,
     log_request_event,
     reject_request,
@@ -367,6 +379,7 @@ class ConfigurationViewSet(BaseModelViewSet):
         (berilmasa zayavkadagi).
         """
         from apps.clients.models import Client
+        from apps.configurator.services import finalize_configuration
 
         configuration = self.get_object()
         client = None
@@ -376,19 +389,7 @@ class ConfigurationViewSet(BaseModelViewSet):
                 return Response(
                     {'client': 'Mijoz topilmadi.'}, status=HTTP_400_BAD_REQUEST,
                 )
-        if configuration.status != Configuration.Status.APPROVED:
-            return Response(
-                {'detail': (
-                    'Avval texnik yechim tasdiqlansin: engineer submit -> '
-                    'sales approve — shundan keyin yakunlanadi.'
-                )},
-                status=HTTP_400_BAD_REQUEST,
-            )
-        if not configuration.assembled_at:
-            return Response(
-                {'detail': "Avval mahsulot yig'ilsin (assemble) — yakunlash tayyor mahsulot bilan bo'ladi."},
-                status=HTTP_400_BAD_REQUEST,
-            )
+        act = None
         if request.data.get('act'):
             act = Act.objects.filter(pk=request.data['act'], is_active=True).first()
             if not act:
@@ -396,89 +397,16 @@ class ConfigurationViewSet(BaseModelViewSet):
                     {'act': 'ACT topilmadi yoki faol emas.'},
                     status=HTTP_400_BAD_REQUEST,
                 )
-            configuration.act = act
-        if not configuration.act:
-            # 14-§7 (1): savdodagi boshqa modelga ACT allaqachon biriktirilgan
-            # bo'lsa — engineer ikkinchi modelni yakunlaganda uni qayta
-            # tanlamaydi, o'sha ACT avtomatik olinadi
-            from apps.configurator.services import (
-                _deal_models_for_request,
-                _owning_request,
-                deal_has_multiple_models,
+
+        configuration, contract, variant_moved = finalize_configuration(
+            configuration, request.user, act=act, client=client,
+        )
+        if variant_moved:
+            self.log_action(
+                ActivityLog.Action.UPDATE, contract,
+                f'{contract.number} qatori variantga ko\'chdi: '
+                f'{configuration.variant.sku}',
             )
-
-            request_obj = _owning_request(configuration)
-            if deal_has_multiple_models(request_obj):
-                sibling_act = next(
-                    (
-                        cfg.act for cfg in _deal_models_for_request(request_obj)
-                        if cfg.act_id and cfg.id != configuration.id
-                    ),
-                    None,
-                )
-                if sibling_act:
-                    configuration.act = sibling_act
-        if not configuration.act:
-            return Response(
-                {'detail': 'Yakunlash uchun ACT biriktirilishi shart.'},
-                status=HTTP_400_BAD_REQUEST,
-            )
-
-        # TZ 6.2: narxi aniqlanmagan butlovchi bo'lsa, jarayon yakunlanmaydi
-        no_price = configuration.items_without_price
-        if no_price:
-            return Response(
-                {
-                    'detail': 'Narxi kiritilmagan butlovchilar bor.',
-                    'items': [item.component.name for item in no_price],
-                },
-                status=HTTP_400_BAD_REQUEST,
-            )
-
-        with atomic():
-            # Tanadagi mijoz (eski oqim mosligi) — konfiguratsiyada bo'lmasa yoziladi
-            if client and not configuration.client_id:
-                configuration.client = client
-            configuration.status = Configuration.Status.READY
-            configuration.save()
-
-            # 4-to'plam §4: "yakunlang" vazifasi bajarildi — engineerniki yopiladi
-            from apps.core.services import resolve_notifications
-
-            resolve_notifications('Configuration', configuration.pk, user=request.user)
-
-            # §11.4/B5: konfiguratsiya broni bo'shaydi — endi shartnomaning
-            # qattiq broni o'z o'rnini egallaydi (bitta bron ko'chadi)
-            from apps.inventory.services import (
-                sync_configuration_reservations,
-                sync_contract_reservations,
-            )
-
-            # YANGI OQIM: shartnoma allaqachon bor (B1, approve'da ochilgan).
-            # B6: qatordagi bazaviy model yig'ilgan VARIANTGA ko'chadi — son va
-            # narx tegilmaydi (imzolangan pul o'zgarmaydi), faqat SKU aniqlashadi.
-            # Aks holda ship bazaviy modelni chiqim qilib omborni buzardi (§3.1).
-            contract = configuration.active_contract
-            if contract and configuration.variant_id:
-                # 12-§2 (C): qator `configuration` FK orqali topiladi — bitta
-                # shartnomada bir nechta model bo'lsa ham to'g'ri qatorga tegadi
-                moved = contract.items.filter(
-                    configuration=configuration,
-                ).update(product=configuration.variant)
-                if moved:
-                    self.log_action(
-                        ActivityLog.Action.UPDATE, contract,
-                        f'{contract.number} qatori variantga ko\'chdi: '
-                        f'{configuration.variant.sku}',
-                    )
-            # B7: pul allaqachon kelgan bo'lsa zanjir yopildi — sold
-            if contract and contract.status in ('active', 'completed'):
-                configuration.status = Configuration.Status.SOLD
-                configuration.save()
-
-            sync_configuration_reservations(configuration)
-            if contract:
-                sync_contract_reservations(contract)
         self.log_action(
             ActivityLog.Action.UPDATE, configuration,
             f'Yakunlandi ({configuration.get_mode_display()}), variant: '
@@ -607,6 +535,173 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
         request_obj = self.get_object()
         return Response({'act_suggestion': deal_act_suggestion_text(request_obj)})
 
+    # ----------------------------------------------------- 16-§A: savdo amallari
+    #
+    # A0: qaror savdoniki (bitta bosish), mehnat modelniki (yig'ish —
+    # atomar emas). Model darajasidagi manzillar (`/configurations/{id}/...`)
+    # o'chirilmaydi — bitta modelli zayavkada yagona yo'l, ko'p modelli
+    # savdoda ham qoladi (admin bitta modelni qo'lda surishi kerak bo'lganda).
+
+    def submit(self, request, pk=None):
+        """POST /configuration-requests/{id}/submit/ — savdo darajasida ko'rikka (16-§A2)."""
+        request_obj = self.get_object()
+        configurations = deal_submit(request_obj, request.user)
+        self.log_action(
+            ActivityLog.Action.UPDATE, request_obj,
+            f"{request_obj.number}: {len(configurations)} ta model ko'rikka yuborildi",
+        )
+        return Response(self.get_serializer(request_obj).data)
+
+    def approve(self, request, pk=None):
+        """POST /configuration-requests/{id}/approve/ — savdo darajasida tasdiq (16-§A2)."""
+        request_obj = self.get_object()
+        configurations = deal_approve(request_obj, request.user, request.data.get('comment', ''))
+        self.log_action(
+            ActivityLog.Action.APPROVE, request_obj,
+            f"{request_obj.number}: {len(configurations)} ta model tasdiqlandi",
+        )
+        return Response(self.get_serializer(request_obj).data)
+
+    def reject(self, request, pk=None):
+        """POST /configuration-requests/{id}/reject/ — ikki bosqich, bitta manzil.
+
+        B15: zayavka hali ISHGA OLINMAGAN (`new`) — engineer matnni
+        tushunmadi, sales'ga qaytaradi. 16-§A2: modellar sales ko'rigida
+        (`pending_sales`) bo'lsa — bu ENDI texnik yechimni sales savdo
+        darajasida qaytarishi. Boshqa har qanday holatda (masalan, ishga
+        olingan-u hali ko'rikka yuborilmagan) — eski xabar: "ask-sales"
+        yoki "release" ishlatilsin (`reject_request` o'zi shu qoidani biladi).
+        """
+        comment = str(request.data.get('comment', '') or '')
+        request_obj = self.get_object()
+        has_pending_sales = any(
+            cfg.status == Configuration.Status.PENDING_SALES
+            for cfg in _deal_models_for_request(request_obj)
+        )
+        if not has_pending_sales:
+            request_obj = reject_request(request_obj, request.user, comment)
+            self.log_action(
+                ActivityLog.Action.REJECT, request_obj,
+                f"Sales'ga qaytarildi: {comment}",
+            )
+            request_obj.refresh_from_db()
+            return Response(self.get_serializer(request_obj).data)
+
+        configurations = deal_reject(request_obj, request.user, comment)
+        self.log_action(
+            ActivityLog.Action.REJECT, request_obj,
+            f"{request_obj.number}: {len(configurations)} ta model qaytarildi — {comment}",
+        )
+        return Response(self.get_serializer(request_obj).data)
+
+    def ask_sales(self, request, pk=None):
+        """POST /configuration-requests/{id}/ask-sales/ — savdo darajasida savol (16-§A3)."""
+        comment = str(request.data.get('comment', '') or '')
+        request_obj = self.get_object()
+        deal_ask_sales(request_obj, request.user, comment)
+        self.log_action(
+            ActivityLog.Action.UPDATE, request_obj,
+            f"{request_obj.number}: sales'dan aniqlashtirish so'raldi — {comment}",
+        )
+        return Response(self.get_serializer(request_obj).data)
+
+    def answer(self, request, pk=None):
+        """POST /configuration-requests/{id}/answer/ — savdo darajasida javob (16-§A3)."""
+        comment = str(request.data.get('comment', '') or '')
+        request_obj = self.get_object()
+        deal_answer(request_obj, request.user, comment)
+        self.log_action(
+            ActivityLog.Action.UPDATE, request_obj,
+            f'{request_obj.number}: savolga javob berildi — {comment}',
+        )
+        return Response(self.get_serializer(request_obj).data)
+
+    def request_prices(self, request, pk=None):
+        """POST /configuration-requests/{id}/request-prices/ — savdo darajasida narx so'rovi (16-§A2)."""
+        request_obj = self.get_object()
+        requested = deal_request_prices(request_obj, request.user)
+        self.log_action(
+            ActivityLog.Action.UPDATE, request_obj,
+            f"{request_obj.number}: narx so'raldi — "
+            f"{', '.join(row['name'] for row in requested)}",
+        )
+        return Response({'requested': requested})
+
+    def assemble(self, request, pk=None):
+        """POST /configuration-requests/{id}/assemble/ — savdo darajasida yig'ish (16-§A2).
+
+        A0: mehnat modelniki — atomar emas, natija model-model qaytadi.
+        """
+        request_obj = self.get_object()
+        result = deal_assemble(request_obj, request.user)
+        self.log_action(
+            ActivityLog.Action.UPDATE, request_obj,
+            f"{request_obj.number}: yig'ildi — {', '.join(result['assembled'])}",
+        )
+        return Response(result)
+
+    def finalize(self, request, pk=None):
+        """POST /configuration-requests/{id}/finalize/ — savdo darajasida yakunlash (16-§A2)."""
+        from apps.clients.models import Client
+
+        client = None
+        if request.data.get('client'):
+            client = Client.objects.filter(pk=request.data['client']).first()
+            if not client:
+                return Response({'client': 'Mijoz topilmadi.'}, status=HTTP_400_BAD_REQUEST)
+        act = None
+        if request.data.get('act'):
+            act = Act.objects.filter(pk=request.data['act'], is_active=True).first()
+            if not act:
+                return Response({'act': 'ACT topilmadi yoki faol emas.'}, status=HTTP_400_BAD_REQUEST)
+
+        request_obj = self.get_object()
+        result = deal_finalize(request_obj, request.user, act=act, client=client)
+        contract = result['contract']
+        self.log_action(
+            ActivityLog.Action.UPDATE, request_obj,
+            f"{request_obj.number}: yakunlandi — {', '.join(result['finalized'])}",
+        )
+        return Response({
+            'finalized': result['finalized'],
+            'pending': result['pending'],
+            'contract': (
+                {'id': contract.id, 'number': contract.number, 'status': contract.status}
+                if contract else None
+            ),
+        })
+
+    def lines(self, request, pk=None):
+        """POST /configuration-requests/{id}/lines/ — savdoga model/tovar qo'shish (16-§B2).
+
+        Savdo boshlangandan keyin mijoz fikridan qaytsa yoki qo'shimcha
+        narsa so'rasa — shu orqali. "Almashtirish" alohida amal emas:
+        shu + `detach` (16-§B4). Tana: {"kind": "model"|"item",
+        "base_product": id, "quantity": N, "text": "...", "mode": "build"}.
+        """
+        from apps.inventory.models import Product
+
+        base_product = Product.objects.filter(pk=request.data.get('base_product')).first()
+        line, configuration = add_request_line(
+            self.get_object(), request.user,
+            kind=request.data.get('kind', ConfigurationRequestLine.Kind.MODEL),
+            base_product=base_product,
+            quantity=request.data.get('quantity', 1),
+            text=str(request.data.get('text', '') or ''),
+            mode=request.data.get('mode'),
+        )
+        self.log_action(
+            ActivityLog.Action.CREATE, line.request,
+            f'{line.request.number}: yangi qator qo\'shildi — {line.base_product.name}',
+        )
+        return Response({
+            'line': ConfigurationRequestLineSerializer(line).data,
+            'configuration': (
+                {'id': configuration.id, 'number': configuration.number}
+                if configuration else None
+            ),
+        }, status=201)
+
     def get_queryset(self):
         """EGALIK §3.3: engineer `new` hammasini ko'radi (kim birinchi olsa
         o'shaniki) + o'zi olganini; sales — o'zi yozganini; admin — hammasini."""
@@ -710,24 +805,6 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
         )
         return Response(self.get_serializer(request_obj).data)
 
-    def reject(self, request, pk=None):
-        """POST /configuration-requests/{id}/reject/ — engineer qaytaradi (B15).
-
-        Izoh majburiy; `new` da ham, `in_progress` da ham ishlaydi. Ishga
-        olinganida ochilgan konfiguratsiya bekor bo'lib broni bo'shaydi.
-        """
-        request_obj = reject_request(
-            self.get_object(), request.user,
-            comment=str(request.data.get('comment', '') or ''),
-        )
-        self.log_action(
-            ActivityLog.Action.REJECT, request_obj,
-            f"Sales'ga qaytarildi: {request.data.get('comment')}",
-        )
-        # prefetch keshida yangi event yo'q — javob to'liq tarix bilan ketsin
-        request_obj.refresh_from_db()
-        return Response(self.get_serializer(request_obj).data)
-
     def release(self, request, pk=None):
         """POST /configuration-requests/{id}/release/ — hovuzga qaytarish (9-§2).
 
@@ -774,3 +851,32 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
     # `complete` olib tashlandi (#4): engineer endi konfiguratsiyani
     # `submit` bilan sales ko'rigiga yuboradi, zayavka holati esa sales
     # tasdig'ida (`approve`) DONE bo'ladi — tasdiqsiz "tayyor" yo'q.
+
+
+class ConfigurationRequestLineViewSet(BaseModelViewSet):
+    """Zayavka qatorlari — faqat TOVAR qatorini olib tashlash uchun (16-§B5 f).
+
+    Model turidagi qator (`kind=model`) konfiguratsiyasi bor — u
+    `configurations/{id}/detach/` orqali chiqadi (14-§5); bu yerda faqat
+    `DELETE` ochiq va faqat konfiguratorsiz TOVAR qatorlariga ishlaydi.
+    """
+
+    queryset = ConfigurationRequestLine.objects.select_related(
+        'request', 'base_product', 'configuration', 'contract_item',
+    ).all()
+    serializer_class = ConfigurationRequestLineSerializer
+    permission_classes = [ConfigurationRequestAccess]
+    http_method_names = ['get', 'delete', 'head', 'options']
+
+    def get_queryset(self):
+        qs = super().get_queryset()
+        user = self.request.user
+        if user.is_admin:
+            return qs
+        if user.is_sales:
+            return qs.filter(request__created_by=user)
+        return qs.none()
+
+    def perform_destroy(self, instance):
+        delete_request_line(instance, self.request.user)
+        super().perform_destroy(instance)

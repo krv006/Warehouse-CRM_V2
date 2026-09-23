@@ -6,6 +6,7 @@ from apps.configurator.views import (
     ActViewSet,
     ConfigurationViewSet,
     ConfigurationItemViewSet,
+    ConfigurationRequestLineViewSet,
     ConfigurationRequestViewSet,
 )
 from apps.core.routing import DETAIL, LIST
@@ -82,7 +83,9 @@ urlpatterns = [
     path('configuration-requests/<int:pk>/act-suggestion/', ConfigurationRequestViewSet.as_view({
         'get': 'act_suggestion',
     }), name='configurationrequest-act-suggestion'),
-    # B15: engineer izoh bilan qaytaradi, sales tuzatib qayta yuboradi
+    # 16-§A2: reject bitta manzilda ikkalasiga xizmat qiladi — B15 (zayavka
+    # hali `new`, engineer qaytaradi) va savdo darajasidagi qaytarish
+    # (modellar sales ko'rigida, izoh bilan draftga qaytadi)
     path('configuration-requests/<int:pk>/reject/', ConfigurationRequestViewSet.as_view({
         'post': 'reject',
     }), name='configurationrequest-reject'),
@@ -100,7 +103,38 @@ urlpatterns = [
     path('configuration-requests/<int:pk>/roadmap/', RoadmapView.as_view(
         kind='request',
     ), name='configurationrequest-roadmap'),
+    # 16-§A1: amallar savdo (zayavka) darajasida — A0: qaror savdoniki
+    path('configuration-requests/<int:pk>/submit/', ConfigurationRequestViewSet.as_view({
+        'post': 'submit',
+    }), name='configurationrequest-submit'),
+    path('configuration-requests/<int:pk>/approve/', ConfigurationRequestViewSet.as_view({
+        'post': 'approve',
+    }), name='configurationrequest-approve'),
+    path('configuration-requests/<int:pk>/ask-sales/', ConfigurationRequestViewSet.as_view({
+        'post': 'ask_sales',
+    }), name='configurationrequest-ask-sales'),
+    path('configuration-requests/<int:pk>/answer/', ConfigurationRequestViewSet.as_view({
+        'post': 'answer',
+    }), name='configurationrequest-answer'),
+    path('configuration-requests/<int:pk>/request-prices/', ConfigurationRequestViewSet.as_view({
+        'post': 'request_prices',
+    }), name='configurationrequest-request-prices'),
+    path('configuration-requests/<int:pk>/assemble/', ConfigurationRequestViewSet.as_view({
+        'post': 'assemble',
+    }), name='configurationrequest-assemble'),
+    path('configuration-requests/<int:pk>/finalize/', ConfigurationRequestViewSet.as_view({
+        'post': 'finalize',
+    }), name='configurationrequest-finalize'),
+    # 16-§B2: savdo boshlangandan keyin model/tovar qo'shish
+    path('configuration-requests/<int:pk>/lines/', ConfigurationRequestViewSet.as_view({
+        'post': 'lines',
+    }), name='configurationrequest-lines'),
 
     path('configuration-items/', ConfigurationItemViewSet.as_view(LIST), name='configurationitem-list'),
     path('configuration-items/<int:pk>/', ConfigurationItemViewSet.as_view(DETAIL), name='configurationitem-detail'),
+
+    # 16-§B5(f): tovar qatorini savdodan olib tashlash (model — `detach`)
+    path('configuration-request-lines/<int:pk>/', ConfigurationRequestLineViewSet.as_view({
+        'get': 'retrieve', 'delete': 'destroy',
+    }), name='configurationrequestline-detail'),
 ]

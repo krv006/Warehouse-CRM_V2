@@ -135,7 +135,7 @@ class ConfigurationApprovalSerializer(ModelSerializer):
 class ConfigurationSerializer(ModelSerializer):
     items = ConfigurationItemSerializer(many=True, required=False)
     removals = ConfigurationRemovalSerializer(many=True, read_only=True)
-    approvals = ConfigurationApprovalSerializer(many=True, read_only=True)
+    approvals = SerializerMethodField()
     mode_display = ReadOnlyField(source='get_mode_display')
     client_name = ReadOnlyField(source='client.display_name')
     base_product_name = ReadOnlyField(source='base_product.name')
@@ -243,6 +243,21 @@ class ConfigurationSerializer(ModelSerializer):
         from apps.configurator.services import _owning_request, build_deal
 
         return build_deal(_owning_request(obj))
+
+    def get_approvals(self, obj):
+        """16-§A3: savdoning yozishmasi = ASOSIY modelning yozishmasi.
+
+        Ko'p modelli savdoda qaysi model sahifasida tursangiz ham bitta
+        suhbat ko'rinsin — bitta modelli zayavkada asosiy model yagona
+        model bo'lgani uchun xulq so'zma-so'z o'zgarmaydi.
+        """
+        from apps.configurator.services import _owning_request, deal_has_multiple_models
+
+        request_obj = _owning_request(obj)
+        target = obj
+        if deal_has_multiple_models(request_obj) and request_obj.configuration_id:
+            target = request_obj.configuration
+        return ConfigurationApprovalSerializer(target.approvals.all(), many=True).data
 
     def get_ready_variant(self, obj):
         """Xuddi shu tarkib omborda tayyor pozitsiya sifatida bormi (TZ 6.2)."""

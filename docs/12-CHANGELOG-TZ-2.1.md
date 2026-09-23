@@ -1845,6 +1845,54 @@ yangi `CollaboraWopiTests`).
 
 ---
 
+## 8.61 16-to'plam: amallar savdo darajasida + model qo'shish/almashtirish 🧭
+
+14-to'plam hujjatlarni (shartnoma/TLD/ACT/yo'l xaritasi) savdo darajasiga
+ko'targan edi — amallar esa model-model qolgan edi: ikki modelli savdoda
+engineer ikkitasini alohida yuborar, sales ikkitasini alohida tasdiqlar,
+yozishma ikki joyda yotardi. Bu to'plam ikki ishni qiladi.
+
+**A — amallar savdo darajasida** (`ConfigurationRequest` ustida, savdo =
+bitta zayavka): `submit`, `approve`, `reject`, `ask-sales`, `answer`,
+`request-prices`, `assemble`, `finalize`. Qoida — **qaror savdoniki,
+mehnat modelniki**: `submit`/`approve`/`reject`/`request-prices`/
+`finalize` — bitta bosish, hammasi yoki hech nima; `assemble` esa MEHNAT
+— atomar emas, natija model-model qaytadi (`assembled`/`pending`).
+Yozishma (`ask-sales`/`answer`) — savdoning bitta suhbati, ASOSIY
+modelning `ConfigurationApproval` yozuvlarida (`GET /configurations/{id}/`
+javobidagi `approvals` ko'p modelli savdoda shu bitta suhbatni qaytaradi,
+qaysi model sahifasida tursangiz ham). Model darajasidagi eski manzillar
+(`/configurations/{id}/...`) o'chirilmaydi — bitta modelli zayavkada
+yagona yo'l, ko'p modelli savdoda ham qoladi (admin bitta modelni qo'lda
+surishi kerak bo'lganda). `/configuration-requests/{id}/reject/` ikki
+bosqichga xizmat qiladi bitta manzilda: B15 (zayavka hali `new`) va
+16-§A2 (modellar `pending_sales`da) — ikkalasi baribir bir vaqtda
+yuzaga kelmaydi.
+
+**B — savdo o'rtasida model qo'shish/almashtirish**: `POST
+/configuration-requests/{id}/lines/` — bugungacha yaratishda beriladigan
+`lines[]`ga savdo boshlangandan keyin ham qo'shish imkoni yo'q edi.
+Zayavka ishga olingan bo'lsa (`in_progress`+) MODEL turidagi qatorga
+darhol chernovik ochiladi; shartnoma bugalterga ketgan bo'lsa (`draft`
+emas) — 400. "Almashtirish" alohida amal emas: shu + mavjud `detach`
+(14-§5). `detach` ham kengaydi: **asosiy model** chiqarilsa savdodagi
+eng eski tirik model avtomatik asosiy bo'lib ko'tariladi (yagona tirik
+model qolganda esa 400 — `cancel` bilan butun savdo yopiladi), javobga
+`warnings[]` qo'shildi — chiqarilayotgan modelning TLD qatorlari (hisob
+tasdiq yo'lida bo'lsa qoladi, mol baribir keladi) va yig'ilgan bo'lsa
+variant omborda qolgani haqida ogohlantiradi. Tovar (`kind=item`) qatori
+`DELETE /configuration-request-lines/{id}/` orqali chiqadi.
+
+14-to'plamdagi shart o'zgarmaydi: `deal_has_multiple_models` yolg'on
+bo'lsa (bitta modelli zayavka) — barcha yangi mantiq savdo endpointlari
+model darajasidagilarning aniq nusxasi bo'lib ishlaydi, yozishma esa
+yagona modelniki. **Qamrovdan tashqarida**: to'langan shartnomaga yangi
+talab qo'shish — alohida masala, PM bilan muhokamada (B3 eslatmasi).
+
+Testlar: `apps/configurator/tests/test_deal_actions.py` (yangi, 15).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
