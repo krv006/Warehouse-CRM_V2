@@ -63,9 +63,12 @@ urlpatterns = [
     path('contracts/<int:pk>/print/', ContractViewSet.as_view({
         'get': 'print_form',
     }), name='contract-print'),
-    # 13-§1: shartnoma matni — bugalter yuklaydi va saytda tahrirlaydi
+    # 13-§1: shartnoma matni — bugalter yuklaydi va saytda ko'rinadi.
+    # QOLGAN-ISHLAR-2 §4: `PUT` olib tashlandi — 15-§A dan keyin Didoxga
+    # `source_file` ketadi, `body`ni alohida tahrirlash ikkinchi (eski)
+    # manba yaratardi. O'qish (`GET`) va yuklash (`upload/`) qoladi.
     path('contracts/<int:pk>/document/', ContractViewSet.as_view({
-        'get': 'document', 'put': 'document_update',
+        'get': 'document',
     }), name='contract-document'),
     path('contracts/<int:pk>/document/upload/', ContractViewSet.as_view({
         'post': 'document_upload',

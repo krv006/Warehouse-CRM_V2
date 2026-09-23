@@ -352,7 +352,12 @@ class DealActionsTests(APITestCase):
         self.assertNotIn(request_obj.status, (
             ConfigurationRequest.Status.CANCELLED, ConfigurationRequest.Status.ARCHIVED,
         ))
+        # QOLGAN-ISHLAR-2 §5: chiqarilgan (eski asosiy) model YETIM
+        # qolmasin — ko'tarilgan qator endi ESKI asosiyga (HP) ishora
+        # qiladi, o'chirilmaydi (savdo tarixida ikkalasi ham qoladi)
         self.assertEqual(request_obj.lines.filter(base_product=self.dell).count(), 0)
+        orphan_line = request_obj.lines.get(base_product=self.hp)
+        self.assertEqual(orphan_line.configuration_id, primary.id)
 
     def test_detach_last_alive_model_blocked(self):
         """B5 (c) chegara: yagona tirik model qolganda detach 400 — `cancel` kerak."""

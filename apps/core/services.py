@@ -19,7 +19,7 @@ from apps.core.utils import RED_ZONE_DAYS, sla_deadline, working_days_since
 # Barcha bo'lim kalitlari — javobda doim to'liq to'plam (yo'g'i 0)
 SECTIONS = (
     'contracts', 'leads', 'requests', 'configurations',
-    'replenishments', 'low_stock', 'expense_requests', 'loans',
+    'replenishments', 'low_stock', 'needs_price', 'expense_requests', 'loans',
 )
 
 # TOPSHIRIQ #3: SLA qamrovi — tasdiq zanjiridagi hujjatlar. leads/loans o'z
@@ -318,6 +318,19 @@ def _low_stock_count(user):
     return low_stock_queryset().count()
 
 
+def _needs_price_count(user):
+    """QOLGAN-ISHLAR-2 §6: "Narx kutilmoqda" — buyurtmachining doimiy ro'yxati
+    (`?needs_price=true`) endi yon panelda ham — front alohida so'rov
+    tashlamasdan nishon chiza olsin."""
+    if not user.is_supplier and not user.is_admin:
+        return 0
+    if user.is_admin:
+        return 0  # admin navbatida emas — buyurtmachining o'zi ishi (§2.3)
+    from apps.inventory.services import needs_price_queryset
+
+    return needs_price_queryset().count()
+
+
 def _role_holder(role):
     """Hovuz uchun: roldagi (yagona) xodim — bugalter/admin bittadan (§3.0)."""
     from apps.accounts.models import User
@@ -507,6 +520,7 @@ def collect_work(user, include_items=True):
             counts[source['section']] += source['queryset'].count()
 
     counts['low_stock'] = _low_stock_count(user)
+    counts['needs_price'] = _needs_price_count(user)
 
     if user.is_admin:
         stale_items = _admin_stale_items(cutoff_hour, sla_days)

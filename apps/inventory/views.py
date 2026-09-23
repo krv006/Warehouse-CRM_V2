@@ -62,16 +62,9 @@ class ProductViewSet(BaseModelViewSet):
         """
         qs = super().get_queryset()
         if self.request.query_params.get('needs_price') in ('true', '1'):
-            from apps.configurator.models import Configuration
+            from apps.inventory.services import needs_price_queryset
 
-            qs = qs.filter(
-                configuration_items__unit_price=0,
-                configuration_items__configuration__status__in=[
-                    Configuration.Status.DRAFT,
-                    Configuration.Status.PENDING_CLARIFICATION,
-                    Configuration.Status.PENDING_SALES,
-                ],
-            ).distinct()
+            qs = qs.filter(pk__in=needs_price_queryset())
         return qs
 
     def perform_update(self, serializer):

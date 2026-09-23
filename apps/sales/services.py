@@ -869,7 +869,10 @@ def send_contract_missing_to_procurement(contract, user):
 
 
 # ---------------------------------------------------------------------------
-# 13-§1: shartnoma matni — bugalter yuklaydi va saytda tahrirlaydi
+# 13-§1/15-§A: shartnoma matni — bugalter `.docx` yuklaydi (yoki Collabora'da
+# tahrirlaydi), sayt faqat KO'RSATADI. QOLGAN-ISHLAR-2 §4: to'g'ridan-to'g'ri
+# HTML tahrir (`PUT`) olib tashlandi — Didoxga `source_file` ketadi, `body`ni
+# alohida saqlash ikkinchi (eski) manba yaratardi.
 # ---------------------------------------------------------------------------
 
 # Hujjat huquqiy — Didoxga ketgandan keyin (`pending_didox`) tahrir yopiladi
@@ -897,20 +900,14 @@ def _require_document_editable(contract):
         })
 
 
-@atomic
-def save_contract_document(contract, user, body):
-    """Matnni saqlash — har safar yangi versiya (hujjat huquqiy, tarixi kerak)."""
-    _require_document_editable(contract)
-    document = get_or_create_contract_document(contract)
-    document.body = body or ''
-    document.updated_by = user
-    document.save()
-    document.versions.create(body=document.body, created_by=user)
-    return document
-
-
 def _contract_document_docxtpl_context(contract):
-    """15-§A: `.docx` shablon uchun — dot-notation ishlashi uchun ICHMA-ICH lug'at."""
+    """15-§A: `.docx` shablon uchun — dot-notation ishlashi uchun ICHMA-ICH lug'at.
+
+    QOLGAN-ISHLAR-2 §1: `items` — shartnoma bandlari, Word jadvalida
+    `{%tr for item in items %}...{%tr endfor %}` sikli bilan chiqariladi
+    (docxtpl subdoc sintaksisi). `items_total`/`vat_total` — `total`
+    (QQS bilan) yonida QQS'siz jami va QQS summasi alohida.
+    """
     client = contract.client
     return {
         'contract': {
@@ -921,6 +918,19 @@ def _contract_document_docxtpl_context(contract):
             'name': client.display_name if client else '',
             'inn': getattr(client, 'inn', '') or '',
         },
+        'items': [
+            {
+                'name': item.product.name,
+                'sku': item.product.sku,
+                'quantity': item.quantity,
+                'unit_price': str(item.unit_price),
+                'vat_percent': str(item.vat_percent),
+                'total': str(item.total_with_vat),
+            }
+            for item in contract.items.select_related('product')
+        ],
+        'items_total': str(contract.items_total),
+        'vat_total': str(contract.vat_total),
         'total': str(contract.items_total_with_vat),
         'prepayment_percent': str(contract.prepayment_percent or ''),
         'term_days': str(contract.term_days),
@@ -974,6 +984,7 @@ def upload_contract_document(contract, user, file):
     document.body = preview
     _save_document_file(document, getattr(file, 'name', 'shartnoma.docx'), filled)
     document.source_uploaded_at = now()
+    document.rendered_total = contract.total_amount
     document.docx_version += 1
     document.updated_by = user
     document.save()

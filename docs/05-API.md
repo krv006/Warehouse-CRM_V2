@@ -233,8 +233,12 @@ kodidan yozadi (`send_to_didox`, `didox_confirm`, `awaiting_payment`, `client_ap
 `awaiting_admin_approve`, `awaiting_client_payment`, `awaiting_check`,
 `in_progress`). `level`: `info`/`warning`/`danger` — danger birinchi turadi.
 Bo'lim kalitlari: `contracts`, `leads`, `requests`, `configurations`,
-`replenishments`, `low_stock`, `expense_requests`, `loans`; 0 bo'lsa badge
-chizilmaydi. Ruxsat: istalgan login — javob so'rovchi roli bo'yicha.
+`replenishments`, `low_stock`, `needs_price`, `expense_requests`, `loans`; 0
+bo'lsa badge chizilmaydi. `low_stock`/`needs_price` — faqat sonlar (`items[]`
+ga tushmaydi, ro'yxatning o'zi `GET /replenishments/low-stock/` /
+`GET /products/?needs_price=true` dan olinadi), faqat buyurtmachiga
+(QOLGAN-ISHLAR-2 §6: admin navbatida emas — §2.3). Ruxsat: istalgan login —
+javob so'rovchi roli bo'yicha.
 
 **SLA (TOPSHIRIQ #3):** muddatidan ortiq turgan ishning o'z qatori
 `level: "danger"` + `waiting_days` (ish kunlari) bilan keladi; adminga
@@ -625,9 +629,8 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | POST | `/contracts/{id}/confirm-payment/` | bugalter; YANGI-OQIM: bu **ish boshlanish signali** — CFG broni qattiqlashadi, engineer xabar oladi, 13–16 qadamlar ochiladi |
 | GET | `/contracts/{id}/timeline/` | hamma |
 | GET | `/contracts/{id}/print/` | **faqat sales, admin** — chop etish shakli (qator narxlari bor) |
-| GET | `/contracts/{id}/document/` | 13-§1: **bugalter, admin, sales (egasi)** — hujjat matni; `body` o'rin egallovchilar bilan (`{{ contract.number }}`, `{{ total }}` …) KO'RSATISHDA to'ldirilgan holda keladi, `body_raw` — QOLGAN-ISHLAR #2: XOM matn (placeholder'lar to'lmagan) muharrir uchun — shuni yuklab, shuni saqlash kerak, aks holda o'rin egallovchilar birinchi saqlashda yo'qoladi; `can_edit` (faqat bugalterda `true`), `versions_count`; birinchi murojaatda bo'sh hujjat avtomatik ochiladi. 15-§3: `source_file` (URL), `source_file_name`, `source_uploaded_at` — yuklangan asl `.docx`ni qaytadan yuklab olish uchun (o'girish yo'qotishli bo'lsa ham, asl fayl yo'qolmaydi); yuklanmagan bo'lsa uchalasi ham `null` |
-| PUT | `/contracts/{id}/document/` | 13-§1: **faqat bugalter** (admin ham yo'q — "hozircha"); tanadagi `body` — XOM matn (frontdagi `body_raw`), saqlanadi va har saqlashda yangi versiya yoziladi; shartnoma `pending_didox`/`approved`/`active`/`completed`/`cancelled` bo'lsa 400 (hujjat huquqiy, Didoxdan keyin yopiq) |
-| POST | `/contracts/{id}/document/upload/` | 13-§1/15-§A: **faqat bugalter**; `.docx` fayl (`file`) yuklanadi — 15-§A: avval o'rin egallovchilar (`{{ contract.number }}`, `{{ client.name }}`, `{{ total }}` …) `docxtpl` bilan STATIK to'ldiriladi (Didoxga shu fayl aynan shu holicha ketadi — piksel-piksel), keyin `mammoth` shu (to'lgan) fayldan faqat KO'RISH uchun `body` yasaydi; shablonda `{{ }}` xato bo'lsa 400 (`file`), oddiy `.docx` (tag'siz) ham muammosiz o'tadi; boshqa format (`.pdf` va h.k.) 400 |
+| GET | `/contracts/{id}/document/` | 13-§1/15-§A: **bugalter, admin, sales (egasi)** — hujjat matni (faqat KO'RISH — QOLGAN-ISHLAR-2 §4: `PUT` olib tashlandi); `body`/`body_raw` — `.docx`dan `mammoth` bilan o'girilgan HTML (o'qish rejimi); `can_edit` (faqat bugalterda va shartnoma tegishli bosqichda `true` — yuklash/Collabora tugmalarini shu boshqaradi), `versions_count`; birinchi murojaatda bo'sh hujjat avtomatik ochiladi. 15-§3: `source_file` (URL), `source_file_name`, `source_uploaded_at` — yuklangan asl `.docx`ni qaytadan yuklab olish uchun; yuklanmagan bo'lsa uchalasi ham `null`. **QOLGAN-ISHLAR-2 §3**: `is_stale` — fayl yuklanganda shartnoma summasi qanday edi (`rendered_total`) va hozirgi `total_amount` farq qilsa `true` (partiya, yangi model, detach summani o'zgartirgan bo'lishi mumkin) — front qizil ogohlantirish chizadi: "Shartnoma summasi hujjat yuklangandan keyin o'zgargan — qayta yuklang" |
+| POST | `/contracts/{id}/document/upload/` | 13-§1/15-§A: **faqat bugalter**; `.docx` fayl (`file`) yuklanadi — 15-§A: avval o'rin egallovchilar (`{{ contract.number }}`, `{{ client.name }}`, `{{ total }}`, **QOLGAN-ISHLAR-2 §1**: `{{ items }}` — `{%tr for item in items %}{{ item.name }} {{ item.sku }} {{ item.quantity }} {{ item.unit_price }} {{ item.vat_percent }} {{ item.total }}{%tr endfor %}` Word jadval sikli, `{{ items_total }}`/`{{ vat_total }}` …) `docxtpl` bilan STATIK to'ldiriladi (Didoxga shu fayl aynan shu holicha ketadi — piksel-piksel), keyin `mammoth` shu (to'lgan) fayldan faqat KO'RISH uchun `body` yasaydi, `rendered_total` shu paytdagi summaga o'rnatiladi (`is_stale` shundan hisoblanadi); shablonda `{{ }}` xato bo'lsa 400 (`file`), oddiy `.docx` (tag'siz) ham muammosiz o'tadi; boshqa format (`.pdf` va h.k.) 400 |
 | GET | `/contracts/{id}/document/versions/` | 13-§1: tarix — har versiya `body`, kim va qachon saqlagani (`-created_at`) |
 | POST | `/contracts/{id}/document/edit-session/` | 15-§A: **faqat bugalter**; Collabora Online (WOPI) tahrir sessiyasi ochadi — javob `{"edit_url": "https://collabora.../browser/dist/cool.html?WOPISrc=...&access_token=..."}`, front shu URL'ni `<iframe>`ga qo'yadi; `.docx` hali yuklanmagan bo'lsa 400 ("Avval .docx shablon yuklansin") |
 | GET | `/contracts/deadlines/` | hamma |

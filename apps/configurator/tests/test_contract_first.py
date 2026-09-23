@@ -142,6 +142,12 @@ class ContractFirstTests(APITestCase):
         response = self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['requested'], ['Kabel X'])
+
+        # QOLGAN-ISHLAR-2 §7: hujjatning o'zi "so'ralganmi?" bilsin — tugma
+        # ikkinchi marta bosilmasin (zararsiz, lekin chalkash)
+        response = self.client.get(f'/api/configurations/{configuration.id}/')
+        self.assertIsNotNone(response.data['price_requested_at'])
+
         self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
         notes = Notification.objects.filter(user=self.supplier, is_read=False)
         self.assertEqual(notes.count(), 1)

@@ -28,6 +28,28 @@ def available_quantity(product, warehouse=None):
     return stocks.aggregate(t=Sum('quantity'))['t'] or 0
 
 
+def needs_price_queryset():
+    """10-to'plam §1: narxi KUTILAYOTGAN mahsulotlar — buyurtmachining
+    doimiy ro'yxati (`GET /products/?needs_price=true`, QOLGAN-ISHLAR-2 §6:
+    yon panel hisoblagichi ham shu manbadan).
+
+    Ochiq konfiguratsiyada narxsiz qator sifatida turganlar — shunchaki
+    `cost_price=0` emas (katalogda hech kim so'ramagan narxsiz yozuvlar
+    bu ro'yxatni ko'mib tashlardi).
+    """
+    from apps.configurator.models import Configuration
+    from apps.inventory.models import Product
+
+    return Product.objects.filter(
+        configuration_items__unit_price=0,
+        configuration_items__configuration__status__in=[
+            Configuration.Status.DRAFT,
+            Configuration.Status.PENDING_CLARIFICATION,
+            Configuration.Status.PENDING_SALES,
+        ],
+    ).distinct()
+
+
 @atomic
 def apply_movement(*, product, warehouse, type, quantity,
                    reason=StockMovement.Reason.MANUAL, reference='', note='', user=None):

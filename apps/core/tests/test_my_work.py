@@ -120,6 +120,23 @@ class MyWorkTests(APITestCase):
         self.assertEqual(counts['replenishments'], 2)
         self.assertEqual(counts['low_stock'], 1)
 
+    def test_needs_price_count_for_supplier_only(self):
+        """QOLGAN-ISHLAR-2 §6: yon paneldagi "Narx kutilmoqda" sanog'i."""
+        from apps.configurator.models import Configuration, ConfigurationItem
+
+        base = Product.objects.create(sku='HP-880', name='HP 880', kind=Product.Kind.MACHINE)
+        component = Product.objects.create(sku='RAM-16', name='RAM 16')  # narxsiz
+        configuration = Configuration.objects.create(
+            base_product=base, warehouse=self.warehouse, client=self.mijoz,
+            status=Configuration.Status.DRAFT, created_by=self.engineer,
+        )
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=component, label='RAM', quantity=1,
+        )
+        self.assertEqual(self._counts(self.buyurtmachi)['needs_price'], 1)
+        self.assertEqual(self._counts(self.admin)['needs_price'], 0)
+        self.assertEqual(self._counts(self.sales)['needs_price'], 0)
+
     def test_sales_client_approval_only_own(self):
         Replenishment.objects.create(
             warehouse=self.warehouse, status=Replenishment.Status.PENDING_SALES,

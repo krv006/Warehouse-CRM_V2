@@ -213,12 +213,13 @@ class ContractDocumentVersionSerializer(ModelSerializer):
 
 
 class ContractDocumentSerializer(ModelSerializer):
-    """13-§1: shartnoma matni — o'rin egallovchilar ko'rsatishda to'ldiriladi."""
+    """13-§1/15-§A: shartnoma matni — endi faqat KO'RISH (`.docx` yuklanadi/
+    Collabora'da tahrirlanadi, sayt HTML tahriri yo'q — QOLGAN-ISHLAR-2 §4)."""
 
     body = SerializerMethodField()
-    # QOLGAN-ISHLAR #2: muharrir uchun XOM matn — `body` render qilingan
-    # (o'rin egallovchilar to'lgan), uni qaytadan PUT qilsa ular yo'qolib
-    # qolardi. Muharrir hamisha `body_raw`ni yuklab, `body_raw`ni saqlaydi
+    # Eski hujjatlar uchun: `body`dagi o'rin egallovchilar render qilingan
+    # (bugungi yuklashda docxtpl fayl ichida to'ldiradi, shu bois bu yerda
+    # odatda farq qilmaydi) — `body_raw` XOM nusxa, tarixiy moslik uchun qoladi
     body_raw = ReadOnlyField(source='body')
     versions_count = ReadOnlyField(source='versions.count')
     updated_by_name = ReadOnlyField(source='updated_by.display_name')
@@ -232,12 +233,12 @@ class ContractDocumentSerializer(ModelSerializer):
         fields = [
             'id', 'contract', 'body', 'body_raw', 'versions_count',
             'updated_by', 'updated_by_name', 'updated_at', 'can_edit',
-            'source_file', 'source_file_name', 'source_uploaded_at',
+            'source_file', 'source_file_name', 'source_uploaded_at', 'is_stale',
         ]
         read_only_fields = [
             'id', 'contract', 'versions_count',
             'updated_by', 'updated_by_name', 'updated_at', 'can_edit',
-            'source_file', 'source_file_name', 'source_uploaded_at',
+            'source_file', 'source_file_name', 'source_uploaded_at', 'is_stale',
         ]
 
     def get_body(self, obj):

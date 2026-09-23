@@ -153,6 +153,7 @@ class ConfigurationSerializer(ModelSerializer):
     procurement = SerializerMethodField()
     sent_to_procurement = SerializerMethodField()
     deal = SerializerMethodField()
+    price_requested_at = SerializerMethodField()
 
     class Meta:
         model = Configuration
@@ -162,7 +163,7 @@ class ConfigurationSerializer(ModelSerializer):
             'quantity', 'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
             'ready_variant', 'missing', 'missing_count', 'contract', 'deal',
-            'procurement', 'sent_to_procurement', 'cancel_reason',
+            'procurement', 'sent_to_procurement', 'price_requested_at', 'cancel_reason',
             'assembled_at', 'removals', 'approvals',
             'created_by', 'created_by_name', 'created_at',
         ]
@@ -235,6 +236,25 @@ class ConfigurationSerializer(ModelSerializer):
     def get_sent_to_procurement(self, obj):
         """Yetishmayotganlar buyurtmachida va jarayon hali tugamagan — qisqa flag."""
         return obj.open_replenishment is not None
+
+    def get_price_requested_at(self, obj):
+        """QOLGAN-ISHLAR-2 §7: oxirgi narx so'rovi qachon bo'lgani — tugma
+        "Narx so'raldi · <vaqt>" holatiga o'tsin, qayta bosish ochiq qoladi.
+        Ko'p modelli savdoda — savdo (ZVK) bo'yicha oxirgisi.
+        """
+        from apps.configurator.models import ConfigurationRequestEvent
+        from apps.configurator.services import _owning_request
+
+        request_obj = _owning_request(obj)
+        if request_obj is None:
+            return None
+        event = (
+            request_obj.events
+            .filter(stage=ConfigurationRequestEvent.Stage.PRICE_ASKED)
+            .order_by('-created_at')
+            .first()
+        )
+        return event.created_at if event else None
 
     def get_deal(self, obj):
         """14-§2: savdo bloki — ko'p modelli zayavkada N model + M tovar,

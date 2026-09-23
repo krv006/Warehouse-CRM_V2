@@ -36,7 +36,7 @@ BUGALTER_ACTIONS = {
     # 13-§1: hujjat matnini tahrirlash — hozircha FAQAT bugalter (view metodi
     # ichida admin ham qaytarib yuboriladi — talab shunday, "hozircha")
     # 15-§A: Collabora tahrir sessiyasi ham shu cheklovda
-    'document_update', 'document_upload', 'document_edit_session',
+    'document_upload', 'document_edit_session',
 }
 # 11-§3: yetkazishni shartnoma egasi sales bosadi — buyurtmachi/bugalter emas
 SHIP_ACTIONS = {'ship'}
@@ -339,28 +339,6 @@ class ContractViewSet(BaseModelViewSet):
             raise PermissionDenied('Hujjat matni sizga ochiq emas.')
         contract = self.get_object()
         document = get_or_create_contract_document(contract)
-        return Response(
-            ContractDocumentSerializer(document, context={'request': request}).data,
-        )
-
-    def document_update(self, request, pk=None):
-        """PUT /contracts/{id}/document/ — matnni saqlash (13-§1).
-
-        Tahrir hozircha FAQAT bugalterda (admin ham yo'q) — talab shunday.
-        """
-        from rest_framework.exceptions import PermissionDenied
-
-        from apps.sales.services import save_contract_document
-
-        if not request.user.is_bugalter:
-            raise PermissionDenied("Hujjat matnini hozircha faqat bugalter tahrirlaydi.")
-        contract = self.get_object()
-        document = save_contract_document(
-            contract, request.user, request.data.get('body', ''),
-        )
-        self.log_action(
-            ActivityLog.Action.UPDATE, contract, f'{contract.number}: hujjat matni saqlandi',
-        )
         return Response(
             ContractDocumentSerializer(document, context={'request': request}).data,
         )

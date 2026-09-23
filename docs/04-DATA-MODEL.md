@@ -299,15 +299,19 @@ mumkin, qator aynan qaysi konfiguratsiyadan kelganini biladi. Property:
 `subtotal`, `vat_amount`, `total_with_vat`.
 
 ### `ContractDocument`
-13-§1: shartnoma MATNI — bugalter yuklaydi va saytda tahrirlaydi.
+13-§1/15-§A: shartnoma MATNI — bugalter `.docx` yuklaydi (yoki Collabora'da
+tahrirlaydi), sayt faqat KO'RSATADI (QOLGAN-ISHLAR-2 §4: to'g'ridan-to'g'ri
+HTML tahrir olib tashlandi).
 `contract` (OneToOne, CASCADE, `document`), `body` (TextField, blank — HTML,
-KO'RISH rejimi — 15-§A dan keyin tahrirlanmaydi, faqat `mammoth` bilan
-qayta o'giriladi), `source_file` (FileField, `.docx` — 15-§A: endi ASL
-hujjat, Collabora shuni tahrirlaydi), `source_uploaded_at` (DateTime,
-ixtiyoriy — faylning yuklangan/saqlangan vaqti, `updated_at`dan alohida),
-`docx_version` (PositiveInteger, default 0 — WOPI `Version`, har saqlashda
-+1), `wopi_lock` / `wopi_lock_expires_at` (CharField / DateTime, ixtiyoriy —
-Collabora tahrir sessiyasi qulfi), `updated_by` (SET_NULL).
+`mammoth` bilan qayta o'girilgan, faqat KO'RISH), `source_file` (FileField,
+`.docx` — ASL hujjat, Collabora shuni tahrirlaydi), `source_uploaded_at`
+(DateTime, ixtiyoriy — faylning yuklangan/saqlangan vaqti, `updated_at`dan
+alohida), `rendered_total` (Decimal, ixtiyoriy — QOLGAN-ISHLAR-2 §3: fayl
+TO'LDIRILGAN paytdagi shartnoma summasi, `is_stale` shundan hisoblanadi —
+summa keyin o'zgarsa fayldagi raqam eskiradi), `docx_version` (PositiveInteger,
+default 0 — WOPI `Version`, har saqlashda +1), `wopi_lock` /
+`wopi_lock_expires_at` (CharField / DateTime, ixtiyoriy — Collabora tahrir
+sessiyasi qulfi), `updated_by` (SET_NULL).
 
 ### `ContractDocumentVersion`
 Har saqlash — yangi versiya (hujjat huquqiy, tarixi kerak). `document`

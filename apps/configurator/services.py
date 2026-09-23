@@ -384,13 +384,22 @@ def detach_configuration(configuration, user, reason, target='cancel'):
 
             new_contract = create_contract_from_configuration(configuration, user, client)
 
-        # 16-§B5(c): asosiy model chiqmoqda — eng eski tirik model ko'tariladi
+        # 16-§B5(c): asosiy model chiqmoqda — eng eski tirik model ko'tariladi.
+        # QOLGAN-ISHLAR-2 §5: ko'tarilgan modelning qatori O'CHIRILMAYDI —
+        # ESKI asosiyga qayta yo'naltiriladi, aks holda chiqarilgan model
+        # hech qayerga ulanmay ("yetim") qolib, savdo tarixidan (roadmap,
+        # panel) g'oyib bo'lardi — 14-§2: "bekor qilingan modellar ham
+        # ro'yxatda qoladi".
         if promoted is not None:
             request_obj.configuration = promoted
             request_obj.save(update_fields=['configuration'])
             promoted_line = request_obj.lines.filter(configuration=promoted).first()
             if promoted_line is not None:
-                promoted_line.delete()
+                promoted_line.configuration = configuration
+                promoted_line.base_product = configuration.base_product
+                promoted_line.quantity = configuration.quantity
+                promoted_line.text = configuration.note or ''
+                promoted_line.save()
 
         log_request_event(
             request_obj, ConfigurationRequestEvent.Stage.NOTE, user,

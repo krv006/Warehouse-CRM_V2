@@ -1893,6 +1893,56 @@ Testlar: `apps/configurator/tests/test_deal_actions.py` (yangi, 15).
 
 ---
 
+## 8.62 QOLGAN-ISHLAR-2: 14/15/16-dan keyin topilgan bo'shliqlar 🩹
+
+Frontga to'liq ulangandan keyin tekshirishda topilgan olti tuzatish.
+
+- **§1 (🔴)**: `.docx` shablon `docxtpl` kontekstiga endi **shartnoma
+  bandlari** ham kiradi — `items` (`name`, `sku`, `quantity`, `unit_price`,
+  `vat_percent`, `total`), `items_total` (QQS'siz), `vat_total`. Avval
+  faqat `total` bor edi — bugalter jadvalni qo'lda ko'chirib yozardi.
+  Shablonda Word jadval sikli: `{%tr for item in items %}...{%tr endfor %}`.
+- **§3 (🟡)**: `ContractDocument.rendered_total` — fayl TO'LDIRILGAN
+  paytdagi summa; `GET /contracts/{id}/document/` javobida `is_stale`
+  (`rendered_total != contract.total_amount`) — summa keyin o'zgarsa
+  (partiya, yangi model, detach) front qizil ogohlantirish chizadi.
+  Kuchliroq yechim (qayta render/bloklash) ataylab qilinmadi — hujjat
+  Collabora'da qo'lda tahrirlangan bo'lishi mumkin, ustidan yozish
+  bugalterning ishini yo'q qilardi.
+- **§4 (🟡)**: `PUT /contracts/{id}/document/` **olib tashlandi** — 15-§A
+  dan keyin Didoxga `source_file` ketadi, `body`ni alohida yozish
+  ikkinchi (eski) manba yaratardi va front undan allaqachon voz kechgan
+  edi. `save_contract_document` servis funksiyasi ham o'chirildi.
+- **§5 (🟡)**: 16-§B5(c) dagi asosiy model ko'tarilishi — ko'tarilgan
+  modelning qatori endi **o'chirilmaydi**, ESKI asosiyga qayta
+  yo'naltiriladi (`configuration`/`base_product`/`quantity`/`text`).
+  Avval chiqarilgan model hech qayerga ulanmay ("yetim") qolib, 14-§2
+  dagi "bekor qilingan modellar ham ro'yxatda qoladi" qoidasi buzilardi.
+- **§6 (🟢)**: yon panel hisoblagichiga (`collect_work`/`SECTIONS`)
+  `needs_price` bo'limi qo'shildi — `GET /products/?needs_price=true`
+  bilan bir xil manbadan (`needs_price_queryset`, `apps.inventory.services`
+  ga ko'chirildi), faqat buyurtmachiga.
+- **§7 (🟢)**: `Configuration` javobiga `price_requested_at` qo'shildi —
+  oxirgi `ConfigurationRequestEvent.PRICE_ASKED` sanasi (ko'p modelli
+  savdoda — savdo bo'yicha oxirgisi); front tugmani "Narx so'raldi · vaqt"
+  holatiga o'tkaza oladi.
+
+**§2 (Collabora ko'tarilmagan) va §8 (eski Didox yozuvlarini serverda
+tekshirish) — infratuzilma/operatsion ishlar, kod reposidan tashqarida**:
+kod (WOPI host, `edit-session`, `fix_stale_didox`) allaqachon tayyor va
+testlangan; xizmatni ko'tarish (`docker compose --profile with-collabora
+up -d`, `COLLABORA_URL`/`WOPI_PUBLIC_URL` DNS+SSL bilan) va bir martalik
+`fix_stale_didox --dry-run` tekshiruvi serverga kirish huquqi bilan
+qo'lda bajarilishi kerak.
+
+Testlar: `apps/sales/tests/test_contract_document.py` (+2, jumladan
+`is_stale` va `items` konteksti), `apps/core/tests/test_my_work.py` (+1,
+`needs_price`), `apps/configurator/tests/test_contract_first.py`
+(`price_requested_at` tekshiruvi qo'shildi), `test_deal_actions.py`
+(promotion testi yangi xulqqa moslashtirildi).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

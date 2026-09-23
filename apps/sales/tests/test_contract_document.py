@@ -61,17 +61,11 @@ class ContractDocumentTests(APITestCase):
             response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
             self.assertEqual(response.status_code, 403, (user.username, response.data))
 
-    def test_sales_owner_can_read_not_edit(self):
+    def test_sales_owner_can_read(self):
         self.client.force_authenticate(self.sales)
         response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertFalse(response.data['can_edit'])
-
-        response = self.client.put(
-            f'/api/contracts/{self.contract.id}/document/',
-            {'body': 'x'}, format='json',
-        )
-        self.assertEqual(response.status_code, 403)
 
     def test_other_sales_cannot_read(self):
         """Egasi bo'lmagan sales — get_queryset uni umuman ko'rmaydi (404)."""
@@ -79,29 +73,43 @@ class ContractDocumentTests(APITestCase):
         response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
         self.assertEqual(response.status_code, 404)
 
-    def test_admin_can_read_not_edit(self):
+    def test_admin_can_read(self):
         """13-§1: tahrir hozircha FAQAT bugalterda — admin ham yo'q."""
         self.client.force_authenticate(self.admin)
         response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertFalse(response.data['can_edit'])
 
+    def test_put_document_no_longer_exists(self):
+        """QOLGAN-ISHLAR-2 §4: HTML tahriri (`PUT`) butunlay olib tashlandi —
+        Didoxga `source_file` ketadi, `body`ni alohida yozish ikkinchi
+        (eski) manba yaratardi. Admin bilan — permission emas, aynan
+        metod yo'qligini tekshiramiz (405)."""
+        self.client.force_authenticate(self.admin)
         response = self.client.put(
             f'/api/contracts/{self.contract.id}/document/',
             {'body': 'x'}, format='json',
         )
-        self.assertEqual(response.status_code, 403)
+        self.assertEqual(response.status_code, 405)
 
-    def test_bugalter_saves_new_version_each_time(self):
+    def test_bugalter_saves_new_version_on_each_upload(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
         self.client.force_authenticate(self.bugalter)
-        r1 = self.client.put(
-            f'/api/contracts/{self.contract.id}/document/',
-            {'body': '<p>Birinchi</p>'}, format='json',
+        r1 = self.client.post(
+            f'/api/contracts/{self.contract.id}/document/upload/',
+            {'file': SimpleUploadedFile(
+                'v1.docx', _make_docx_bytes(['Birinchi']),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            )}, format='multipart',
         )
         self.assertEqual(r1.status_code, 200, r1.data)
-        r2 = self.client.put(
-            f'/api/contracts/{self.contract.id}/document/',
-            {'body': '<p>Ikkinchi</p>'}, format='json',
+        r2 = self.client.post(
+            f'/api/contracts/{self.contract.id}/document/upload/',
+            {'file': SimpleUploadedFile(
+                'v2.docx', _make_docx_bytes(['Ikkinchi']),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            )}, format='multipart',
         )
         self.assertEqual(r2.status_code, 200, r2.data)
 
@@ -109,46 +117,24 @@ class ContractDocumentTests(APITestCase):
             f'/api/contracts/{self.contract.id}/document/versions/',
         )
         self.assertEqual(len(versions.data), 2)
-        self.assertEqual(versions.data[0]['body'], '<p>Ikkinchi</p>')  # -created_at
+        self.assertIn('Ikkinchi', versions.data[0]['body'])  # -created_at
 
-    def test_edit_locked_after_didox_sent(self):
+    def test_upload_locked_after_didox_sent(self):
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
         Contract.objects.filter(pk=self.contract.pk).update(
             status=Contract.Status.PENDING_DIDOX,
         )
         self.client.force_authenticate(self.bugalter)
-        response = self.client.put(
-            f'/api/contracts/{self.contract.id}/document/',
-            {'body': 'x'}, format='json',
+        response = self.client.post(
+            f'/api/contracts/{self.contract.id}/document/upload/',
+            {'file': SimpleUploadedFile(
+                'x.docx', _make_docx_bytes(['x']),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            )}, format='multipart',
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn('Didoxga', str(response.data['detail']))
-
-    def test_placeholders_resolve_for_everyone_with_document_access(self):
-        """QOLGAN-ISHLAR #3: jami summa PRICE_FIELDS (qator narxi) qoidasiga
-        kirmaydi — hujjatga kirgan har kim (bugalter ham) uni ko'radi."""
-        self.client.force_authenticate(self.bugalter)
-        self.client.put(
-            f'/api/contracts/{self.contract.id}/document/',
-            {'body': '{{ contract.number }} — jami {{ total }}'}, format='json',
-        )
-        response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
-        self.assertIn(self.contract.number, response.data['body'])
-        self.assertIn('13440000', response.data['body'])
-
-        self.client.force_authenticate(self.sales)
-        response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
-        self.assertIn('13440000', response.data['body'])
-
-    def test_body_raw_stays_unrendered_for_editing(self):
-        """QOLGAN-ISHLAR #2: `body_raw` — o'rin egallovchilar TO'LMAGAN, muharrir shuni saqlaydi."""
-        self.client.force_authenticate(self.bugalter)
-        self.client.put(
-            f'/api/contracts/{self.contract.id}/document/',
-            {'body': '{{ contract.number }} — jami {{ total }}'}, format='json',
-        )
-        response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
-        self.assertEqual(response.data['body_raw'], '{{ contract.number }} — jami {{ total }}')
-        self.assertIn(self.contract.number, response.data['body'])  # body — render qilingan
 
     def test_upload_rejects_non_docx(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -207,6 +193,31 @@ class ContractDocumentTests(APITestCase):
         self.assertIn('Ali Valiyev', response.data['body'])
         self.assertNotIn('{{', response.data['body'])
 
+    def test_upload_template_can_reference_items_and_totals(self):
+        """QOLGAN-ISHLAR-2 §1: shablon endi `items`/`items_total`/`vat_total`ni ko'radi."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.force_authenticate(self.bugalter)
+        template = SimpleUploadedFile(
+            'shablon.docx',
+            _make_docx_bytes([
+                'Band: {{ items.0.name }} ({{ items.0.sku }}) x{{ items.0.quantity }} = {{ items.0.total }}',
+                'Jami (QQSsiz): {{ items_total }}, QQS: {{ vat_total }}',
+            ]),
+            content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        )
+        response = self.client.post(
+            f'/api/contracts/{self.contract.id}/document/upload/',
+            {'file': template}, format='multipart',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIn(self.product.name, response.data['body'])
+        self.assertIn(self.product.sku, response.data['body'])
+        self.assertIn('13440000', response.data['body'])  # items.0.total (QQS bilan)
+        self.assertIn('12000000', response.data['body'])  # items_total
+        self.assertIn('1440000', response.data['body'])  # vat_total
+        self.assertNotIn('{{', response.data['body'])
+
     def test_source_file_downloadable_via_document_get(self):
         """15-§3: yuklangan asl `.docx` GET /document/ orqali qaytib olinadi."""
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -237,6 +248,28 @@ class ContractDocumentTests(APITestCase):
         self.assertIsNone(response.data['source_file'])
         self.assertIsNone(response.data['source_file_name'])
         self.assertIsNone(response.data['source_uploaded_at'])
+        self.assertFalse(response.data['is_stale'])
+
+    def test_is_stale_after_total_changes_post_upload(self):
+        """QOLGAN-ISHLAR-2 §3: fayl yuklangandan keyin summa o'zgarsa — `is_stale`."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.force_authenticate(self.bugalter)
+        response = self.client.post(
+            f'/api/contracts/{self.contract.id}/document/upload/',
+            {'file': SimpleUploadedFile(
+                'shartnoma.docx', _make_docx_bytes(['Matn']),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            )}, format='multipart',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertFalse(response.data['is_stale'])
+
+        Contract.objects.filter(pk=self.contract.pk).update(
+            total_amount=Decimal('20000000'),
+        )
+        response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
+        self.assertTrue(response.data['is_stale'])
 
 
 class CollaboraWopiTests(APITestCase):
