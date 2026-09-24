@@ -299,11 +299,15 @@ GET /api/configurations/12/
     "id": 4, "number": "TLD-00004",
     "status": "pending_sales",
     "status_display": "Sales — mijoz roziligi kutilmoqda",
-    "is_open": true, "created_at": "2026-09-14T10:00:00+05:00"
+    "is_open": true, "created_at": "2026-09-14T10:00:00+05:00",
+    "opened_for": "CFG-00012"
   }
 }
 ```
-`procurement` — oxirgi TLD (yuborilmagan bo'lsa `null`); `is_open=false` —
+`procurement` — **zanjir (savdo) bo'yicha** qidiriladi (18-§2,
+`chain_open_replenishment`) — ko'p modelli savdoda BOSHQA model orqali
+ochilgan TLD ham shu yerda ko'rinadi; `opened_for` — hisob qaysi model
+orqali ochilgani. Yuborilmagan bo'lsa `null`; `is_open=false` —
 jarayon tugagan (`cancelled` yoki `delivered`), shunda `sent_to_procurement`
 ham `false` bo'ladi va yangi TLD ochish mumkin. Ochiq TLD turganda
 `request-procurement` qayta bosilsa **400**: `{"detail": "CFG-00023 uchun
@@ -424,10 +428,12 @@ GET /api/configurations/45/
       {"id": 45, "number": "CFG-00045", "base_product_name": "HP 880",
        "quantity": 10, "mode": "build", "status": "approved",
        "status_display": "Tasdiqlangan", "missing_count": 0,
-       "assembled_at": null, "is_primary": true},
+       "missing": [], "assembled_at": null, "is_primary": true},
       {"id": 46, "number": "CFG-00046", "base_product_name": "Dell OptiPlex 7010",
        "quantity": 20, "mode": "build", "status": "draft",
        "status_display": "Chernovik", "missing_count": 1,
+       "missing": [{"product": 77, "name": "Samsung 990 PRO", "kind": "component",
+                    "needed": 20, "available": 0, "overbooked": 0, "shortage": 20}],
        "assembled_at": null, "is_primary": false}
     ],
     "items": [
@@ -444,6 +450,29 @@ Bir xil `deal` shakli `configurations/{id}/`, ikkinchi (sibling) modeldan ham,
 va `configuration-requests/{id}/`dan ham qaytadi — front bittasini ko'rsa
 bo'ldi. `contract`/`replenishment`/`act` — savdoning umumiy hujjatlari,
 hali ochilmagan bo'lsa `null`.
+
+**18-§1**: `deal.models[i].missing` — o'sha modelning yetishmayotgan
+ro'yxati, shakli konfiguratsiyaning o'z `missing`isi bilan **aynan bir
+xil** (`Configuration.missing` — pastda). Sabab: TLD savdoda bitta
+(14-§6) bo'lsa ham, front har model sahifasida FAQAT o'sha modelning
+yetishmovchiligini ko'rar edi — foydalanuvchi buni "ikkita alohida
+hisob ochilyapti" deb tushunardi. Endi front bitta oynada butun
+savdoni guruhlab chizadi. Bekor qilingan (`cancelled`) modelda
+`missing`/`missing_count` doim bo'sh/`0`.
+
+**18-§2**: `GET /configurations/{id}/` javobidagi `procurement` va
+`sent_to_procurement` endi **zanjir (savdo) bo'yicha** qidiriladi
+(`chain_open_replenishment`) — savdodagi BOSHQA model orqali ochilgan
+TLD ham shu modelni "yuborilgan" deb belgilaydi. Avval har model
+faqat o'z `Replenishment` bog'lanishiga qarardi (TLD faqat savdoning
+ASOSIY modeliga to'g'ridan-to'g'ri bog'lanadi — 14-§6), shuning uchun
+asosiy bo'lmagan model sahifasida nishon chizilmay, "Buyurtmachiga
+yuborish" tugmasi hech qachon yopilmasdi (zarar yo'q — backend takror
+qator yaratmaydi — lekin ekran chalkash edi). `procurement.opened_for`
+— hisob qaysi model orqali ochilgani (`Replenishment.configuration` —
+savdoning asosiy modeli). Bitta modelli zanjirda ikkalasi ham
+bugungidek — `chain_open_replenishment` o'sha modelning o'z hisobini
+qaytaradi.
 
 **`GET /products/?needs_price=true` (10-to'plam §1)** — narxi
 KUTILAYOTGAN mahsulotlar: ochiq konfiguratsiyada (`draft` /

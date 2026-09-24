@@ -153,7 +153,33 @@ def _deal_models_for_request(request_obj):
     return models
 
 
+def _missing_rows(configuration):
+    """`Configuration.missing` bilan AYNAN bir xil shakl — front bitta
+    komponentni bitta modelda ham, `deal.models[]` ichida ham ishlatadi
+    (18-§1)."""
+    return [
+        {
+            'product': row['product'].pk,
+            'name': row['product'].name,
+            'kind': row['product'].kind,
+            'needed': row['needed'],
+            'available': row['available'],
+            'overbooked': row['overbooked'],
+            'shortage': row['shortage'],
+        }
+        for row in configuration.missing_items
+    ]
+
+
 def _deal_model_row(configuration, is_primary):
+    # 18-§1: TLD savdoda bitta, lekin har model sahifasi faqat O'Z
+    # yetishmovchiligini ko'rsatardi — foydalanuvchi buni "ikkita alohida
+    # hisob" deb tushunardi. Endi har model o'z ro'yxatini ham olib
+    # keladi, front butun savdoni bitta oynada guruhlab chizadi.
+    missing = (
+        [] if configuration.status == configuration.Status.CANCELLED
+        else _missing_rows(configuration)
+    )
     return {
         'id': configuration.id,
         'number': configuration.number,
@@ -162,10 +188,8 @@ def _deal_model_row(configuration, is_primary):
         'mode': configuration.mode,
         'status': configuration.status,
         'status_display': configuration.get_status_display(),
-        'missing_count': (
-            0 if configuration.status == configuration.Status.CANCELLED
-            else len(configuration.missing_items)
-        ),
+        'missing_count': len(missing),
+        'missing': missing,
         'assembled_at': configuration.assembled_at,
         'is_primary': is_primary,
     }

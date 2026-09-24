@@ -1943,6 +1943,34 @@ Testlar: `apps/sales/tests/test_contract_document.py` (+2, jumladan
 
 ---
 
+## 8.63 18-to'plam: TLD savdoda bitta — endi ekranda ham bitta bo'lib ko'rinadi 🔗
+
+14-§6 dan beri to'ldirish hisobi (TLD) ko'p modelli savdoda haqiqatan
+BITTA — faqat javob buni ko'rsatmasdi, har model sahifasi faqat O'Z
+yetishmovchiligini bilardi. Foydalanuvchi buni "ikkita alohida hisob
+ochilyapti" deb tushunardi — ma'lumot to'g'ri, ko'rsatish noto'g'ri edi.
+
+- **`deal.models[i].missing`** — har modelning yetishmayotgan ro'yxati,
+  shakli `Configuration.missing` bilan aynan bir xil (front bitta
+  komponentni ikkala joyda ham ishlatadi). Hisob narxi kam: `missing_count`
+  allaqachon `missing_items`ni to'liq hisoblab chiqargan edi — ro'yxatning
+  o'zini qo'shish qo'shimcha so'rov talab qilmaydi.
+- **`GET /configurations/{id}/` javobidagi `procurement`/
+  `sent_to_procurement`** endi **zanjir (savdo) bo'yicha** qidiriladi
+  (`chain_open_replenishment`, allaqachon 14-§6 uchun yozilgan edi) —
+  avval faqat `obj.last_replenishment`/`obj.open_replenishment`ga
+  qarardi, bu esa savdoning ASOSIY modeliga to'g'ridan-to'g'ri bog'langan
+  TLDni asosiy bo'lmagan model sahifasida ko'rmasdi: nishon chizilmay,
+  "Buyurtmachiga yuborish" tugmasi yopilmasdi (zarar yo'q — backend
+  takror qator yaratmaydi — lekin engineer ikki marta bosardi).
+  `procurement.opened_for` — hisob qaysi model orqali ochilgani.
+- Bitta modelli zanjirda ikkalasi ham **bugungidek** — `chain_open_replenishment`
+  o'sha modelning o'z hisobini qaytaradi, `deal` esa `null` bo'lib qoladi.
+
+Testlar: `apps/configurator/tests/test_deal_procurement_view.py` (yangi, 4).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha

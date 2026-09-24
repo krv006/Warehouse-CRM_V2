@@ -179,18 +179,9 @@ class ConfigurationSerializer(ModelSerializer):
         dan quriladi: modify'da bazaviy model ham shu yerda (`kind` orqali
         tayyor model va butlovchi farqlanadi).
         """
-        return [
-            {
-                'product': row['product'].pk,
-                'name': row['product'].name,
-                'kind': row['product'].kind,
-                'needed': row['needed'],
-                'available': row['available'],
-                'overbooked': row['overbooked'],
-                'shortage': row['shortage'],
-            }
-            for row in obj.missing_items
-        ]
+        from apps.configurator.services import _missing_rows
+
+        return _missing_rows(obj)
 
     def get_missing_count(self, obj):
         return len(obj.missing_items)
@@ -216,12 +207,22 @@ class ConfigurationSerializer(ModelSerializer):
         }
 
     def get_procurement(self, obj):
-        """Buyurtmachiga yuborilgan oxirgi TLD hisobi — front badge shu yerdan.
+        """Buyurtmachiga yuborilgan TLD hisobi — front badge shu yerdan.
+
+        18-§2: TLD savdoda BITTA (14-§6) — asosiy bo'lmagan model o'zining
+        `obj.last_replenishment`iga qarasa har doim bo'sh chiqadi (TLD
+        asosiy modelga bog'langan). `chain_open_replenishment` butun
+        savdo bo'yicha qidiradi; bitta modelli zanjirda xulq o'zgarmaydi
+        (o'sha modelning o'z hisobini qaytaradi). `opened_for` — hisob
+        qaysi model orqali ochilgani (uning `Replenishment.configuration`
+        — savdoning asosiy modeli).
 
         None — hech qachon yuborilmagan; is_open=False — jarayon tugagan
         (bekor qilingan yoki omborga kirim bo'lgan).
         """
-        replenishment = obj.last_replenishment
+        from apps.configurator.services import chain_open_replenishment
+
+        replenishment = chain_open_replenishment(configuration=obj) or obj.last_replenishment
         if not replenishment:
             return None
         return {
@@ -231,11 +232,21 @@ class ConfigurationSerializer(ModelSerializer):
             'status_display': replenishment.get_status_display(),
             'is_open': replenishment.is_open,
             'created_at': replenishment.created_at,
+            'opened_for': (
+                replenishment.configuration.number if replenishment.configuration_id else None
+            ),
         }
 
     def get_sent_to_procurement(self, obj):
-        """Yetishmayotganlar buyurtmachida va jarayon hali tugamagan — qisqa flag."""
-        return obj.open_replenishment is not None
+        """Yetishmayotganlar buyurtmachida va jarayon hali tugamagan — qisqa flag.
+
+        18-§2: `chain_open_replenishment` orqali — savdodagi BOSHQA model
+        ochgan TLD ham shu modelni "yuborilgan" deb belgilaydi (aks holda
+        tugma yana ko'rinib, engineer ikkinchi marta bosardi).
+        """
+        from apps.configurator.services import chain_open_replenishment
+
+        return chain_open_replenishment(configuration=obj) is not None
 
     def get_price_requested_at(self, obj):
         """QOLGAN-ISHLAR-2 §7: oxirgi narx so'rovi qachon bo'lgani — tugma
