@@ -1312,6 +1312,124 @@ def deal_act_suggestion_text(request_obj):
 
 
 # ---------------------------------------------------------------------------
+# 20-§3: ACT bugalter tasdig'idan o'tmaguncha mol ombordan chiqmasin.
+#
+# ACT — tarkib o'zgarishining moliyaviy asosi, faqat texnik qog'oz emas:
+# modify rejimida yechib olingan butlovchilar narxi bilan omborga qaytadi,
+# qo'shilgani chiqadi. Yozadigan (engineer) va javob beradigan (bugalter)
+# odam bir xil bo'lmasin. `draft/rejected -> pending_bugalter -> approved`,
+# qaytarilsa engineer tuzatib qayta yuboradi.
+# ---------------------------------------------------------------------------
+
+def _act_contract(act):
+    """ACT ortidagi shartnoma — savdoda ACT bitta, demak istalgan model orqali topiladi."""
+    from apps.configurator.models import Configuration
+
+    configuration = (
+        Configuration.objects.filter(act=act).select_related().order_by('id').first()
+    )
+    return configuration.active_contract if configuration else None
+
+
+def submit_act_for_review(act, user, comment=''):
+    """Engineer (yoki admin) ACT ni bugalter tasdig'iga yuboradi.
+
+    `finalize_configuration` savdodagi OXIRGI model yakunlanganda
+    (`request_obj.is_fully_done`) avtomatik chaqiradi — har `finalize`da
+    emas, aks holda bugalter yarim yozilgan ACT ni ko'rardi.
+    """
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.accounts.models import User
+    from apps.configurator.models import Act
+    from apps.core.models import Notification
+
+    if not (user.is_admin or user.is_engineer):
+        raise PermissionDenied('ACT ni Engineer (yoki admin) yuboradi.')
+    if act.status not in (Act.Status.DRAFT, Act.Status.REJECTED):
+        raise ValidationError({'detail': "ACT bu bosqichda yuborilmaydi."})
+
+    act.status = Act.Status.PENDING_BUGALTER
+    act.save(update_fields=['status'])
+    for recipient in User.objects.filter(role=User.Role.BUGALTER, is_active=True):
+        Notification.objects.create(
+            user=recipient,
+            title=f"{act.number}: ACT tasdig'ingizni kutmoqda",
+            message=comment or f'{act.title}',
+            level=Notification.Level.WARNING,
+            entity='Act',
+            object_id=str(act.pk),
+        )
+    return act
+
+
+def approve_act(act, user, comment=''):
+    """Bugalter (yoki admin) ACT ni tasdiqlaydi — mol chiqarishga yo'l ochiladi."""
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import Act, ActApproval
+    from apps.core.models import Notification
+    from apps.core.services import resolve_notifications
+
+    if not (user.is_admin or user.is_bugalter):
+        raise PermissionDenied('ACT ni bugalter (yoki admin) tasdiqlaydi.')
+    if act.status != Act.Status.PENDING_BUGALTER:
+        raise ValidationError({'detail': "ACT tasdiq bosqichida emas."})
+
+    act.status = Act.Status.APPROVED
+    act.save(update_fields=['status'])
+    ActApproval.objects.create(
+        act=act, decision=ActApproval.Decision.APPROVED, comment=comment, decided_by=user,
+    )
+    resolve_notifications('Act', act.pk, user=user)
+
+    contract = _act_contract(act)
+    if contract and contract.created_by:
+        Notification.objects.create(
+            user=contract.created_by,
+            title=f'{act.number}: ACT tasdiqlandi — yetkazish ochildi',
+            message=comment,
+            level=Notification.Level.INFO,
+            entity='Act',
+            object_id=str(act.pk),
+        )
+    return act
+
+
+def reject_act(act, user, comment):
+    """Bugalter (yoki admin) ACT ni izoh bilan qaytaradi — engineer tuzatadi."""
+    from rest_framework.exceptions import PermissionDenied, ValidationError
+
+    from apps.configurator.models import Act, ActApproval
+    from apps.core.models import Notification
+    from apps.core.services import resolve_notifications
+
+    if not (user.is_admin or user.is_bugalter):
+        raise PermissionDenied('ACT ni bugalter (yoki admin) qaytaradi.')
+    if not (comment or '').strip():
+        raise ValidationError({'comment': "Izoh majburiy — engineer nimani tuzatishni bilsin."})
+    if act.status != Act.Status.PENDING_BUGALTER:
+        raise ValidationError({'detail': "ACT tasdiq bosqichida emas."})
+
+    act.status = Act.Status.REJECTED
+    act.save(update_fields=['status'])
+    ActApproval.objects.create(
+        act=act, decision=ActApproval.Decision.REJECTED, comment=comment, decided_by=user,
+    )
+    resolve_notifications('Act', act.pk, user=user)
+    if act.created_by:
+        Notification.objects.create(
+            user=act.created_by,
+            title=f'{act.number}: ACT qaytarildi',
+            message=comment,
+            level=Notification.Level.WARNING,
+            entity='Act',
+            object_id=str(act.pk),
+        )
+    return act
+
+
+# ---------------------------------------------------------------------------
 # 16-§A: amallar savdo (ConfigurationRequest) darajasida.
 #
 # A0: qaror savdoniki (bitta bosish — submit/approve/reject/request-prices/
@@ -1721,12 +1839,27 @@ def finalize_configuration(configuration, user, *, act=None, client=None):
         raise ValidationError({
             'detail': "Avval mahsulot yig'ilsin (assemble) — yakunlash tayyor mahsulot bilan bo'ladi.",
         })
+    request_obj = _owning_request(configuration)
     if act is not None:
+        # 20-§3: nozik joy — eski ro'yxatdagi istalgan faol ACT emas, FAQAT
+        # shu savdoga tegishli (yoki hali `draft`) ACT qabul qilinadi.
+        # Boshqa savdoning allaqachon tasdiqlangan/tasdiq yo'lidagi ACT'i
+        # tanlansa, qo'riqchi (`ship_contract`) tug'ilishidanoq ochiq
+        # bo'lib qolardi.
+        from apps.configurator.models import Act
+
+        belongs_to_deal = request_obj is not None and any(
+            cfg.act_id == act.id for cfg in _deal_models_for_request(request_obj)
+        )
+        if act.status != Act.Status.DRAFT and not belongs_to_deal:
+            raise ValidationError({
+                'detail': f"{act.number} boshqa savdoga tegishli yoki tasdiq yo'lida.",
+                'act': act.id, 'act_status': act.status,
+            })
         configuration.act = act
     if not configuration.act:
         # 14-§7 (1): savdodagi boshqa modelga ACT allaqachon biriktirilgan
         # bo'lsa — ikkinchi modelni yakunlaganda uni qayta tanlamaydi
-        request_obj = _owning_request(configuration)
         if deal_has_multiple_models(request_obj):
             sibling_act = next(
                 (
@@ -1781,6 +1914,26 @@ def finalize_configuration(configuration, user, *, act=None, client=None):
         sync_configuration_reservations(configuration)
         if contract:
             sync_contract_reservations(contract)
+
+        # 20-§3.6: ACT bugalterga savdodagi OXIRGI model YAKUNLANGANDA
+        # ketadi, har `finalize`da emas — matn (`deal_act_suggestion_text`)
+        # yig'ilgan modellar bo'yicha yoziladi, erta yuborilsa bugalter
+        # yarim yozilgan ACT ko'radi. Bitta modelli zayavkada bu zahoti rost.
+        # Diqqat: `request_obj.is_fully_done` bu yerga YAROQSIZ — u
+        # "hammasi APPROVED" degani (12-§2 B3, sales tasdig'i mezoni), ACT
+        # esa "hammasi READY/SOLD" (finalize mezoni) so'raydi; ikkalasi
+        # boshqa-boshqa bosqich, birinchi model finalize bo'lgan zahoti
+        # ikkinchisi hali approved bo'lib turgani ham "tugagan" bo'lib
+        # ko'rinib qolardi.
+        deal_models = _deal_models_for_request(request_obj) if request_obj else [configuration]
+        deal_finalized_states = (
+            Configuration.Status.READY, Configuration.Status.SOLD, Configuration.Status.CANCELLED,
+        )
+        all_finalized = all(cfg.status in deal_finalized_states for cfg in deal_models)
+        if configuration.act_id and all_finalized:
+            deal_act = configuration.act
+            if deal_act.status in (deal_act.Status.DRAFT, deal_act.Status.REJECTED):
+                submit_act_for_review(deal_act, user)
 
     return configuration, contract, variant_moved
 
@@ -2167,11 +2320,19 @@ def send_missing_to_procurement(configuration, user):
     # BAZAVIY MODEL ham TLD ga tushadi, o'zgarmagan qismlar esa tushmaydi.
     # Faqat ALLAQACHON tasdiqlangan modellar hisobga kiradi — hali sales
     # ko'rigidagi model o'z navbatida (keyinroq) shu TLDga qo'shiladi.
-    missing_by_model = [
+    # 19-§1: YIG'ILGAN model kirmaydi — `missing_items` "hozir yig'sam
+    # nima yetmaydi" hisobi, yig'ilgandan keyin ham nolga tushmaydi
+    # (butlovchilar allaqachon ombordan chiqib bo'lgan), aks holda
+    # bajarilib bo'lgan ish qaytadan buyurtma qilinardi (18-to'plamdan
+    # keyin tugma savdodagi istalgan model sahifasida chiqadi).
+    candidates = [
         (cfg, cfg.missing_items) for cfg in deal_models
         if cfg.status == Configuration.Status.APPROVED and cfg.missing_items
     ]
+    missing_by_model = [(cfg, rows) for cfg, rows in candidates if not cfg.assembled_at]
     if not missing_by_model:
+        if candidates:
+            raise ValidationError({'detail': "Yig'ilmagan model yo'q."})
         raise ValidationError({
             'detail': "Hammasi omborda yetarli — buyurtmachiga yuborish shart emas.",
         })

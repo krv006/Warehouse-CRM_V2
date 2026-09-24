@@ -517,18 +517,40 @@ def confirm_didox(contract, user, comment=''):
 
 
 @atomic
-def reject_contract(contract, user, comment=''):
-    """Bugalter yoki admin shartnomani rad etadi."""
+def reject_contract(contract, user, comment='', target='sales'):
+    """Bugalter yoki admin shartnomani rad etadi — ikki manzil (20-§2).
+
+    `target='sales'` (standart, hozirgi xulq) — chernovikka qaytadi.
+    `target='bugalter'` — FAQAT admin, FAQAT `pending_admin`dan: admin
+    hujjatdagi xatoni (Didox raqami, rekvizit — ko'pincha bugalterniki)
+    ko'rib, sales'ni bekorga oraga qo'ymay to'g'ridan bugalterga
+    qaytaradi. Ikki bosqich o'rniga bitta: admin → bugalter → admin.
+    """
+    if target not in ('sales', 'bugalter'):
+        raise ValidationError({'target': f"Noma'lum manzil: {target}."})
+
+    # target='bugalter' — ruxsat STATUSdan mustaqil, FAQAT admin: bugalter
+    # o'ziga qaytara olmaydi (403, hali status tekshirilmasdan)
+    if target == 'bugalter':
+        _require_role(user, admin=True)
+
     if contract.status == Contract.Status.PENDING_BUGALTER:
         _require_role(user, bugalter=True)
         step = ContractApproval.Step.BUGALTER
+        if target == 'bugalter':
+            raise ValidationError({
+                'detail': 'Shartnoma allaqachon bugalterda.',
+            })
     elif contract.status == Contract.Status.PENDING_ADMIN:
         _require_role(user, admin=True)
         step = ContractApproval.Step.ADMIN
     else:
         raise ValidationError('Shartnoma tasdiqlash bosqichida emas.')
 
-    contract.status = Contract.Status.REJECTED
+    contract.status = (
+        Contract.Status.PENDING_BUGALTER if target == 'bugalter'
+        else Contract.Status.REJECTED
+    )
     contract.save()
     # 4-to'plam §4: qaror qabul qilindi — bajargan odamning eslatmasi yopiladi
     from apps.core.services import resolve_notifications
@@ -540,8 +562,21 @@ def reject_contract(contract, user, comment=''):
         decision=ContractApproval.Decision.REJECTED,
         comment=comment,
         decided_by=user,
+        returned_to=target if target == 'bugalter' else '',
     )
-    if contract.created_by:
+    if target == 'bugalter':
+        from apps.accounts.models import User
+
+        _notify_role(
+            User.Role.BUGALTER, contract,
+            title=f'{contract.number}: admin bugalterga qaytardi',
+            message=(
+                f'{comment}\nTuzatib qayta tasdiqlang — shartnoma yana adminga boradi.'
+                if comment else
+                'Tuzatib qayta tasdiqlang — shartnoma yana adminga boradi.'
+            ),
+        )
+    elif contract.created_by:
         Notification.objects.create(
             user=contract.created_by,
             title=f'{contract.number}: shartnoma qaytarildi',
@@ -551,7 +586,10 @@ def reject_contract(contract, user, comment=''):
             object_id=str(contract.pk),
         )
     # §11.4: rad etilgan shartnoma molni ushlab turmaydi — bron bo'shaydi
-    # (sales tuzatib qayta yuborsa, submit'da qayta band qilinadi)
+    # (sales tuzatib qayta yuborsa, submit'da qayta band qilinadi). Admin
+    # bugalterga qaytarganda (target='bugalter') bron TURAVERADI — bu hali
+    # rad etish emas, hujjat ustida ichki tekshiruv (sync bari bir holatga
+    # mos: PENDING_BUGALTER qayta band qiladi, natija o'zgarmaydi).
     from apps.inventory.services import sync_contract_reservations
 
     sync_contract_reservations(contract)
@@ -719,6 +757,22 @@ def confirm_payment(contract, user, *, amount, method=ContractPayment.Method.TRA
     return payment
 
 
+def _unapproved_acts(contract):
+    """20-§3.4: shartnoma qatorlari ortidagi, hali tasdiqlanmagan ACTlar.
+
+    Konfiguratsiyasiz qatorlarda (`kind=item`, sales qo'lda ochgan
+    shartnoma) `configuration_id` bo'sh — ularga ACT tegishli emas.
+    """
+    from apps.configurator.models import Act
+
+    acts = {
+        item.configuration.act
+        for item in contract.items.select_related('configuration__act')
+        if item.configuration_id and item.configuration.act_id
+    }
+    return [a for a in acts if a.status != Act.Status.APPROVED]
+
+
 @atomic
 def ship_contract(contract, user):
     """Yetkazib berish (#2): mol AYNAN shu yerda ombordan chiqadi.
@@ -742,6 +796,20 @@ def ship_contract(contract, user):
     if contract.status not in {Contract.Status.ACTIVE, Contract.Status.COMPLETED}:
         raise ValidationError({
             'detail': "Avval boshlang'ich to'lov qabul qilinsin — yetkazish faol shartnomada.",
+        })
+
+    # 20-§3.4: ACT — tarkib o'zgarishining moliyaviy asosi, bugalter
+    # tasdig'idan o'tmaguncha mol chiqmasin. Konfiguratsiyasiz qator
+    # (tayyor tovar, `kind=item`) yoki sales qo'lda ochgan shartnomada
+    # `configuration_id` bo'sh — to'plam bo'sh, yetkazish bugungidek o'tadi.
+    pending_acts = _unapproved_acts(contract)
+    if pending_acts:
+        raise ValidationError({
+            'detail': "ACT bugalter tasdig'idan o'tmagan — mol chiqarilmaydi.",
+            'acts': [
+                {'id': a.id, 'number': a.number, 'status': a.status}
+                for a in pending_acts
+            ],
         })
 
     _ship_contract_items(contract, user)

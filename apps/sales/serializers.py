@@ -111,6 +111,7 @@ class ContractSerializer(ModelSerializer):
     balance = ReadOnlyField()
     days_left = ReadOnlyField()
     color = ReadOnlyField()
+    acts_approved = SerializerMethodField()
 
     class Meta:
         model = Contract
@@ -122,7 +123,7 @@ class ContractSerializer(ModelSerializer):
             'delivered_at', 'delivered_by',
             'didox_number', 'didox_sent_at', 'didox_accepted_at', 'note',
             'items', 'approvals', 'payments', 'paid', 'balance', 'days_left', 'color',
-            'created_by', 'created_at',
+            'acts_approved', 'created_by', 'created_at',
         ]
         # Didox maydonlari faqat bugalter bosqichlarida yoziladi (§11.2/B3)
         read_only_fields = [
@@ -150,6 +151,12 @@ class ContractSerializer(ModelSerializer):
                     ),
                 })
         return attrs
+
+    def get_acts_approved(self, obj):
+        """20-§3.4: front yetkazish tugmasini qo'shimcha so'rovsiz o'chira oladi."""
+        from apps.sales.services import _unapproved_acts
+
+        return not _unapproved_acts(obj)
 
     def _sync_total(self, contract):
         """Summa berilmagan bo'lsa qatorlardan olinadi — QQS bilan (mijoz to'laydigan real summa)."""
@@ -252,11 +259,13 @@ class ContractDocumentSerializer(ModelSerializer):
         return os.path.basename(obj.source_file.name) if obj.source_file else None
 
     def get_can_edit(self, obj):
+        """20-§1: admin ham bugalter bilan bir xil — tasdiqlash/qaytarishdan
+        oldin hujjatdagi xatoni (Didox raqami, rekvizit) o'zi tuzata oladi."""
         from apps.sales.services import CONTRACT_DOCUMENT_EDITABLE_STATUSES
 
         user = getattr(self.context.get('request'), 'user', None)
         return bool(
-            user and user.is_authenticated and user.is_bugalter
+            user and user.is_authenticated and (user.is_bugalter or user.is_admin)
             and obj.contract.status in CONTRACT_DOCUMENT_EDITABLE_STATUSES
         )
 

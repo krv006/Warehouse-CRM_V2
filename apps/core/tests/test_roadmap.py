@@ -94,14 +94,15 @@ class RoadmapTests(APITestCase):
                 self.assertEqual(response.data['request']['number'], request_obj.number)
                 self.assertEqual(response.data['current_key'], 'prepayment')
 
-    def test_full_18_steps_with_states(self):
+    def test_full_steps_with_states(self):
         request_obj, configuration, contract = self._to_waiting_payment()
         self.client.force_authenticate(self.admin)
         response = self.client.get(
             f'/api/configuration-requests/{request_obj.id}/roadmap/',
         )
         steps = {s['key']: s for s in response.data['steps']}
-        self.assertEqual(len(response.data['steps']), 19)
+        # 20-§3.5: `finalize` bilan `ship` orasiga `act_review` qo'shildi
+        self.assertEqual(len(response.data['steps']), 20)
 
         self.assertEqual(steps['zvk_created']['state'], 'done')
         self.assertEqual(steps['sales_review']['state'], 'done')

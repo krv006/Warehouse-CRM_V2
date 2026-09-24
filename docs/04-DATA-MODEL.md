@@ -164,6 +164,15 @@ Unique: (`product`, `component`).
 
 ### `Act`
 `number` (unique), `title`, `description`, `issued_at`, `file`, `is_active`, `created_by`.
+20-§3: `status` (`draft`/`pending_bugalter`/`approved`/`rejected`, default
+`draft`) — tarkib o'zgarishining moliyaviy asosi, `ship_contract`
+`approved` bo'lmagan ACT bilan molni chiqarmaydi; `status_changed_at`
+(`StatusTrackedModel`) — roadmap SLA shundan hisoblanadi.
+
+### `ActApproval`
+20-§3.2: ACT tasdig'i tarixi — `ContractApproval`/`ConfigurationApproval`/
+`ReplenishmentApproval` bilan bir xil naqsh. `act` (CASCADE, `approvals`),
+`decision` (`approved`/`rejected`), `comment`, `decided_by` (SET_NULL).
 
 ### `Configuration`
 | Maydon | Tur |
@@ -320,6 +329,10 @@ Har saqlash — yangi versiya (hujjat huquqiy, tarixi kerak). `document`
 ### `ContractApproval`
 `contract` (CASCADE, `approvals`), `step` (`bugalter` / `admin` / `payment`),
 `decision` (`approved` / `rejected`), `comment`, `decided_by`.
+20-§2: `returned_to` (CharField, blank — `''` yoki `'bugalter'`) — rad
+etish qayerga ketganini bildiradi: standart sales'ga (bo'sh), admin
+to'g'ridan bugalterga qaytarsa `'bugalter'`; faqat REJECTED qatorlarda
+ma'noli.
 
 ### `ContractPayment`
 `contract` (CASCADE, `payments`), `amount`, `method` (`cash`/`card`/`transfer`),

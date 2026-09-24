@@ -240,3 +240,49 @@ flowchart LR
 
 `Lead.contract` maydoni orqali qaysi shartnomaga aylangani ko'rinadi;
 `GET /api/dashboard/` da `leads_by_stage` bo'lib chiqadi.
+
+---
+
+## 7. Yo'l xaritasi ↔ navbat audit (19-§3)
+
+Qoida (12-§5): *ish kimdadir bo'lsa, ikki narsa bo'lishi shart — eslatma
+**va** navbat*. Yo'l xaritasi (`apps/core/roadmap.py`, `STEPS`, 20 qadam)
+va navbat (`apps/core/services.py`, `collect_work`) qo'lda sinxron
+tutiladi — bu jadval har qadamning joriy rolini navbatdagi mos manba
+bilan solishtiradi (20-to'plamdan keyingi holat, 2026-09-24).
+
+| Qadam | Rol | Navbat manbai | Holat |
+|---|---|---|---|
+| `zvk_created` | sales | — (yaratish o'zi, kutish emas) | n/a |
+| `taken` | engineer | `_request_source` (`new`/`in_progress`) | ✅ |
+| `price_request` | buyurtmachi | `needs_price` (`?needs_price=true`, QOLGAN-ISHLAR-2 §6) | ✅ |
+| `submitted` | engineer → sales kutadi | `_configuration_source` sales (`pending_sales`) | ✅ |
+| `sales_review` | sales | `_configuration_source` sales | ✅ |
+| `contract_created` | sales | — (avtomatik, `approve`da ochiladi) | n/a |
+| `contract_submitted` | sales → bugalter kutadi | `_contract_sources` bugalter (`pending_bugalter`) | ✅ |
+| `bugalter_check` | bugalter | `_contract_sources` bugalter | ✅ |
+| `admin_approve` | admin | `_contract_sources` admin (`pending_admin`) | ✅ |
+| `didox_sent` | bugalter | `_contract_sources` bugalter (`ready_for_didox`) | ✅ |
+| `didox_confirmed` | bugalter | `_contract_sources` bugalter (`pending_didox`) | ✅ |
+| `approved_waiting` | bugalter | `_contract_sources` bugalter (`approved`) | ✅ |
+| `prepayment` | bugalter | (`approved_waiting` bilan bitta holat) | ✅ |
+| `procurement_sent` | engineer | `_configuration_source` engineer | ❌ **bo'shliq** |
+| `procurement_chain` | buyurtmachi | `_replenishment_source` buyurtmachi | ✅ |
+| `assemble` | engineer | `_configuration_source` engineer (`assemble`) | ✅ |
+| `finalize` | engineer | `_configuration_source` engineer (`finalize_ready`) | ✅ |
+| `act_review` | bugalter | `_act_source` (20-§3.7, yangi) | ✅ |
+| `ship` | sales | `_contract_sources` sales (`active`, yetkazilmagan) | ✅ |
+| `completed` | sales | — (terminal holat) | n/a |
+
+### Topilgan bo'shliq: `procurement_sent`
+
+`_configuration_source` (engineer) faqat ikkita sabab beradi: `assemble`
+(yig'ish) va `finalize_ready`. `approved` + to'langan konfiguratsiyada
+**yetishmayotgan butlovchi bo'lsa ham** — engineerga navbatda "Yig'ish"
+ko'rsatiladi, holbuki haqiqiy keyingi amal — **"Buyurtmachiga yuborish"**
+(`request-procurement`). "Yig'ish" bosilsa 400 qaytadi (butlovchi
+yo'qligi haqida) — zarar yo'q, lekin navbat noto'g'ri ko'rsatma beradi.
+
+Bu alohida to'plam sifatida keyinroq tuzatiladi (`spawn_task` orqali
+belgilangan): `engineer_row` ga `obj.missing_items` tekshiruvi qo'shilib,
+sabab `procurement_sent`/`request_procurement`ga almashtirilsin.

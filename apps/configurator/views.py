@@ -7,6 +7,7 @@ from rest_framework.status import HTTP_400_BAD_REQUEST
 from apps.accounts.permissions import (
     ConfigurationRequestAccess,
     ConfiguratorAccess,
+    IsAdminOrBugalter,
     IsOwnerOrAdmin,
 )
 from apps.configurator.models import (
@@ -28,6 +29,7 @@ from apps.configurator.services import (
     act_suggestion_text,
     add_request_line,
     answer_clarification,
+    approve_act,
     approve_configuration,
     ask_sales,
     assemble_configuration,
@@ -46,6 +48,7 @@ from apps.configurator.services import (
     delete_request_line,
     detach_configuration,
     log_request_event,
+    reject_act,
     reject_request,
     release_request,
     resend_request,
@@ -53,6 +56,7 @@ from apps.configurator.services import (
     reject_configuration,
     request_prices,
     send_missing_to_procurement,
+    submit_act_for_review,
     submit_configuration,
     take_request,
 )
@@ -74,7 +78,37 @@ class ActViewSet(BaseModelViewSet):
     serializer_class = ActSerializer
     permission_classes = [ConfiguratorAccess]
     search_fields = ['number', 'title']
-    filterset_fields = ['is_active']
+    filterset_fields = ['is_active', 'status']
+
+    # 20-§3.3: `approve`/`reject` — bugalter (admin); qolgani (create/
+    # update/`submit`) — engineer (admin), bugungidek (`ConfiguratorAccess`)
+    def get_permissions(self):
+        if self.action in ('approve', 'reject'):
+            return [IsAdminOrBugalter()]
+        return super().get_permissions()
+
+    def submit(self, request, pk=None):
+        """POST /acts/{id}/submit/ — engineer bugalter tasdig'iga yuboradi (20-§3.3)."""
+        act = submit_act_for_review(
+            self.get_object(), request.user, comment=str(request.data.get('comment', '') or ''),
+        )
+        self.log_action(ActivityLog.Action.UPDATE, act, f'{act.number}: bugalter tasdig\'iga yuborildi')
+        return Response(self.get_serializer(act).data)
+
+    def approve(self, request, pk=None):
+        """POST /acts/{id}/approve/ — bugalter (admin) tasdiqlaydi (20-§3.3)."""
+        act = approve_act(
+            self.get_object(), request.user, comment=str(request.data.get('comment', '') or ''),
+        )
+        self.log_action(ActivityLog.Action.APPROVE, act, f'{act.number}: ACT tasdiqlandi')
+        return Response(self.get_serializer(act).data)
+
+    def reject(self, request, pk=None):
+        """POST /acts/{id}/reject/ — bugalter (admin) izoh bilan qaytaradi (20-§3.3)."""
+        comment = str(request.data.get('comment', '') or '')
+        act = reject_act(self.get_object(), request.user, comment)
+        self.log_action(ActivityLog.Action.REJECT, act, f'{act.number}: qaytarildi — {comment}')
+        return Response(self.get_serializer(act).data)
 
 
 class ConfigurationViewSet(BaseModelViewSet):

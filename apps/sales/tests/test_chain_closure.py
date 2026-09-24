@@ -117,6 +117,14 @@ class ChainClosureTests(APITestCase):
         contract = Contract.objects.get(pk=contract_id)
         self.assertEqual(contract.items.get().product, configuration.variant)
 
+        # 20-§3: finalize ACT ni avtomatik bugalter tasdig'iga yuboradi —
+        # ship shu tasdiqni kutadi
+        act.refresh_from_db()
+        self.assertEqual(act.status, Act.Status.PENDING_BUGALTER)
+        self.client.force_authenticate(self.bugalter)
+        response = self.client.post(f'/api/acts/{act.id}/approve/')
+        self.assertEqual(response.status_code, 200, response.data)
+
         # Yetkazish — shartnoma yopiladi, ZVK endi arxivga o'tadi (B7)
         # 11-§3: sales (egasi) yetkazadi
         self.client.force_authenticate(self.sales)

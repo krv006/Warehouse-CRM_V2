@@ -127,14 +127,14 @@ class RoadmapListTests(APITestCase):
         self.assertNotIn(self.request_c.number, numbers)
 
     def test_results_match_detail_roadmap_shape(self):
-        """results[i] — detal roadmap javobi bilan bir xil: 19 qadam, pul yo'q."""
+        """results[i] — detal roadmap javobi bilan bir xil: 20 qadam, pul yo'q."""
         self.client.force_authenticate(self.admin)
         response = self.client.get('/api/roadmaps/')
         row = next(
             r for r in response.data['results']
             if r['request']['number'] == self.request_a.number
         )
-        self.assertEqual(len(row['steps']), 19)
+        self.assertEqual(len(row['steps']), 20)
         self.assertEqual(row['current_key'], 'prepayment')
         self.assertEqual(row['client_name'], 'Ali Valiyev')
         raw = str(response.data)

@@ -174,11 +174,21 @@ class ContractViewSet(BaseModelViewSet):
         return Response(self.get_serializer(contract).data)
 
     def reject(self, request, pk=None):
-        """POST /contracts/{id}/reject/ — rad etish."""
+        """POST /contracts/{id}/reject/ — rad etish.
+
+        20-§2: `target` — `sales` (standart, chernovikka) yoki
+        `bugalter` (faqat admin, faqat `pending_admin`dan — hujjatdagi
+        xatoni to'g'ridan bugalterga qaytaradi).
+        """
+        target = request.data.get('target', 'sales')
         contract = reject_contract(
             self.get_object(), request.user, request.data.get('comment', ''),
+            target=target,
         )
-        self.log_action(ActivityLog.Action.REJECT, contract, request.data.get('comment', ''))
+        self.log_action(
+            ActivityLog.Action.REJECT, contract,
+            f"{contract.number}: {target}ga qaytarildi — {request.data.get('comment', '')}",
+        )
         return Response(self.get_serializer(contract).data)
 
     def confirm_payment(self, request, pk=None):
@@ -344,13 +354,16 @@ class ContractViewSet(BaseModelViewSet):
         )
 
     def document_upload(self, request, pk=None):
-        """POST /contracts/{id}/document/upload/ — `.docx` yuklash (13-§1 bosqich 3)."""
+        """POST /contracts/{id}/document/upload/ — `.docx` yuklash (13-§1 bosqich 3).
+
+        20-§1: admin ham — tasdiqlash/qaytarishdan oldin xatoni o'zi tuzata oladi.
+        """
         from rest_framework.exceptions import PermissionDenied, ValidationError
 
         from apps.sales.services import upload_contract_document
 
-        if not request.user.is_bugalter:
-            raise PermissionDenied("Hujjat matnini hozircha faqat bugalter tahrirlaydi.")
+        if not (request.user.is_bugalter or request.user.is_admin):
+            raise PermissionDenied('Hujjatni bugalter va admin tahrirlaydi.')
         file = request.FILES.get('file')
         if not file:
             raise ValidationError({'file': 'Fayl yuborilmadi.'})
@@ -364,13 +377,16 @@ class ContractViewSet(BaseModelViewSet):
         )
 
     def document_edit_session(self, request, pk=None):
-        """POST /contracts/{id}/document/edit-session/ — Collabora iframe manzili (15-§A)."""
+        """POST /contracts/{id}/document/edit-session/ — Collabora iframe manzili (15-§A).
+
+        20-§1: admin ham — tasdiqlash/qaytarishdan oldin xatoni o'zi tuzata oladi.
+        """
         from rest_framework.exceptions import PermissionDenied
 
         from apps.sales.services import edit_contract_document_session
 
-        if not request.user.is_bugalter:
-            raise PermissionDenied("Hujjat matnini hozircha faqat bugalter tahrirlaydi.")
+        if not (request.user.is_bugalter or request.user.is_admin):
+            raise PermissionDenied('Hujjatni bugalter va admin tahrirlaydi.')
         contract = self.get_object()
         return Response(edit_contract_document_session(contract, request.user))
 

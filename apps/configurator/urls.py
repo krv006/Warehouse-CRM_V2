@@ -15,6 +15,16 @@ from apps.core.views import RoadmapView
 urlpatterns = [
     path('acts/', ActViewSet.as_view(LIST), name='act-list'),
     path('acts/<int:pk>/', ActViewSet.as_view(DETAIL), name='act-detail'),
+    # 20-§3.3: ACT tasdig'i — engineer yuboradi, bugalter (admin) tasdiqlaydi/qaytaradi
+    path('acts/<int:pk>/submit/', ActViewSet.as_view({
+        'post': 'submit',
+    }), name='act-submit'),
+    path('acts/<int:pk>/approve/', ActViewSet.as_view({
+        'post': 'approve',
+    }), name='act-approve'),
+    path('acts/<int:pk>/reject/', ActViewSet.as_view({
+        'post': 'reject',
+    }), name='act-reject'),
 
     path('configurations/', ConfigurationViewSet.as_view(LIST), name='configuration-list'),
     path('configurations/<int:pk>/', ConfigurationViewSet.as_view(DETAIL), name='configuration-detail'),

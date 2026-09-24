@@ -137,6 +137,35 @@ class MyWorkTests(APITestCase):
         self.assertEqual(self._counts(self.admin)['needs_price'], 0)
         self.assertEqual(self._counts(self.sales)['needs_price'], 0)
 
+    def test_bugalter_sees_delivered_active_contract_awaiting_balance(self):
+        """19-§2: yetkazilgan-u qoldiq to'lanmagan ACTIVE — bugalter navbatida."""
+        Contract.objects.create(  # yetkazilgan — bugalter navbatida
+            client=self.mijoz, created_by=self.sales,
+            status=Contract.Status.ACTIVE, delivered_at=now(),
+        )
+        Contract.objects.create(  # hali yetkazilmagan — bu hali sales ishi
+            client=self.mijoz, created_by=self.sales,
+            status=Contract.Status.ACTIVE,
+        )
+        Contract.objects.create(  # yopilgan — hech kimning navbatida emas
+            client=self.mijoz, created_by=self.sales,
+            status=Contract.Status.COMPLETED, delivered_at=now(),
+        )
+        self.assertEqual(self._counts(self.bugalter)['contracts'], 1)
+        reasons = {
+            row['reason'] for row in self._work(self.bugalter)['items']
+            if row['section'] == 'contracts'
+        }
+        self.assertEqual(reasons, {'awaiting_balance'})
+
+        # Sales tomoniga tegilmadi — hali yetkazilmagan ACTIVE hamon uniki
+        self.assertEqual(self._counts(self.sales)['contracts'], 1)
+        sales_reasons = {
+            row['reason'] for row in self._work(self.sales)['items']
+            if row['section'] == 'contracts'
+        }
+        self.assertEqual(sales_reasons, {'ship_contract'})
+
     def test_sales_client_approval_only_own(self):
         Replenishment.objects.create(
             warehouse=self.warehouse, status=Replenishment.Status.PENDING_SALES,

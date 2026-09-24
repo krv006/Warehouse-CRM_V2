@@ -73,12 +73,33 @@ class ContractDocumentTests(APITestCase):
         response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
         self.assertEqual(response.status_code, 404)
 
-    def test_admin_can_read(self):
-        """13-§1: tahrir hozircha FAQAT bugalterda — admin ham yo'q."""
+    def test_admin_can_read_and_edit(self):
+        """20-§1: admin ham bugalter bilan bir xil tahrirlay oladi."""
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertTrue(response.data['can_edit'])
+
+    def test_admin_cannot_edit_after_didox_sent(self):
+        """20-§1: holat chegarasi o'zgarmaydi — Didoxga ketgach admin ham yopiq."""
+        Contract.objects.filter(pk=self.contract.pk).update(
+            status=Contract.Status.PENDING_DIDOX,
+        )
         self.client.force_authenticate(self.admin)
         response = self.client.get(f'/api/contracts/{self.contract.id}/document/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertFalse(response.data['can_edit'])
+
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        response = self.client.post(
+            f'/api/contracts/{self.contract.id}/document/upload/',
+            {'file': SimpleUploadedFile(
+                'x.docx', _make_docx_bytes(['x']),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            )}, format='multipart',
+        )
+        self.assertEqual(response.status_code, 400)
 
     def test_put_document_no_longer_exists(self):
         """QOLGAN-ISHLAR-2 §4: HTML tahriri (`PUT`) butunlay olib tashlandi —
@@ -135,6 +156,39 @@ class ContractDocumentTests(APITestCase):
         )
         self.assertEqual(response.status_code, 400)
         self.assertIn('Didoxga', str(response.data['detail']))
+
+    def test_admin_upload_creates_version_with_admin_as_updated_by(self):
+        """20-§1: admin yuklasa ham versiya yaratiladi, `updated_by` — admin."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(
+            f'/api/contracts/{self.contract.id}/document/upload/',
+            {'file': SimpleUploadedFile(
+                'shartnoma.docx', _make_docx_bytes(['Matn']),
+                content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            )}, format='multipart',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(int(response.data['updated_by']), self.admin.id)
+        document = ContractDocument.objects.get(contract=self.contract)
+        self.assertEqual(document.versions.count(), 1)
+        self.assertEqual(document.updated_by_id, self.admin.id)
+
+    def test_upload_forbidden_for_sales_engineer_supplier(self):
+        """20-§1: sales'ga ochilmaydi — qator tahrirlaydi, hujjat matnini emas."""
+        from django.core.files.uploadedfile import SimpleUploadedFile
+
+        for user in (self.sales, self.engineer, self.supplier):
+            self.client.force_authenticate(user)
+            response = self.client.post(
+                f'/api/contracts/{self.contract.id}/document/upload/',
+                {'file': SimpleUploadedFile(
+                    'x.docx', _make_docx_bytes(['x']),
+                    content_type='application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+                )}, format='multipart',
+            )
+            self.assertEqual(response.status_code, 403, (user.username, response.data))
 
     def test_upload_rejects_non_docx(self):
         from django.core.files.uploadedfile import SimpleUploadedFile
@@ -312,12 +366,20 @@ class CollaboraWopiTests(APITestCase):
         response = self.client.post(f'/api/contracts/{self.contract.id}/document/edit-session/')
         self.assertEqual(response.status_code, 400)
 
-    def test_edit_session_only_bugalter(self):
+    def test_edit_session_not_sales(self):
+        """20-§1: sales shartnoma qatorlarini tahrirlaydi, hujjat matnini emas."""
         self._upload()
-        for user in (self.sales, self.admin):
-            self.client.force_authenticate(user)
-            response = self.client.post(f'/api/contracts/{self.contract.id}/document/edit-session/')
-            self.assertEqual(response.status_code, 403, (user.username, response.data))
+        self.client.force_authenticate(self.sales)
+        response = self.client.post(f'/api/contracts/{self.contract.id}/document/edit-session/')
+        self.assertEqual(response.status_code, 403, response.data)
+
+    def test_admin_can_edit_document(self):
+        """20-§1: admin ham bugalter bilan bir xil — o'zi tuzata oladi."""
+        self._upload()
+        self.client.force_authenticate(self.admin)
+        response = self.client.post(f'/api/contracts/{self.contract.id}/document/edit-session/')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertIn('edit_url', response.data)
 
     def test_edit_session_returns_collabora_url_with_token(self):
         self._upload()

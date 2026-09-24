@@ -9,6 +9,7 @@ from rest_framework.serializers import (
 
 from apps.configurator.models import (
     Act,
+    ActApproval,
     Configuration,
     ConfigurationApproval,
     ConfigurationItem,
@@ -21,14 +22,33 @@ from apps.configurator.services import copy_factory_spec
 from apps.inventory.models import Product
 
 
+class ActApprovalSerializer(ModelSerializer):
+    """20-§3.2: ACT tasdig'i tarixi — kim, qachon, nima qilgani."""
+
+    decision_display = ReadOnlyField(source='get_decision_display')
+    decided_by_name = ReadOnlyField(source='decided_by.display_name')
+
+    class Meta:
+        model = ActApproval
+        fields = [
+            'id', 'act', 'decision', 'decision_display', 'comment',
+            'decided_by', 'decided_by_name', 'created_at',
+        ]
+        read_only_fields = fields
+
+
 class ActSerializer(ModelSerializer):
+    status_display = ReadOnlyField(source='get_status_display')
+    approvals = ActApprovalSerializer(many=True, read_only=True)
+
     class Meta:
         model = Act
         fields = [
             'id', 'number', 'title', 'description', 'issued_at',
-            'file', 'is_active', 'created_by', 'created_at',
+            'file', 'status', 'status_display', 'approvals', 'is_active',
+            'created_by', 'created_at',
         ]
-        read_only_fields = ['created_by']
+        read_only_fields = ['status', 'created_by']
 
 
 def resolve_component(validated_data):

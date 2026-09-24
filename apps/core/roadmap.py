@@ -50,7 +50,7 @@ def _as_datetime(value):
         return value
     return make_aware(datetime.combine(value, time.min))
 
-# Qadam kalitlari va nomlari — §2 jadvali, 12-§1 dan keyin 19 qadam
+# Qadam kalitlari va nomlari — §2 jadvali, 20-§3.5 dan keyin 20 qadam
 STEPS = [
     ('zvk_created', 'Zayavka yozildi', 'sales'),
     ('taken', 'Engineer oldi', 'engineer'),
@@ -71,6 +71,9 @@ STEPS = [
     ('procurement_chain', "TLD zanjiri (kirimgacha)", 'buyurtmachi'),
     ('assemble', "Yig'ish", 'engineer'),
     ('finalize', 'ACT bilan yakunlash', 'engineer'),
+    # 20-§3.5: ACT — tarkib o'zgarishining moliyaviy asosi, bugalter
+    # tasdig'idan o'tmaguncha mol chiqmasin (`ship` qulflangan)
+    ('act_review', "ACT tasdig'i", 'bugalter'),
     ('ship', 'Yetkazish', 'sales'),
     ('completed', 'Yakunlandi', 'sales'),
 ]
@@ -435,8 +438,19 @@ def build_roadmap(document, user):
     first_payment = (
         contract.payments.order_by('paid_at').first() if contract else None
     )
+    # 20-§2.1: bu son `contract_submitted` ("Bugalterga yuborildi")
+    # qadamida "N marta qaytarildi" bo'lib chiqadi — ya'ni SALES necha
+    # marta qayta yuborgani. Admin→bugalter qaytarishi (`returned_to=
+    # 'bugalter'`) boshqa qadamga tegishli — bu yerga qo'shilmasin, aks
+    # holda chiziq bo'lmagan narsani aytardi (eski yozuvlarda `''` —
+    # baribir sanaladi, moslik buzilmaydi).
     contract_rejections = len([
-        a for a in c_approvals if a.decision == ContractApproval.Decision.REJECTED
+        a for a in c_approvals
+        if a.decision == ContractApproval.Decision.REJECTED and a.returned_to != 'bugalter'
+    ])
+    bugalter_returns = len([
+        a for a in c_approvals
+        if a.decision == ContractApproval.Decision.REJECTED and a.returned_to == 'bugalter'
     ])
     # Rad etilgandan keyingi timestamp maydonlari (didox_sent_at/
     # didox_accepted_at) eski qiymatini saqlab qoladi — "bajarilgan"
@@ -556,6 +570,9 @@ def build_roadmap(document, user):
         at=bugalter_rows[-1].created_at if bugalter_rows else None,
         who=bugalter_rows[-1].decided_by if bugalter_rows else None,
         doc=('contract', contract),
+        # 20-§2.1: admin necha marta bugalterga qaytargani — chiziq
+        # "admin N marta qaytardi" deb aniq gapirsin
+        repeats=bugalter_returns,
     )
     admin_done = bool(
         contract and contract.status in (
@@ -729,6 +746,23 @@ def build_roadmap(document, user):
             data[key]['done'] = all_done
             data[key]['doc'] = ('configuration', lagging)
             data[key]['models'] = models_block
+
+    # 20-§3.5: ACT — tarkib o'zgarishining moliyaviy asosi, bugalter
+    # tasdig'idan o'tmaguncha `ship` qulflangan. Savdoda ACT bitta (14-§7)
+    # — `_deal_step` kerak emas, qaror allaqachon savdo darajasida.
+    act = configuration.act if configuration else None
+    act_rows = list(act.approvals.all()) if act else []
+    data['act_review'] = dict(
+        done=bool(act and act.status == act.Status.APPROVED),
+        at=act_rows[-1].created_at if act_rows else None,
+        who=act_rows[-1].decided_by if act_rows else None,
+        doc=('configuration', configuration),
+        # Bugalter necha kundan buyon ushlab turibdi — SLA shu paytdan
+        since=(
+            act.status_changed_at
+            if act and act.status == act.Status.PENDING_BUGALTER else None
+        ),
+    )
 
     data['ship'] = dict(
         done=delivered,

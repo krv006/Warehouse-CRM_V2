@@ -28,6 +28,11 @@ class ContractApproval(TimeStampedModel):
     step = CharField(max_length=20, choices=Step.choices)
     decision = CharField(max_length=20, choices=Decision.choices)
     comment = TextField(blank=True)
+    # 20-§2: rad etish qayerga ketganini bildiradi — '' (standart) sales'ga,
+    # 'bugalter' — admin to'g'ridan bugalterga qaytargani (Didox raqami,
+    # rekvizit kabi bugalter tuzatadigan xato). Faqat REJECTED qatorlarda
+    # ma'noli; APPROVED qatorda doim bo'sh.
+    returned_to = CharField(max_length=20, blank=True, default='')
     decided_by = ForeignKey(
         'accounts.User', SET_NULL, related_name='contract_approvals',
         null=True, blank=True,

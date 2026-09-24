@@ -20,12 +20,14 @@ from apps.core.utils import RED_ZONE_DAYS, sla_deadline, working_days_since
 SECTIONS = (
     'contracts', 'leads', 'requests', 'configurations',
     'replenishments', 'low_stock', 'needs_price', 'expense_requests', 'loans',
+    'acts',
 )
 
 # TOPSHIRIQ #3: SLA qamrovi — tasdiq zanjiridagi hujjatlar. leads/loans o'z
 # muddati bilan yuritiladi (check_deadlines), low_stock hujjat emas.
 SLA_SECTIONS = {
     'contracts', 'requests', 'configurations', 'replenishments', 'expense_requests',
+    'acts',
 }
 
 
@@ -86,7 +88,15 @@ def _contract_sources(user):
             # Mijoz imzosi kutilmoqda — tashqi kutish, shoshilinch emas (info)
             Contract.Status.PENDING_DIDOX: ('didox_confirm', 'info'),
             Contract.Status.APPROVED: ('awaiting_payment', 'warning'),
+            # 19-§2: yetkazilgan-u qoldiq to'lanmagan — endi bugalterning ishi
+            # (yo'l xaritasidagi "Qoldiq to'lov" qadami bilan bir xil shart:
+            # `not completed and delivered_at and balance > 0` — balans
+            # xossa, ACTIVE + yetkazilgan har doim qoldiqli, chunki yopilgan
+            # zahoti shartnoma `completed`ga o'tadi)
+            Contract.Status.ACTIVE: ('awaiting_balance', 'warning'),
         }
+        # Hali yetkazilmagan ACTIVE — bu hali sales ishi (`ship_contract`)
+        qs = qs.exclude(status=Contract.Status.ACTIVE, delivered_at__isnull=True)
     elif user.is_sales:
         qs = qs.filter(created_by=user, delivered_at__isnull=True)
         reasons = {
@@ -318,6 +328,20 @@ def _low_stock_count(user):
     return low_stock_queryset().count()
 
 
+def _act_source(user):
+    """20-§3.7: bugalter navbati — tasdiqini kutayotgan ACTlar."""
+    from apps.configurator.models import Act
+
+    if not user.is_bugalter:
+        return None  # qaror bugalterniki (§2.3 naqshi — admin 0)
+    return {
+        'section': 'acts',
+        'entity': 'Act',
+        'queryset': Act.objects.filter(status=Act.Status.PENDING_BUGALTER),
+        'row': lambda obj: ('ACT', obj.number, ('review_act', 'warning'), None, None),
+    }
+
+
 def _needs_price_count(user):
     """QOLGAN-ISHLAR-2 §6: "Narx kutilmoqda" — buyurtmachining doimiy ro'yxati
     (`?needs_price=true`) endi yon panelda ham — front alohida so'rov
@@ -487,6 +511,7 @@ def collect_work(user, include_items=True):
             _replenishment_source(user),
             _expense_source(user),
             _loan_source(user),
+            _act_source(user),
         )
         if source is not None
     ]

@@ -1971,6 +1971,90 @@ Testlar: `apps/configurator/tests/test_deal_procurement_view.py` (yangi, 4).
 
 ---
 
+## 8.64 19-to'plam: TLD yig'ilgan modelga tegmasin, bugalter qoldig'i navbatda 🔧
+
+Ikkita mustaqil topilma — ikkalasi ham "bitta haqiqatning ikki manbasi"
+haqida.
+
+- **§1**: `send_missing_to_procurement` yig'ilgan modelni ham
+  yetishmovchilar ro'yxatiga qo'shar edi — `missing_items` "hozir yig'sam
+  nima yetmaydi" hisobi, yig'ilgandan keyin ham nolga tushmaydi
+  (butlovchilar ombordan allaqachon chiqqan). 18-to'plamdan keyin tugma
+  savdodagi istalgan model sahifasida chiqqani uchun bu endi bajarilib
+  bo'lgan ishni qaytadan buyurtma qilib qo'yishi mumkin edi. Endi
+  `not cfg.assembled_at` sharti qo'shildi; hamma model yig'ilgan bo'lsa
+  400 — "Yig'ilmagan model yo'q."
+- **§2**: yo'l xaritasi ishni bugalterga berardi ("Qoldiq to'lov" —
+  yetkazilgan-u to'lanmagan `active` shartnoma), lekin `collect_work`
+  bugalterga `ACTIVE` ni umuman bermasdi — ikki manba zid edi (12-§5:
+  ish kimdadir bo'lsa eslatma **va** navbat ham bo'lishi shart).
+  `_contract_sources` bugalter ro'yxatiga `ACTIVE` qo'shildi,
+  `delivered_at__isnull=True` bo'lganlar chiqarib tashlanadi (hali sales
+  ishi — `ship_contract`).
+- **§3 (audit)**: yo'l xaritasi (20 qadam) ↔ navbat (`collect_work`)
+  solishtiruv jadvali `docs/06-WORKFLOWS.md` §7 ga yozildi. Bitta bo'shliq
+  topildi — `procurement_sent` (engineer): yetishmayotgan butlovchili
+  konfiguratsiya ham "Yig'ish" deb ko'rsatiladi, holbuki kerakli amal
+  "Buyurtmachiga yuborish". Alohida vazifa sifatida belgilangan
+  (`task_07a238fe`).
+
+Testlar: `apps/configurator/tests/test_missing_assembled_guard.py`
+(yangi, 2), `apps/core/tests/test_my_work.py` (+1).
+
+---
+
+## 8.65 20-to'plam: admin hujjatni tahrirlaydi, shartnomani ikki manzilga qaytaradi, ACT bugalter tasdig'idan o'tadi 📝
+
+Uchta topshiriq — birinchi ikkitasi admin shartnoma ustida nima qila
+oladi degan savolga, uchinchisi mol ombordan qachon chiqadi degan
+savolga tegishli.
+
+- **§1**: admin ham bugalter bilan bir xil — shartnoma hujjatini
+  (`.docx`) yuklay va Collabora'da tahrirlay oladi (`can_edit`,
+  `document/upload/`, `document/edit-session/` — uchalasida ham
+  `is_bugalter` → `is_bugalter or is_admin`). Tasdiqlash/qaytarishdan
+  oldin xatoni (Didox raqami, rekvizit) o'zi tuzata oladi. Sales'ga
+  hamon yopiq — u qatorlarni tahrirlaydi, hujjat matnini emas. Holat
+  chegarasi (`CONTRACT_DOCUMENT_EDITABLE_STATUSES`) o'zgarmadi.
+- **§2**: `reject_contract` ga `target` parametri qo'shildi — `sales`
+  (standart, hozirgi xulq) yoki `bugalter` (**faqat admin**, **faqat
+  `pending_admin`dan**): admin hujjatdagi xatoni (ko'pincha bugalterniki)
+  ko'rib, sales'ni bekorga oraga qo'ymay to'g'ridan bugalterga qaytaradi
+  — ikki bosqich (admin→sales→bugalter→admin) o'rniga bitta
+  (admin→bugalter→admin). `ContractApproval.returned_to` (`''`/
+  `'bugalter'`) — tarixda manzil ko'rinadi; yo'l xaritasidagi
+  `contract_submitted.repeats` endi faqat SALES'ga qaytarishlarni sanaydi
+  (`bugalter_check.repeats` — admin necha marta qaytargani).
+- **§3 (eng kattasi)**: ACT — tarkib o'zgarishining moliyaviy asosi
+  (modify rejimida yechib olingan butlovchilar narxi bilan omborga
+  qaytadi), shuning uchun yozadigan (engineer) va javob beradigan
+  (bugalter) odam bir xil bo'lmasin. `Act.status`
+  (`draft → pending_bugalter → approved`/`rejected`, `StatusTrackedModel`
+  — SLA `status_changed_at`dan) va tarix uchun `ActApproval` qo'shildi.
+  `POST /acts/{id}/submit|approve|reject/` — submit/qaytarish engineer
+  (admin), tasdiq/qaytarish bugalter (admin). `finalize_configuration`
+  savdodagi OXIRGI model YAKUNLANGANDA (hammasi `ready`/`sold`/
+  `cancelled` — `is_fully_done` bu yerga yaroqsiz, u "hammasi approved"
+  degani) ACT ni avtomatik yuboradi — birinchi model finalize bo'lganda
+  emas, aks holda bugalter yarim yozilgan ACT ko'rardi. Nozik joy:
+  `finalize` endi faqat SHU savdoga tegishli yoki `draft` ACT'ni qabul
+  qiladi — begona `approved`/`pending_bugalter` ACT — 400. **Qo'riqchi**:
+  `ship_contract` qator ortidagi konfiguratsiyalarning ACT'i `approved`
+  bo'lmasa mol chiqarmaydi (`acts` ro'yxati bilan 400); konfiguratsiyasiz
+  qatorlarda (tayyor tovar) bu tekshiruv yo'q. Yo'l xaritasiga yangi
+  qadam — `finalize` bilan `ship` orasida `act_review` (bugalter; 20
+  qadam endi); `collect_work`ga `acts` bo'limi (faqat bugalter, admin —
+  qaror bugalterniki). `Contract.acts_approved` — front yetkazish
+  tugmasini qo'shimcha so'rovsiz o'chira oladi.
+
+Testlar: `apps/configurator/tests/test_act_approval.py` (yangi, 6),
+`apps/sales/tests/test_act_ship_guard.py` (yangi, 5),
+`apps/sales/tests/test_contract_reject_target.py` (yangi, 10),
+`apps/sales/tests/test_contract_document.py` (+ta'sirlangan testlar
+yangilandi).
+
+---
+
 ## 9. Nima o'zgarmadi
 
 - Auth (JWT, refresh rotatsiyasi) — o'sha-o'sha
