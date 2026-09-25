@@ -1,3 +1,4 @@
+import re
 from decimal import Decimal
 
 from django.db.models import Max, Sum
@@ -217,6 +218,12 @@ def submit_contract(contract, user):
         raise ValidationError('Faqat qoralama shartnoma yuboriladi.')
     if not contract.items.exists():
         raise ValidationError('Shartnoma qatorlari kiritilmagan.')
+    # 21-§3.6: shablonsiz/matnsiz shartnoma yuborilmaydi
+    document = get_or_create_contract_document(contract)
+    if not (document.body or '').strip():
+        raise ValidationError({
+            'detail': 'Shartnoma matni bo\'sh — shablon tanlang.',
+        })
 
     # 14-§4: savdoda (ZVK) tugamagan model bo'lsa yuborilmaydi — aks holda
     # ikkinchi modelning boradigan joyi qolmaydi. Majburlash yo'q (`force`
@@ -949,10 +956,11 @@ def send_contract_missing_to_procurement(contract, user):
 
 
 # ---------------------------------------------------------------------------
-# 13-§1/15-§A: shartnoma matni — bugalter `.docx` yuklaydi (yoki Collabora'da
-# tahrirlaydi), sayt faqat KO'RSATADI. QOLGAN-ISHLAR-2 §4: to'g'ridan-to'g'ri
-# HTML tahrir (`PUT`) olib tashlandi — Didoxga `source_file` ketadi, `body`ni
-# alohida saqlash ikkinchi (eski) manba yaratardi.
+# 21-§3: shartnoma matni — shablon + avtomatik bloklar. `.docx` yuklash,
+# Collabora/OnlyOffice va WOPI **butunlay olib tashlandi** (17-to'plam va
+# DOCX-QARORLAR.md o'rnini bosadi): sales shablon yozadi, shartnoma shu
+# shablondan shakllanadi, o'rin egallovchilar (`{{ key }}`) KO'RSATISHDA
+# to'ladi, rekvizit/spetsifikatsiya bloklarini esa tizimning o'zi quradi.
 # ---------------------------------------------------------------------------
 
 # Hujjat huquqiy — Didoxga ketgandan keyin (`pending_didox`) tahrir yopiladi
@@ -980,299 +988,454 @@ def _require_document_editable(contract):
         })
 
 
-def _contract_document_docxtpl_context(contract):
-    """15-§A: `.docx` shablon uchun — dot-notation ishlashi uchun ICHMA-ICH lug'at.
+KNOWN_CONTRACT_PLACEHOLDER_KEYS = {
+    'contract.number', 'contract.date', 'contract.city',
+    'contract.total', 'contract.total_words',
+    'contract.prepayment_percent', 'contract.prepayment_days',
+    'contract.delivery_days',
+    'company.name', 'company.director_name', 'company.director_title',
+    'company.inn', 'company.address', 'company.bank_name', 'company.mfo',
+    'company.account_number', 'company.oked', 'company.registration_code',
+    'company.license',
+    'client.name', 'client.director_name', 'client.director_title',
+    'client.inn', 'client.address', 'client.bank_name', 'client.mfo',
+    'client.account_number',
+}
 
-    QOLGAN-ISHLAR-2 §1: `items` — shartnoma bandlari, Word jadvalida
-    `{%tr for item in items %}...{%tr endfor %}` sikli bilan chiqariladi
-    (docxtpl subdoc sintaksisi). `items_total`/`vat_total` — `total`
-    (QQS bilan) yonida QQS'siz jami va QQS summasi alohida.
-    """
-    client = contract.client
-    return {
-        'contract': {
-            'number': contract.number,
-            'date': contract.signed_at.strftime('%d.%m.%Y') if contract.signed_at else '',
-        },
-        'client': {
-            'name': client.display_name if client else '',
-            'inn': getattr(client, 'inn', '') or '',
-        },
-        'items': [
-            {
-                'name': item.product.name,
-                'sku': item.product.sku,
-                'quantity': item.quantity,
-                'unit_price': str(item.unit_price),
-                'vat_percent': str(item.vat_percent),
-                'total': str(item.total_with_vat),
-            }
-            for item in contract.items.select_related('product')
-        ],
-        'items_total': str(contract.items_total),
-        'vat_total': str(contract.vat_total),
-        'total': str(contract.items_total_with_vat),
-        'prepayment_percent': str(contract.prepayment_percent or ''),
-        'term_days': str(contract.term_days),
-    }
+_PLACEHOLDER_RE = re.compile(r'\{\{\s*([\w.]+)\s*\}\}')
+
+_RU_MONTHS = [
+    'января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+    'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря',
+]
+_UZ_MONTHS = [
+    'yanvar', 'fevral', 'mart', 'aprel', 'may', 'iyun',
+    'iyul', 'avgust', 'sentyabr', 'oktyabr', 'noyabr', 'dekabr',
+]
 
 
-def fill_contract_document_template(contract, file):
-    """15-§A: shablondagi `{{ }}` o'rin egallovchilarni STATIK to'ldiradi.
-
-    Fayl Didoxga aynan shu holicha ketadi (Collabora'da tahrirlanadi),
-    shuning uchun avtomatik yangilanish endi yo'q — summa o'zgarsa
-    bugalter qayta yuklaydi. Shablonda tag bo'lmasa (oddiy .docx) —
-    docxtpl hech narsani o'zgartirmay saqlaydi, xato bermaydi.
-    """
-    from io import BytesIO
-
-    from docxtpl import DocxTemplate
-
-    template = DocxTemplate(file)
-    try:
-        template.render(_contract_document_docxtpl_context(contract))
-    except Exception as exc:
-        raise ValidationError({
-            'file': f"Shablondagi o'rin egallovchida xatolik: {exc}",
-        })
-    buffer = BytesIO()
-    template.save(buffer)
-    return buffer.getvalue()
+def extract_placeholder_keys(body):
+    """Matndagi barcha `{{ key }}` kalitlar (takrorsiz)."""
+    return set(_PLACEHOLDER_RE.findall(body or ''))
 
 
-@atomic
-def upload_contract_document(contract, user, file):
-    """`.docx` yuklash (13-§1 bosqich 3, 15-§A bilan yangilangan).
-
-    15-§A: fayl endi Didoxga AYNAN shu holicha ketadi (piksel-piksel) —
-    shuning uchun `mammoth`ning "toza HTML"si energa faqat KO'RISH uchun
-    (o'qish rejimi), tahrir Collabora Online orqali `source_file`ning
-    o'zida bo'ladi (`edit_contract_document_session`). O'rin
-    egallovchilar shu yerda, yuklashda, statik to'ldiriladi (`docxtpl`).
-    """
-    _require_document_editable(contract)
-    name = (getattr(file, 'name', '') or '').lower()
-    if not name.endswith('.docx'):
-        raise ValidationError({
-            'file': 'Matnga o\'girish faqat .docx uchun ishlaydi — .doc/boshqa formatlar hali qo\'llab-quvvatlanmaydi.',
-        })
-    filled = fill_contract_document_template(contract, file)
-    preview = _mammoth_html(filled)
-
-    document = get_or_create_contract_document(contract)
-    document.body = preview
-    _save_document_file(document, getattr(file, 'name', 'shartnoma.docx'), filled)
-    document.source_uploaded_at = now()
-    document.rendered_total = contract.total_amount
-    document.docx_version += 1
-    document.updated_by = user
-    document.save()
-    document.versions.create(body=document.body, created_by=user)
-    return document
+def unknown_placeholder_keys(body):
+    """21-§3.3: shablon saqlashda tekshiriladi — noma'lum kalit jimgina yo'qolmasin."""
+    return sorted(extract_placeholder_keys(body) - KNOWN_CONTRACT_PLACEHOLDER_KEYS)
 
 
-def _mammoth_html(docx_bytes):
-    from io import BytesIO
-
-    import mammoth
-
-    return mammoth.convert_to_html(BytesIO(docx_bytes)).value
-
-
-def _save_document_file(document, name, content_bytes):
-    from django.core.files.base import ContentFile
-
-    document.source_file.save(name, ContentFile(content_bytes), save=False)
-
-
-# ---------------------------------------------------------------------------
-# 15-§A: Collabora Online (WOPI) — `.docx` brauzerda to'g'ridan-to'g'ri
-# tahrirlanadi, Didoxga AYNAN shu fayl ketadi (piksel-piksel bir xil).
-# ---------------------------------------------------------------------------
-
-_WOPI_SIGNER_SALT = 'contract-document-wopi'
-
-
-def create_wopi_token(document, user):
-    """Collabora `access_token=` sifatida yuboradigan, muddatli imzolangan token."""
-    from django.core.signing import TimestampSigner
-
-    return TimestampSigner(salt=_WOPI_SIGNER_SALT).sign(f'{document.pk}:{user.pk}')
-
-
-def verify_wopi_token(token):
-    """Tokenni tekshiradi — muddati o'tgan/soxta bo'lsa `(None, None)`."""
-    from django.conf import settings
-    from django.core.signing import BadSignature, SignatureExpired, TimestampSigner
-
-    from apps.accounts.models import User
-    from apps.sales.models import ContractDocument
-
-    signer = TimestampSigner(salt=_WOPI_SIGNER_SALT)
-    try:
-        raw = signer.unsign(token or '', max_age=settings.WOPI_TOKEN_TTL_MINUTES * 60)
-    except (BadSignature, SignatureExpired):
-        return None, None
-    try:
-        document_id, user_id = raw.split(':')
-        document = ContractDocument.objects.select_related('contract').get(pk=document_id)
-        user = User.objects.get(pk=user_id)
-    except (ValueError, ContractDocument.DoesNotExist, User.DoesNotExist):
-        return None, None
-    return document, user
-
-
-def edit_contract_document_session(contract, user):
-    """`POST /contracts/{id}/document/edit-session/` — Collabora iframe manzili.
-
-    Faqat `.docx` allaqachon yuklangan bo'lsa (Collabora bo'sh hujjatni
-    bilmaydi — shablon avval `document/upload/` orqali keladi).
-    """
-    from urllib.parse import urlencode
-
-    from django.conf import settings
-
-    _require_document_editable(contract)
-    document = get_or_create_contract_document(contract)
-    if not document.source_file:
-        raise ValidationError({
-            'detail': "Avval .docx shablon yuklansin (document/upload/) — tahrir shundan keyin ochiladi.",
-        })
-    token = create_wopi_token(document, user)
-    wopi_src = f'{settings.WOPI_PUBLIC_URL}/api/wopi/files/{document.pk}'
-    query = urlencode({'WOPISrc': wopi_src, 'access_token': token})
-    return {
-        'edit_url': f'{settings.COLLABORA_URL}/browser/dist/cool.html?{query}',
-        'wopi_src': wopi_src,
-    }
-
-
-def wopi_check_file_info(document, user):
-    """WOPI `CheckFileInfo` — Collabora tahrirni ochishdan oldin so'raydi."""
-    return {
-        'BaseFileName': _wopi_file_name(document),
-        'Size': document.source_file.size if document.source_file else 0,
-        'OwnerId': str(document.updated_by_id or 'system'),
-        'UserId': str(user.pk),
-        'UserFriendlyName': user.display_name,
-        'Version': str(document.docx_version),
-        'UserCanWrite': True,
-        'SupportsLocks': True,
-        'SupportsUpdate': True,
-    }
-
-
-def _wopi_file_name(document):
-    if document.source_file:
-        return document.source_file.name.rsplit('/', 1)[-1]
-    return f'{document.contract.number}.docx'
-
-
-def wopi_get_file_content(document):
-    """WOPI `GetFile` — Collabora tahrir boshida faylni shu yerdan o'qiydi."""
-    document.source_file.open('rb')
-    try:
-        return document.source_file.read()
-    finally:
-        document.source_file.close()
-
-
-def _wopi_lock_expiry():
-    from datetime import timedelta
-
-    from django.conf import settings
-
-    return now() + timedelta(minutes=settings.WOPI_LOCK_TTL_MINUTES)
-
-
-@atomic
-def wopi_lock_file(document, lock_id):
-    """WOPI `LOCK` — boshqa sessiya qulfini egallab turgan bo'lsa `False`."""
-    if document.wopi_lock_active and document.wopi_lock != lock_id:
-        return False
-    document.wopi_lock = lock_id
-    document.wopi_lock_expires_at = _wopi_lock_expiry()
-    document.save(update_fields=['wopi_lock', 'wopi_lock_expires_at'])
-    return True
-
-
-@atomic
-def wopi_unlock_file(document, lock_id):
-    """WOPI `UNLOCK` — boshqa qulf bo'lsa `False` (Collabora 409 qaytaradi)."""
-    if document.wopi_lock_active and document.wopi_lock != lock_id:
-        return False
-    document.wopi_lock = ''
-    document.wopi_lock_expires_at = None
-    document.save(update_fields=['wopi_lock', 'wopi_lock_expires_at'])
-    return True
-
-
-def wopi_refresh_lock(document, lock_id):
-    """WOPI `REFRESH_LOCK` — muddatni uzaytiradi, qulf o'zi bilan bir xil."""
-    return wopi_lock_file(document, lock_id)
-
-
-@atomic
-def wopi_put_file(document, user, content, lock_id):
-    """WOPI `PutFile` — Collabora tahrirlangan faylni shu yerga saqlaydi.
-
-    15-§A: bu — asl (Didoxga ketadigan) fayl, qulf mos kelmasa rad
-    etiladi (`False` — chaqiruvchi 409 qaytaradi). `body` ham qayta
-    o'giriladi — saytdagi ko'rish rejimi Collabora'dan chiqqan versiyaga
-    ergashsin.
-    """
-    if document.wopi_lock_active and document.wopi_lock != lock_id:
-        return False
-    _save_document_file(document, _wopi_file_name(document), content)
-    document.body = _mammoth_html(content)
-    document.docx_version += 1
-    document.source_uploaded_at = now()
-    document.updated_by = user
-    document.save()
-    document.versions.create(body=document.body, created_by=user)
-    return True
+def _format_contract_date(date_obj, language):
+    if date_obj is None:
+        return ''
+    if language == 'uz':
+        return f'{date_obj.day} {_UZ_MONTHS[date_obj.month - 1]} {date_obj.year} yil'
+    return f'{date_obj.day} {_RU_MONTHS[date_obj.month - 1]} {date_obj.year} г.'
 
 
 def _contract_document_placeholders(contract):
-    """13-§1: avtomatik maydonlar — bugalter qo'lda yozmasin, summa ergashsin."""
+    """21-§3.3(a): qiymat kalitlari — KO'RSATISHDA to'ldiriladi, bazada
+    saqlanmaydi (summa o'zgarsa hujjat o'zi ergashadi, `is_stale` yo'q)."""
+    from apps.core.models import CompanyProfile
+    from apps.core.utils import amount_in_words
+
+    company = CompanyProfile.load()
     client = contract.client
-    rows = ''.join(
-        f'<tr><td>{item.product.name}</td><td>{item.quantity}</td></tr>'
-        for item in contract.items.select_related('product')
-    )
+    document = getattr(contract, 'document', None)
+    template = document.template if document and document.template_id else None
+    language = template.language if template else 'ru'
+    date_source = contract.signed_at or localdate()
+    total = contract.items_total_with_vat
+
     return {
         'contract.number': contract.number,
-        'contract.date': contract.signed_at.strftime('%d.%m.%Y') if contract.signed_at else '',
+        'contract.date': _format_contract_date(date_source, language),
+        'contract.city': company.city,
+        'contract.total': str(total),
+        'contract.total_words': amount_in_words(total, language=language),
+        'contract.prepayment_percent': str(contract.prepayment_percent or ''),
+        # §3.4: alohida "necha kun ichida to'lansin" maydon yo'q — bron
+        # muddati (`contract_reservation_days`) shu ma'noni eng yaqin beradi
+        'contract.prepayment_days': str(company.contract_reservation_days),
+        'contract.delivery_days': str(contract.delivery_days),
+        'company.name': company.name,
+        'company.director_name': company.director_name,
+        'company.director_title': company.director_title,
+        'company.inn': company.inn,
+        'company.address': company.address,
+        'company.bank_name': company.bank_name,
+        'company.mfo': company.mfo,
+        'company.account_number': company.account_number,
+        'company.oked': company.oked,
+        'company.registration_code': company.registration_code,
+        'company.license': company.license,
         'client.name': client.display_name if client else '',
+        'client.director_name': getattr(client, 'director_name', '') or '',
+        'client.director_title': getattr(client, 'director_title', '') or '',
         'client.inn': getattr(client, 'inn', '') or '',
-        'items_table': f'<table>{rows}</table>',
-        'total': str(contract.items_total_with_vat),
-        'prepayment_percent': str(contract.prepayment_percent or ''),
-        'term_days': str(contract.term_days),
+        'client.address': getattr(client, 'address', '') or '',
+        'client.bank_name': getattr(client, 'bank_name', '') or '',
+        'client.mfo': getattr(client, 'mfo', '') or '',
+        'client.account_number': getattr(client, 'account_number', '') or '',
     }
 
 
 def render_contract_document(contract, body):
     """O'rin egallovchilarni KO'RSATISHDA to'ldiradi — saqlashda emas.
 
-    Shunda summa o'zgarsa (masalan partiya soni) hujjat ham ergashadi.
+    Shunda summa o'zgarsa (masalan partiya soni) hujjat ham ergashadi —
+    21-§3.2: bazadagi `body`da `{{ }}` doim saqlanib turadi, "eskirdi"
+    (`is_stale`) degan tushuncha shu sabab umuman yo'q.
 
-    QOLGAN-ISHLAR #3: `total`/`prepayment_percent` — shartnomaning JAMI
-    summasi, `PRICE_FIELDS` qoidasi bunga tegishli emas (u faqat QATOR
-    narxini — `unit_price` va h.k. — sales/adminga cheklaydi). Jami
-    summani bugalter ham allaqachon shartnoma kartasida ko'radi, hujjatda
-    yashirish esa uni yozayotgan odamdan asosiy raqamni olib qo'yardi.
     Hujjatning o'zi bugalter/admin/sales(egasi)dan boshqasiga umuman
     ochilmaydi (view darajasida), shuning uchun bu yerda qo'shimcha
     maskalash shart emas.
     """
-    import re
-
     values = _contract_document_placeholders(contract)
 
     def repl(match):
         key = match.group(1).strip()
         return values.get(key, match.group(0))
 
-    return re.sub(r'\{\{\s*([\w.]+)\s*\}\}', repl, body or '')
+    return _PLACEHOLDER_RE.sub(repl, body or '')
+
+
+@atomic
+def attach_contract_template(contract, template, user):
+    """21-§3.6: sales shablon tanlaydi — matn BUTUNLAY almashadi.
+
+    `template` FK faqat "qaysi shablondan kelgan" ma'lumoti: matnning o'zi
+    shu yerda nusxalanadi, shablon keyin tahrirlansa yoki o'chirilsa ham
+    ochiq shartnomaga ta'sir qilmaydi (`SET_NULL`, 21-§3.2/3.6).
+    """
+    _require_document_editable(contract)
+    document = get_or_create_contract_document(contract)
+    document.template = template
+    document.body = template.body
+    document.has_specification = template.has_specification
+    document.has_requisites = template.has_requisites
+    document.updated_by = user
+    document.save()
+    document.versions.create(body=document.body, created_by=user)
+    return document
+
+
+_QL_ALIGN_STYLES = {
+    'ql-align-center': 'text-align: center',
+    'ql-align-right': 'text-align: right',
+    'ql-align-justify': 'text-align: justify',
+}
+_QL_TAG_RE = re.compile(r'<[a-zA-Z][a-zA-Z0-9]*\b[^>]*class="[^"]*"[^>]*>')
+
+
+def _inline_legacy_styles(html):
+    """21-§3.7: muharrir (Quill) ba'zi formatlarni CSS SINFI bilan yozadi
+    (`class="ql-align-center"`), inline uslub bilan emas — PDF renderer va
+    pochta mijozi muharrir CSS'ini yuklamaydi (Navigo saboqi). Shuning
+    uchun saqlash chegarasida INLINE uslub ham qo'shiladi: sinf ham qoladi
+    (muharrir o'zinikini o'qiyveradi), uslub ham yoziladi (qolgan hamma
+    joy — jumladan WeasyPrint — to'g'ri chizadi).
+    """
+    def add_style(match):
+        tag = match.group(0)
+        class_match = re.search(r'class="([^"]*)"', tag)
+        if not class_match:
+            return tag
+        styles = []
+        for cls in class_match.group(1).split():
+            if cls in _QL_ALIGN_STYLES:
+                styles.append(_QL_ALIGN_STYLES[cls])
+            elif cls.startswith('ql-indent-'):
+                suffix = cls.rsplit('-', 1)[-1]
+                if suffix.isdigit():
+                    styles.append(f'margin-left: {int(suffix) * 3}em')
+        if not styles:
+            return tag
+        style_str = '; '.join(styles)
+        style_match = re.search(r'style="([^"]*)"', tag)
+        if style_match:
+            existing = style_match.group(1).rstrip(';')
+            merged = f'{existing}; {style_str}' if existing else style_str
+            return tag[:style_match.start(1)] + merged + tag[style_match.end(1):]
+        if tag.rstrip().endswith('/>'):
+            return tag[:-2].rstrip() + f' style="{style_str}" />'
+        return tag[:-1] + f' style="{style_str}">'
+
+    return _QL_TAG_RE.sub(add_style, html or '')
+
+
+@atomic
+def set_contract_document_body(contract, user, body):
+    """21-§3.6: sales (egasi)/bugalter/admin hujjat matnini tahrirlaydi.
+
+    `.docx` yuklash yo'li olib tashlandi — endi HTML to'g'ridan-to'g'ri
+    saqlanadi, muharrir sinflari saqlash chegarasida inline uslubga
+    ko'chiriladi (§3.7).
+    """
+    _require_document_editable(contract)
+    document = get_or_create_contract_document(contract)
+    document.body = _inline_legacy_styles(body)
+    document.updated_by = user
+    document.save()
+    document.versions.create(body=document.body, created_by=user)
+    return document
+
+
+def _specification_rows_html(contract):
+    rows = []
+    for idx, item in enumerate(contract.items.select_related('product'), start=1):
+        rows.append(
+            f'<tr><td>{idx}</td><td>{item.product.name}</td>'
+            f'<td>{item.product.unit}</td><td>{item.quantity}</td>'
+            f'<td>{item.unit_price}</td><td>{item.total_with_vat}</td></tr>',
+        )
+    return ''.join(rows)
+
+
+def specification_block_html(contract, language='ru'):
+    """21-§3.3(b): Спецификация — jadval + ИТОГО + summa so'z bilan (ramka,
+    blok kalit emas — sales shablonga yozmaydi, tizim quradi)."""
+    from apps.core.utils import amount_in_words
+
+    if not contract.items.exists():
+        return ''
+    total = contract.items_total_with_vat
+    total_label = "JAMI" if language == 'uz' else 'ИТОГО'
+    headers = (
+        ('№', 'Nomi', "O'lch.", 'Soni', 'Narxi', 'Summa') if language == 'uz'
+        else ('№', 'Наименование', 'Ед. изм.', 'Кол-во', 'Цена', 'Сумма')
+    )
+    head_row = ''.join(f'<th>{cell}</th>' for cell in headers)
+    return (
+        '<table class="specification">'
+        f'<thead><tr>{head_row}</tr></thead>'
+        f'<tbody>{_specification_rows_html(contract)}</tbody>'
+        f'<tfoot><tr><td colspan="5">{total_label}</td><td>{total}</td></tr></tfoot>'
+        '</table>'
+        f'<p class="total-words">{amount_in_words(total, language=language)}</p>'
+    )
+
+
+def requisites_block_html(contract):
+    """21-§3.3(b): 10-bo'lim — ikki tomon rekvizitlari.
+
+    Mijoz turi bo'yicha shoxlanadi: jismoniy shaxsda passport/JSHSHIR,
+    yuridik shaxsda INN/bank (§3.6 case — jismoniy shaxs mijoz).
+    """
+    from apps.core.models import CompanyProfile
+    from apps.clients.models import Client
+
+    company = CompanyProfile.load()
+    client = contract.client
+    company_html = (
+        '<div class="requisites-party">'
+        f'<p>{company.name}</p>'
+        f'<p>ИНН: {company.inn}</p>'
+        f'<p>{company.address}</p>'
+        f'<p>Банк: {company.bank_name}, МФО: {company.mfo}</p>'
+        f'<p>Р/с: {company.account_number}</p>'
+        f'<p>ОКЭД: {company.oked}</p>'
+        '</div>'
+    )
+    if client and client.type == Client.Type.LEGAL:
+        client_html = (
+            '<div class="requisites-party">'
+            f'<p>{client.display_name}</p>'
+            f'<p>ИНН: {client.inn}</p>'
+            f'<p>{client.address}</p>'
+            f'<p>Банк: {client.bank_name}, МФО: {client.mfo}</p>'
+            f'<p>Р/с: {client.account_number}</p>'
+            '</div>'
+        )
+    else:
+        client_html = (
+            '<div class="requisites-party">'
+            f'<p>{client.display_name if client else ""}</p>'
+            f'<p>Паспорт: {getattr(client, "passport", "") or ""}</p>'
+            f'<p>ПИНФЛ: {getattr(client, "jshshir", "") or ""}</p>'
+            f'<p>{getattr(client, "address", "") or ""}</p>'
+            '</div>'
+        )
+    return f'<div class="requisites">{company_html}{client_html}</div>'
+
+
+def signature_block_html(contract):
+    """21-§3.3(b): imzo bloklari (lavozim, F.I.SH, М.П.)."""
+    from apps.core.models import CompanyProfile
+    from apps.clients.models import Client
+
+    company = CompanyProfile.load()
+    client = contract.client
+    is_legal = bool(client and client.type == Client.Type.LEGAL)
+    client_title = client.director_title if is_legal else ''
+    client_signer = client.director_name if is_legal and client.director_name else (
+        client.display_name if client else ''
+    )
+    return (
+        '<div class="signatures">'
+        '<div class="signatures-party">'
+        f'<p>{company.director_title or "Директор"}</p>'
+        f'<p>____________ {company.director_name}</p><p>М.П.</p>'
+        '</div>'
+        '<div class="signatures-party">'
+        f'<p>{client_title}</p>'
+        f'<p>____________ {client_signer}</p><p>М.П.</p>'
+        '</div>'
+        '</div>'
+    )
+
+
+_CONTRACT_PDF_CSS = """
+@page { size: A4; margin: 8mm }
+body { font-family: DejaVu Sans, sans-serif; font-size: 11pt; }
+.terms-content .ql-align-center { text-align: center; }
+.terms-content .ql-align-right { text-align: right; }
+.terms-content .ql-align-justify { text-align: justify; }
+.terms-content .ql-indent-1 { margin-left: 3em; }
+.terms-content .ql-indent-2 { margin-left: 6em; }
+.terms-content .ql-indent-3 { margin-left: 9em; }
+.terms-content .ql-indent-4 { margin-left: 12em; }
+.terms-content .ql-indent-5 { margin-left: 15em; }
+.terms-content .ql-indent-6 { margin-left: 18em; }
+.terms-content .ql-indent-7 { margin-left: 21em; }
+.terms-content .ql-indent-8 { margin-left: 24em; }
+table.specification { width: 100%; border-collapse: collapse; margin-top: 1em; }
+table.specification td, table.specification th { border: 1px solid #333; padding: 4px; }
+.requisites, .signatures { display: flex; justify-content: space-between; margin-top: 2em; }
+"""
+
+
+def render_contract_pdf_html(contract):
+    """21-§3.7: ramka HTML — WeasyPrint shu HTML'ni A4 PDF'ga chiqaradi.
+
+    Ramka: sarlavha/muqaddima → sales matni (1-9 bo'lim) → rekvizit/imzo →
+    spetsifikatsiya (§3.3b). Ramka CSS'ida muharrir sinflari qayta e'lon
+    qilinadi — ikkinchi himoya, saqlashdagi inline uslub (§3.7) yetarli
+    bo'lmagan eski yozuvlar uchun ham ishlaydi.
+    """
+    from apps.core.models import CompanyProfile
+    from apps.clients.models import Client
+
+    document = get_or_create_contract_document(contract)
+    template = document.template
+    language = template.language if template else 'ru'
+    body_html = render_contract_document(contract, document.body)
+    values = _contract_document_placeholders(contract)
+    company = CompanyProfile.load()
+    client = contract.client
+
+    title = (
+        f'{contract.number}-SON YETKAZIB BERISH SHARTNOMASI' if language == 'uz'
+        else f'ДОГОВОР ПОСТАВКИ № {contract.number}'
+    )
+    company_role = 'Ijrochi' if language == 'uz' else 'Исполнитель'
+    client_role = 'Mijoz' if language == 'uz' else 'Заказчик'
+    is_legal = bool(client and client.type == Client.Type.LEGAL)
+    preamble = (
+        f'<p>«{company.name}», bundan buyon "{company_role}" '
+        f'({company.director_title} {company.director_name} shaxsida), va '
+        f'«{client.display_name if client else ""}», bundan buyon "{client_role}"'
+        f'{f" ({client.director_title} {client.director_name} shaxsida)" if is_legal else ""}, '
+        'quyidagi shartnomani tuzdilar:</p>'
+        if language == 'uz' else
+        f'<p>«{company.name}», именуемое в дальнейшем "{company_role}", '
+        f'в лице {company.director_title} {company.director_name}, и '
+        f'«{client.display_name if client else ""}», именуемое в дальнейшем "{client_role}"'
+        f'{f", в лице {client.director_title} {client.director_name}" if is_legal else ""}, '
+        'заключили настоящий договор:</p>'
+    )
+
+    blocks = [
+        f'<h1>{title}</h1>',
+        f'<p class="city-date">{values["contract.city"]} · {values["contract.date"]}</p>',
+        f'<div class="preamble">{preamble}</div>',
+        f'<div class="terms-content">{body_html}</div>',
+    ]
+    if document.has_requisites:
+        blocks.append(requisites_block_html(contract))
+        blocks.append(signature_block_html(contract))
+    if document.has_specification:
+        blocks.append(specification_block_html(contract, language))
+
+    return (
+        '<html><head><meta charset="utf-8">'
+        f'<style>{_CONTRACT_PDF_CSS}</style></head>'
+        f'<body>{"".join(blocks)}</body></html>'
+    )
+
+
+def render_contract_pdf(contract):
+    """`GET /contracts/{id}/document/export/?format=pdf` — A4 PDF baytlari.
+
+    Hujjat kichik — sinxron chiziladi (Navigo ham shunday qiladi).
+    """
+    from weasyprint import HTML
+
+    return HTML(string=render_contract_pdf_html(contract)).write_pdf()
+
+
+# ---------------------------------------------------------------------------
+# 21-§3.5: shartnoma raqami — `NB2309-26`. Yangi shartnomalarga; eski
+# `SHT-000xx` yozuvlar o'zgarmaydi (raqam faqat bo'sh bo'lganda hisoblanadi).
+# ---------------------------------------------------------------------------
+
+_CYRILLIC_TO_LATIN_INITIAL = {
+    'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D', 'Е': 'E', 'Ё': 'E',
+    'Ж': 'J', 'З': 'Z', 'И': 'I', 'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M',
+    'Н': 'N', 'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T', 'У': 'U',
+    'Ф': 'F', 'Х': 'X', 'Ц': 'S', 'Ч': 'C', 'Ш': 'S', 'Щ': 'S', 'Ъ': '',
+    'Ы': 'I', 'Ь': '', 'Э': 'E', 'Ю': 'Y', 'Я': 'Y', 'Ў': 'O', 'Қ': 'Q',
+    'Ғ': 'G', 'Ҳ': 'H',
+}
+
+
+def _transliterate_initial(letter):
+    upper = (letter or '').upper()
+    return _CYRILLIC_TO_LATIN_INITIAL.get(upper, upper)
+
+
+def _contract_owner_initials(user):
+    """21-§3.5: ism/familiyadan ikki harf, Kirill bo'lsa transliteratsiya bilan.
+
+    To'liq ism yo'q (faqat `username`) — uning birinchi ikki harfi. Bitta
+    so'zli ism ham xuddi shu qoida bilan (aniq va bashorat qilsa bo'ladigan
+    bo'lishi uchun — ikkinchi harf yo'qligidan chalkashib yurmaslik uchun).
+    """
+    if user is None:
+        return 'XX'
+    first = (user.first_name or '').strip()
+    last = (user.last_name or '').strip()
+    if first and last:
+        return _transliterate_initial(first[0]) + _transliterate_initial(last[0])
+    single_word = first or last
+    if not single_word:
+        single_word = (user.username or '').strip()
+    if len(single_word) >= 2:
+        return (
+            _transliterate_initial(single_word[0]) + _transliterate_initial(single_word[1])
+        ).upper()
+    if single_word:
+        return (_transliterate_initial(single_word[0]) * 2).upper()
+    return 'XX'
+
+
+def contract_number(user, when=None):
+    """21-§3.5: `NB2309-26` — sales bosh harflari + kun/oy + yil.
+
+    Egasi — shartnomani ochgan sales (avtomatik ochilganda: zayavkani
+    yozgan sales, `create_contract_from_configuration`dagi `owner`),
+    tugmani bosgan odam emas.
+    """
+    when = when or localdate()
+    return f'{_contract_owner_initials(user)}{when.day:02d}{when.month:02d}-{when:%y}'
+
+
+def unique_contract_number(candidate):
+    """Takror — bitta sales bir kunda ikkita shartnoma ochsa: `/2`, `/3` …"""
+    from apps.sales.models import Contract as _Contract
+
+    if not _Contract.objects.filter(number=candidate).exists():
+        return candidate
+    suffix = 2
+    while _Contract.objects.filter(number=f'{candidate}/{suffix}').exists():
+        suffix += 1
+    return f'{candidate}/{suffix}'

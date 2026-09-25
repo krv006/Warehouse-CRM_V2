@@ -29,6 +29,9 @@ class Product(TimeStampedModel):
     name = CharField(max_length=200)
     kind = CharField(max_length=20, choices=Kind.choices, default=Kind.MACHINE)
     description = TextField(blank=True)
+    # 21-§3.4: shartnoma spetsifikatsiyasida "Ед. Изм" ustuni kerak —
+    # ilgari `print_form`da qattiq "dona" yozilardi
+    unit = CharField(max_length=20, default='dona', blank=True)
     cost_price = DecimalField(max_digits=18, decimal_places=2, default=0)
     sale_price = DecimalField(max_digits=18, decimal_places=2, default=0)
 

@@ -16,7 +16,7 @@ from apps.inventory.services import (
     plannable_quantity,
     sellable_quantity,
 )
-from apps.sales.models import Contract
+from apps.sales.models import Contract, ContractDocument
 
 
 class ReservationBasicsTests(APITestCase):
@@ -93,6 +93,9 @@ class ReservationBasicsTests(APITestCase):
 
     def test_reject_releases_reservation(self):
         contract_id = self._make_contract(quantity=2)
+        ContractDocument.objects.update_or_create(
+            contract=Contract.objects.get(pk=contract_id), defaults={'body': '<p>x</p>'},
+        )
         self.client.post(f'/api/contracts/{contract_id}/submit/')
         self.client.force_authenticate(self.bugalter)
         self.client.post(f'/api/contracts/{contract_id}/reject/', {'comment': 'x'})
@@ -103,6 +106,9 @@ class ReservationBasicsTests(APITestCase):
 
     def _pay(self, contract_id):
         # 12-§1: sales -> bugalter -> admin -> Didox -> to'lov
+        ContractDocument.objects.update_or_create(
+            contract=Contract.objects.get(pk=contract_id), defaults={'body': '<p>x</p>'},
+        )
         self.client.post(f'/api/contracts/{contract_id}/submit/')
         self.client.force_authenticate(self.bugalter)
         self.client.post(f'/api/contracts/{contract_id}/approve/')
@@ -210,6 +216,9 @@ class ReservationExpiryTests(APITestCase):
         self.assertIn('broni muddati tugadi', note.title)
 
         # Qayta submit — bron qayta uriniladi
+        ContractDocument.objects.update_or_create(
+            contract=Contract.objects.get(pk=contract_id), defaults={'body': '<p>x</p>'},
+        )
         response = self.client.post(f'/api/contracts/{contract_id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertTrue(

@@ -6,7 +6,7 @@ from apps.accounts.models import User
 from apps.clients.models import Client
 from apps.core.models import CompanyProfile, Notification
 from apps.inventory.models import Product
-from apps.sales.models import Contract, ContractApproval
+from apps.sales.models import Contract, ContractApproval, ContractDocument
 
 
 class BaseContractSetup(APITestCase):
@@ -37,6 +37,9 @@ class BaseContractSetup(APITestCase):
             'currency': currency,
             'items': [{'product': self.product.id, 'quantity': 1, 'unit_price': unit_price}],
         }, format='json').data['id']
+        ContractDocument.objects.update_or_create(
+            contract=Contract.objects.get(pk=contract_id), defaults={'body': '<p>x</p>'},
+        )
         self.client.post(f'/api/contracts/{contract_id}/submit/')
         return contract_id
 

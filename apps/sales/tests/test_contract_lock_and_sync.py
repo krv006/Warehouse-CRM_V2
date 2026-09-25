@@ -5,7 +5,7 @@ from rest_framework.test import APITestCase
 from apps.accounts.models import User
 from apps.clients.models import Client
 from apps.inventory.models import Product
-from apps.sales.models import Contract
+from apps.sales.models import Contract, ContractDocument
 
 
 class ContractTotalSyncTests(APITestCase):
@@ -87,6 +87,9 @@ class ContractLockTests(APITestCase):
         self.item_id = data['items'][0]['id']
 
     def test_items_locked_after_submit(self):
+        ContractDocument.objects.update_or_create(
+            contract=Contract.objects.get(pk=self.contract_id), defaults={'body': '<p>x</p>'},
+        )
         self.client.post(f'/api/contracts/{self.contract_id}/submit/')
         response = self.client.patch(
             f'/api/contract-items/{self.item_id}/', {'unit_price': '50000000'},
@@ -100,6 +103,9 @@ class ContractLockTests(APITestCase):
         self.assertEqual(response.status_code, 403)
 
     def test_admin_still_edits_after_submit(self):
+        ContractDocument.objects.update_or_create(
+            contract=Contract.objects.get(pk=self.contract_id), defaults={'body': '<p>x</p>'},
+        )
         self.client.post(f'/api/contracts/{self.contract_id}/submit/')
         self.client.force_authenticate(self.admin)
         response = self.client.patch(
@@ -108,6 +114,9 @@ class ContractLockTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
 
     def test_rejected_contract_is_editable_and_resubmittable(self):
+        ContractDocument.objects.update_or_create(
+            contract=Contract.objects.get(pk=self.contract_id), defaults={'body': '<p>x</p>'},
+        )
         self.client.post(f'/api/contracts/{self.contract_id}/submit/')
         self.client.force_authenticate(self.bugalter)
         self.client.post(

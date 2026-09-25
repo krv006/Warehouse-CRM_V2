@@ -14,7 +14,7 @@ from apps.inventory.models import (
     Warehouse,
 )
 from apps.inventory.services import apply_movement
-from apps.sales.models import Contract
+from apps.sales.models import Contract, ContractDocument
 
 
 class ContractFirstTests(APITestCase):
@@ -229,6 +229,7 @@ class ContractFirstTests(APITestCase):
         self._approve(configuration)
         contract = Contract.objects.get()
         self.client.force_authenticate(self.sales)
+        ContractDocument.objects.update_or_create(contract=contract, defaults={'body': '<p>x</p>'})
         response = self.client.post(f'/api/contracts/{contract.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
 
@@ -245,6 +246,7 @@ class ContractFirstTests(APITestCase):
         self._approve(configuration)
         contract = Contract.objects.get()
         self.client.force_authenticate(self.sales)
+        ContractDocument.objects.update_or_create(contract=contract, defaults={'body': '<p>x</p>'})
         self.client.post(f'/api/contracts/{contract.id}/submit/')
         # 12-§1: sales -> bugalter -> admin -> Didox -> to'lov
         self.client.force_authenticate(self.bugalter)

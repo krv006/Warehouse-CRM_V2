@@ -143,3 +143,139 @@ def next_number(model, prefix, width=5):
     last = model.objects.order_by('-id').first()
     seq = (last.id + 1) if last else 1
     return f'{prefix}-{seq:0{width}d}'
+
+
+# ---------------------------------------------------------------------------
+# 21-§3.4: summa so'z bilan — shartnoma spetsifikatsiyasida kerak
+# ("Семьдесят семь миллионов … сум и 10 тийин"). Ikki til: shablon
+# `language`iga qarab (ru — grammatik jins bilan, uz — jinssiz).
+# ---------------------------------------------------------------------------
+
+_RU_ONES = ['', 'один', 'два', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять']
+_RU_ONES_FEM = ['', 'одна', 'две', 'три', 'четыре', 'пять', 'шесть', 'семь', 'восемь', 'девять']
+_RU_TEENS = [
+    'десять', 'одиннадцать', 'двенадцать', 'тринадцать', 'четырнадцать',
+    'пятнадцать', 'шестнадцать', 'семнадцать', 'восемнадцать', 'девятнадцать',
+]
+_RU_TENS = [
+    '', '', 'двадцать', 'тридцать', 'сорок', 'пятьдесят',
+    'шестьдесят', 'семьдесят', 'восемьдесят', 'девяносто',
+]
+_RU_HUNDREDS = [
+    '', 'сто', 'двести', 'триста', 'четыреста', 'пятьсот',
+    'шестьсот', 'семьсот', 'восемьсот', 'девятьсот',
+]
+# (birlik, 2-4 uchun, 5+/11-19 uchun, ayollik jinsimi)
+_RU_SCALE = [
+    ('', '', '', False),
+    ('тысяча', 'тысячи', 'тысяч', True),
+    ('миллион', 'миллиона', 'миллионов', False),
+    ('миллиард', 'миллиарда', 'миллиардов', False),
+]
+
+
+def _ru_plural(n, one, few, many):
+    n = n % 100
+    if 11 <= n <= 19:
+        return many
+    tail = n % 10
+    if tail == 1:
+        return one
+    if 2 <= tail <= 4:
+        return few
+    return many
+
+
+def _ru_group_words(n, feminine=False):
+    words = []
+    hundreds, rem = divmod(n, 100)
+    if hundreds:
+        words.append(_RU_HUNDREDS[hundreds])
+    if 10 <= rem < 20:
+        words.append(_RU_TEENS[rem - 10])
+    else:
+        tens, ones = divmod(rem, 10)
+        if tens:
+            words.append(_RU_TENS[tens])
+        if ones:
+            words.append((_RU_ONES_FEM if feminine else _RU_ONES)[ones])
+    return words
+
+
+def _number_to_words_ru(n):
+    if n == 0:
+        return 'ноль'
+    groups = []
+    temp = n
+    while temp > 0:
+        temp, rem = divmod(temp, 1000)
+        groups.append(rem)
+    words = []
+    for i in range(len(groups) - 1, -1, -1):
+        group = groups[i]
+        if group == 0:
+            continue
+        words += _ru_group_words(group, feminine=(i == 1))
+        if i > 0:
+            one, few, many, _fem = _RU_SCALE[i]
+            words.append(_ru_plural(group, one, few, many))
+    return ' '.join(words)
+
+
+_UZ_ONES = ['', 'bir', 'ikki', 'uch', "to'rt", 'besh', 'olti', 'yetti', 'sakkiz', "to'qqiz"]
+_UZ_TENS = ['', "o'n", 'yigirma', "o'ttiz", 'qirq', 'ellik', 'oltmish', 'yetmish', 'sakson', "to'qson"]
+_UZ_SCALE = ['', 'ming', 'million', 'milliard']
+
+
+def _uz_group_words(n):
+    words = []
+    hundreds, rem = divmod(n, 100)
+    if hundreds:
+        if hundreds > 1:
+            words.append(_UZ_ONES[hundreds])
+        words.append('yuz')
+    tens, ones = divmod(rem, 10)
+    if tens:
+        words.append(_UZ_TENS[tens])
+    if ones:
+        words.append(_UZ_ONES[ones])
+    return words
+
+
+def _number_to_words_uz(n):
+    if n == 0:
+        return 'nol'
+    groups = []
+    temp = n
+    while temp > 0:
+        temp, rem = divmod(temp, 1000)
+        groups.append(rem)
+    words = []
+    for i in range(len(groups) - 1, -1, -1):
+        group = groups[i]
+        if group == 0:
+            continue
+        words += _uz_group_words(group)
+        if i > 0:
+            words.append(_UZ_SCALE[i])
+    return ' '.join(words)
+
+
+def amount_in_words(amount, language='ru'):
+    """Summani so'z bilan yozadi — UZS, butun qismi + tiyin (21-§3.4).
+
+    `language` shablonning `ContractTemplate.language`sidan keladi —
+    ruscha shablonda ruscha (grammatik jins bilan), o'zbekchada o'zbekcha.
+    """
+    amount = Decimal(amount or 0).quantize(Decimal('0.01'))
+    whole = int(amount)
+    tiyin = int((amount - whole) * 100)
+
+    if language == 'uz':
+        words = _number_to_words_uz(whole)
+        words = words[0].upper() + words[1:]
+        return f"{words} so'm va {tiyin:02d} tiyin"
+
+    words = _number_to_words_ru(whole)
+    words = words[0].upper() + words[1:]
+    return f'{words} сум и {tiyin:02d} тийин'

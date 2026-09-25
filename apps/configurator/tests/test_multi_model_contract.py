@@ -9,7 +9,7 @@ from apps.configurator.services import chain_open_replenishment
 from apps.inventory.models import Product, ProductSpec, StockMovement, Warehouse
 from apps.inventory.services import apply_movement
 from apps.procurement.models import Replenishment
-from apps.sales.models import Contract
+from apps.sales.models import Contract, ContractDocument
 from apps.sales.services import archive_completed_chain
 
 
@@ -113,6 +113,7 @@ class MultiModelContractTests(APITestCase):
         self._approve(cfg_a)
         contract = Contract.objects.get()
         self.client.force_authenticate(self.sales)
+        ContractDocument.objects.update_or_create(contract=contract, defaults={'body': '<p>x</p>'})
         self.client.post(f'/api/contracts/{contract.id}/submit/')
 
         cfg_b = self._take_config(self.engineer2, self.dell)

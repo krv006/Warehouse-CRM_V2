@@ -6,7 +6,7 @@ from apps.accounts.models import User
 from apps.clients.models import Client
 from apps.configurator.models import Configuration, ConfigurationRequest
 from apps.inventory.models import Product, ProductSpec, Warehouse
-from apps.sales.models import Contract
+from apps.sales.models import Contract, ContractDocument
 
 
 class DealProcurementViewTests(APITestCase):
@@ -77,6 +77,7 @@ class DealProcurementViewTests(APITestCase):
         from apps.sales.services import approve_contract, confirm_didox, confirm_payment, send_didox
 
         self.client.force_authenticate(self.sales)
+        ContractDocument.objects.update_or_create(contract=contract, defaults={'body': '<p>x</p>'})
         response = self.client.post(f'/api/contracts/{contract.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
         contract.refresh_from_db()

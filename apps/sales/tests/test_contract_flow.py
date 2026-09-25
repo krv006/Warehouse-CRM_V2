@@ -98,8 +98,10 @@ class ContractFlowTests(APITestCase):
         self.assertEqual(response.data['results'][0]['id'], with_config.id)
 
     def test_number_and_prepayment_percent_under_threshold(self):
+        # 21-§3.5: yangi shartnoma raqami — sales bosh harflari + kun/oy-yil
+        # (masalan "SA2309-26"), eski "SHT-000xx" endi faqat tarixiy yozuvlarda
         contract = self._contract('500000000')
-        self.assertTrue(contract.number.startswith('SHT-'))
+        self.assertRegex(contract.number, r'^[A-Z]{2}\d{4}-\d{2}$')
         self.assertEqual(contract.prepayment_percent, Decimal('30.00'))
         self.assertEqual(contract.prepayment_amount, Decimal('150000000.00'))
 
@@ -118,6 +120,10 @@ class ContractFlowTests(APITestCase):
         contract = self._contract()
 
         self.client.force_authenticate(self.sales)
+        # 21-§3.6: matnsiz submit endi 400 — avval hujjat matni kerak
+        self.client.patch(
+            f'/api/contracts/{contract.id}/document/', {'body': '<p>Matn</p>'}, format='json',
+        )
         response = self.client.post(f'/api/contracts/{contract.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['status'], Contract.Status.PENDING_BUGALTER)

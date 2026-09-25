@@ -16,7 +16,7 @@ from django.db.models import (
 
 from apps.core.choices import Currency
 from apps.core.models import StatusTrackedModel
-from apps.core.utils import deadline_progress, next_number
+from apps.core.utils import deadline_progress
 
 # TZ: 1 mlrd dan kam bo'lsa 30%, ko'p bo'lsa 15% oldindan to'lov
 PREPAYMENT_THRESHOLD = Decimal('1000000000')
@@ -64,6 +64,9 @@ class Contract(StatusTrackedModel):
         max_digits=5, decimal_places=2, null=True, blank=True,
     )
     term_days = PositiveIntegerField(default=90)
+    # 21-§3.4: "Срок поставки" — shartnoma matnida alohida, `term_days`
+    # (90) shartnomaning umumiy muddati, bu esa yetkazish muddati (5)
+    delivery_days = PositiveIntegerField(default=5)
     signed_at = DateField(null=True, blank=True)
     start_date = DateField(null=True, blank=True)
     # TOPSHIRIQ-2 #2: yetkazib berish — alohida hodisa (`ship`), to'lov emas.
@@ -91,7 +94,12 @@ class Contract(StatusTrackedModel):
 
     def save(self, *args, **kwargs):
         if not self.number:
-            self.number = next_number(Contract, 'SHT')
+            # 21-§3.5: NB2309-26 — sales bosh harflari + kun/oy/yil; eski
+            # SHT-000xx yozuvlar o'zgarmaydi (raqam faqat bo'sh bo'lganda
+            # hisoblanadi). Doiraviy import — deferred.
+            from apps.sales.services import contract_number, unique_contract_number
+
+            self.number = unique_contract_number(contract_number(self.created_by))
         if self.prepayment_percent is None:
             self.prepayment_percent = default_prepayment_percent(self.total_amount)
         super().save(*args, **kwargs)

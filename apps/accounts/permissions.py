@@ -163,6 +163,15 @@ class ConfigurationRequestAccess(RoleAccess):
     message = 'Zayavka sales va engineer uchun.'
 
 
+class ContractTemplateAccess(RoleAccess):
+    """21-§3.1: shablon — sales va admin yozadi, o'qish hammaga (bugalter
+    ham — u shartnoma matnini tahrirlaydi, qaysi shablondan kelganini bilishi kerak)."""
+
+    read_roles = None
+    write_roles = (SALES,)
+    message = 'Shartnoma shablonini sales va admin yaratadi/tahrirlaydi.'
+
+
 class FinanceAccess(RoleAccess):
     """Kassa, qarz va xarajatlar — faqat admin va bugalter (TZ 8.2)."""
 

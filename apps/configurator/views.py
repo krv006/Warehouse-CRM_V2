@@ -804,6 +804,8 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
         — berilmasa zayavkadagi qiymatlar olinadi. 12-§2 (B2): bitta amalda
         qo'shimcha MODEL qatorlariga ham chernovik ochiladi; har biriga
         alohida rejim — {"line_modes": {"<line_id>": "build|modify"}}.
+        21-§2.2: `base_product` katalogda yo'q bo'lsa — {"new_base_product_name":
+        "...", "new_base_product_sku": "...", "new_base_product_description": "..."}.
         """
         from apps.inventory.models import Product, Warehouse
 
@@ -827,6 +829,9 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
             self.get_object(), request.user,
             base_product=base_product, warehouse=warehouse, mode=mode,
             line_modes=line_modes,
+            new_base_product_name=request.data.get('new_base_product_name', ''),
+            new_base_product_sku=request.data.get('new_base_product_sku', ''),
+            new_base_product_description=request.data.get('new_base_product_description', ''),
         )
         self.log_action(
             ActivityLog.Action.UPDATE, request_obj,

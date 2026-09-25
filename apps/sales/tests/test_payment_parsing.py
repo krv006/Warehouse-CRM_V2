@@ -6,7 +6,7 @@ from apps.accounts.models import User
 from apps.clients.models import Client
 from apps.inventory.models import Product, StockMovement, Warehouse
 from apps.inventory.services import apply_movement
-from apps.sales.models import Contract
+from apps.sales.models import Contract, ContractDocument
 
 
 class ConfirmPaymentParsingTests(APITestCase):
@@ -34,6 +34,9 @@ class ConfirmPaymentParsingTests(APITestCase):
             'items': [{'product': product.id, 'quantity': 1, 'unit_price': '5000000'}],
         }, format='json').data['id']
         # Zanjir: submit -> bugalter -> admin -> Didox (12-§1)
+        ContractDocument.objects.update_or_create(
+            contract=Contract.objects.get(pk=self.contract_id), defaults={'body': '<p>x</p>'},
+        )
         self.client.post(f'/api/contracts/{self.contract_id}/submit/')
         self.client.force_authenticate(self.bugalter)
         self.client.post(f'/api/contracts/{self.contract_id}/approve/')

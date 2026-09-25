@@ -12,7 +12,7 @@ from apps.inventory.models import (
     Warehouse,
 )
 from apps.inventory.services import apply_movement
-from apps.sales.models import Contract
+from apps.sales.models import Contract, ContractDocument
 
 
 class RoadmapTests(APITestCase):
@@ -60,6 +60,7 @@ class RoadmapTests(APITestCase):
         self.client.post(f'/api/configurations/{configuration.id}/approve/')
         configuration.refresh_from_db()
         contract = configuration.active_contract
+        ContractDocument.objects.update_or_create(contract=contract, defaults={'body': '<p>x</p>'})
         self.client.post(f'/api/contracts/{contract.id}/submit/')
         # 12-§1: sales -> bugalter -> admin -> Didox -> to'lov
         self.client.force_authenticate(self.bugalter)
@@ -340,6 +341,7 @@ class RoadmapTests(APITestCase):
         self.client.post(f'/api/configurations/{configuration.id}/approve/')
         configuration.refresh_from_db()
         contract = configuration.active_contract
+        ContractDocument.objects.update_or_create(contract=contract, defaults={'body': '<p>x</p>'})
         self.client.post(f'/api/contracts/{contract.id}/submit/')
         self.client.force_authenticate(self.bugalter)
         self.client.post(f'/api/contracts/{contract.id}/approve/')

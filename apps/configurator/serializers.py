@@ -163,6 +163,7 @@ class ConfigurationSerializer(ModelSerializer):
     # EGALIK §5: "Xodim" ustuni uchun — qaysi engineer ishlayapti
     created_by_name = ReadOnlyField(source='created_by.display_name')
     act_number = ReadOnlyField(source='act.number')
+    act_status = SerializerMethodField()
     total_price = ReadOnlyField()
     items_total = ReadOnlyField()
     variant_sku = ReadOnlyField(source='variant.sku')
@@ -179,7 +180,7 @@ class ConfigurationSerializer(ModelSerializer):
         model = Configuration
         fields = [
             'id', 'number', 'client', 'client_name', 'base_product', 'base_product_name',
-            'warehouse', 'act', 'act_number', 'mode', 'mode_display',
+            'warehouse', 'act', 'act_number', 'act_status', 'mode', 'mode_display',
             'quantity', 'status', 'status_display',
             'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
             'ready_variant', 'missing', 'missing_count', 'contract', 'deal',
@@ -190,6 +191,10 @@ class ConfigurationSerializer(ModelSerializer):
         read_only_fields = [
             'number', 'created_by', 'variant', 'assembled_at', 'cancel_reason',
         ]
+
+    def get_act_status(self, obj):
+        """21-§5: ACT holati — ACT yo'q bo'lsa `null`."""
+        return obj.act.status if obj.act_id else None
 
     def get_missing(self, obj):
         """Ombordan olinishi kerak-u, yetishmayotganlar (3-to'plam §2).
@@ -378,20 +383,71 @@ class ConfigurationRequestEventSerializer(ModelSerializer):
         read_only_fields = fields
 
 
+def resolve_base_product(validated_data):
+    """Sales zayavkada katalogda yo'q modelni to'g'ridan so'rashi (21-§2).
+
+    `new_base_product_name` (ixtiyoriy `new_base_product_sku`,
+    `new_base_product_description`) yuborilsa va `base_product`
+    tanlanmagan bo'lsa — mahsulot katalogga bazaviy MODEL sifatida
+    yaratiladi: narxsiz, qoldiqsiz — buyurtmachi keyin to'ldiradi.
+    `base_product` ham berilgan bo'lsa — tanlangan yutadi (§2.5).
+    """
+    from apps.inventory.models import Product
+    from apps.inventory.services import create_product_from_order
+
+    name = validated_data.pop('new_base_product_name', '')
+    sku = validated_data.pop('new_base_product_sku', '')
+    description = validated_data.pop('new_base_product_description', '')
+    if validated_data.get('base_product') or not (name or sku):
+        return validated_data
+    validated_data['base_product'] = create_product_from_order(
+        name=name, sku=sku, kind=Product.Kind.MACHINE, description=description,
+    )
+    return validated_data
+
+
 class ConfigurationRequestLineSerializer(ModelSerializer):
     """12-§2 (B): zayavkadagi QO'SHIMCHA talab — model yoki tovar."""
 
+    base_product = PrimaryKeyRelatedField(
+        queryset=Product.objects.all(), required=False,
+    )
     base_product_name = ReadOnlyField(source='base_product.name')
     configuration_number = ReadOnlyField(source='configuration.number')
     is_complete = ReadOnlyField()
+    new_base_product_name = CharField(write_only=True, required=False, allow_blank=True)
+    new_base_product_sku = CharField(write_only=True, required=False, allow_blank=True)
+    new_base_product_description = CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = ConfigurationRequestLine
         fields = [
             'id', 'kind', 'base_product', 'base_product_name', 'quantity', 'text',
+            'new_base_product_name', 'new_base_product_sku', 'new_base_product_description',
             'configuration', 'configuration_number', 'contract_item', 'is_complete',
         ]
         read_only_fields = ['configuration', 'contract_item']
+
+    def validate(self, attrs):
+        has_base_product = attrs.get('base_product') or (
+            self.instance and self.instance.base_product_id
+        )
+        if not has_base_product and not (
+            attrs.get('new_base_product_name') or attrs.get('new_base_product_sku')
+        ):
+            raise ValidationError({
+                'base_product': 'Modelni tanlang yoki yangi model nomini kiriting.',
+            })
+        return attrs
+
+    def create(self, validated_data):
+        return super().create(resolve_base_product(validated_data))
+
+    def update(self, instance, validated_data):
+        validated_data.pop('new_base_product_name', None)
+        validated_data.pop('new_base_product_sku', None)
+        validated_data.pop('new_base_product_description', None)
+        return super().update(instance, validated_data)
 
 
 class ConfigurationRequestSerializer(ModelSerializer):
@@ -413,12 +469,17 @@ class ConfigurationRequestSerializer(ModelSerializer):
     taken_by_name = ReadOnlyField(source='taken_by.display_name')
     created_by_name = ReadOnlyField(source='created_by.display_name')
     deal = SerializerMethodField()
+    new_base_product_name = CharField(write_only=True, required=False, allow_blank=True)
+    new_base_product_sku = CharField(write_only=True, required=False, allow_blank=True)
+    new_base_product_description = CharField(write_only=True, required=False, allow_blank=True)
 
     class Meta:
         model = ConfigurationRequest
         fields = [
             'id', 'number', 'client', 'client_name', 'text', 'quantity',
-            'base_product', 'base_product_name', 'warehouse', 'status',
+            'base_product', 'base_product_name',
+            'new_base_product_name', 'new_base_product_sku', 'new_base_product_description',
+            'warehouse', 'status',
             'status_display', 'configuration', 'configuration_number', 'deal',
             'taken_by', 'taken_by_name', 'created_by', 'created_by_name',
             'events', 'lines', 'created_at',
@@ -433,7 +494,17 @@ class ConfigurationRequestSerializer(ModelSerializer):
 
     def create(self, validated_data):
         lines_data = validated_data.pop('lines', [])
+        validated_data = resolve_base_product(validated_data)
         request_obj = super().create(validated_data)
         for line_data in lines_data:
+            line_data = resolve_base_product(line_data)
             ConfigurationRequestLine.objects.create(request=request_obj, **line_data)
         return request_obj
+
+    def update(self, instance, validated_data):
+        # 21-§2.2: faqat yaratishda — tahrirlashda katalogga yozuv
+        # qo'shish kutilmagan yon ta'sir bo'lardi
+        validated_data.pop('new_base_product_name', None)
+        validated_data.pop('new_base_product_sku', None)
+        validated_data.pop('new_base_product_description', None)
+        return super().update(instance, validated_data)

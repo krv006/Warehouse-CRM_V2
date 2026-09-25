@@ -21,6 +21,14 @@ class Command(BaseCommand):
 
     help = "To'liq demo: userlar, mijozlar, ombor, shartnomalar, kirim, kassa"
 
+    def _seed_document_text(self, contract):
+        """21-§3.6: submit endi matnsiz o'tmaydi — demo shartnomalarga oddiy matn."""
+        from apps.sales.models import ContractDocument
+
+        ContractDocument.objects.update_or_create(
+            contract=contract, defaults={'body': '<p>Demo shartnoma matni.</p>'},
+        )
+
     def add_arguments(self, parser):
         parser.add_argument(
             '--reset',
@@ -244,6 +252,7 @@ class Command(BaseCommand):
             submit_contract as submit_sht,
         )
 
+        self._seed_document_text(contract_a)
         submit_sht(contract_a, users['sales'])
         # 12-§1: bugalter -> admin -> Didox (admin ruxsati Didoxdan OLDIN)
         approve_sht(contract_a, users['bugalter'])
@@ -315,6 +324,7 @@ class Command(BaseCommand):
         )
 
         contract_d = config_d.active_contract
+        self._seed_document_text(contract_d)
         _submit_contract(contract_d, users['sales'])
         # 12-§1: bugalter -> admin -> Didox
         _approve_contract(contract_d, users['bugalter'])
@@ -406,18 +416,21 @@ class Command(BaseCommand):
         # 2) Bugalter tekshiruvi navbati (pending_bugalter) — SLA demo uchun
         # keyin eskirtiriladi
         c2 = build(clients[1], 1, 'Bugalter tekshiruvi kutilmoqda')
+        self._seed_document_text(c2)
         submit_contract(c2, users['sales'])
         state['contract_stale'] = c2
 
         # 3) Katta summa — chegaradan oshadi. 12-§1: admin ruxsati Didoxdan
         # OLDIN — bugalter tasdiqlagach to'g'ridan ADMINGA boradi (§11.3 demo)
         c3 = build(clients[2], 3, '75 mln + QQS — chegaradan katta, admin ko\'radi')
+        self._seed_document_text(c3)
         submit_contract(c3, users['sales'])
         approve_contract(c3, users['bugalter'])
 
         # 4) Kichik summa — chegaradan past, ADMIN CHETLAB O'TILADI (§11.3 demo):
         # bugalter tasdig'i bilan to'g'ridan ready_for_didox, tarixda avtomatik yozuv
         c4 = build(clients[3], 1, 'Kichik summa — admin tasdig\'i talab qilinmadi, Didoxga tayyor')
+        self._seed_document_text(c4)
         submit_contract(c4, users['sales'])
         approve_contract(c4, users['bugalter'])
 
@@ -432,6 +445,7 @@ class Command(BaseCommand):
 
         # 6) Yetkazilgan va yopilgan — to'liq hayot yo'li (11-§3: sales yetkazadi)
         c6 = build(clients[3], 1, 'Yetkazilgan va yopilgan shartnoma')
+        self._seed_document_text(c6)
         submit_contract(c6, users['sales'])
         approve_contract(c6, users['bugalter'])
         c6.refresh_from_db()

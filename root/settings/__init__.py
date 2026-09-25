@@ -8,7 +8,6 @@
     spectacular.py  OpenAPI hujjati
     cors.py         React dev server uchun CORS
     business.py     TZ dagi biznes raqamlari
-    collabora.py    Collabora Online (WOPI) — shartnoma .docx muharriri
 """
 
 from root.settings.base import *          # noqa: F401,F403
@@ -19,4 +18,3 @@ from root.settings.jwt import *           # noqa: F401,F403
 from root.settings.spectacular import *   # noqa: F401,F403
 from root.settings.cors import *          # noqa: F401,F403
 from root.settings.business import *      # noqa: F401,F403
-from root.settings.collabora import *     # noqa: F401,F403

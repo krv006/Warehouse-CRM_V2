@@ -9,8 +9,9 @@ class CompanyProfileSerializer(ModelSerializer):
     class Meta:
         model = CompanyProfile
         fields = [
-            'id', 'name', 'inn', 'phone', 'email', 'address',
-            'bank_name', 'mfo', 'account_number', 'director_name',
+            'id', 'name', 'inn', 'phone', 'email', 'address', 'city',
+            'bank_name', 'mfo', 'account_number', 'director_name', 'director_title',
+            'oked', 'registration_code', 'license',
             'contract_terms', 'admin_approval_threshold',
             'replenishment_approval_threshold',
             'sla_cutoff_hour', 'sla_working_days',

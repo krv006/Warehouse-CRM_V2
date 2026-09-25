@@ -7,6 +7,7 @@ from apps.sales.models import (
     ContractPayment,
     ContractDocument,
     ContractDocumentVersion,
+    ContractTemplate,
     Lead,
 )
 
@@ -47,5 +48,11 @@ class ContractDocumentVersionInline(TabularInline):
 
 @register(ContractDocument)
 class ContractDocumentAdmin(ModelAdmin):
-    list_display = ['contract', 'updated_by', 'updated_at']
+    list_display = ['contract', 'template', 'updated_by', 'updated_at']
     inlines = [ContractDocumentVersionInline]
+
+
+@register(ContractTemplate)
+class ContractTemplateAdmin(ModelAdmin):
+    list_display = ['name', 'language', 'is_active', 'is_default', 'created_by']
+    list_filter = ['language', 'is_active', 'is_default']

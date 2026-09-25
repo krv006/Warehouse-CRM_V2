@@ -13,7 +13,7 @@ from apps.configurator.models import (
 )
 from apps.inventory.models import Product, StockMovement, Warehouse
 from apps.inventory.services import apply_movement
-from apps.sales.models import Contract, Lead
+from apps.sales.models import Contract, ContractDocument, Lead
 
 
 class ChainClosureTests(APITestCase):
@@ -87,6 +87,9 @@ class ChainClosureTests(APITestCase):
         self.assertEqual(request_obj.status, ConfigurationRequest.Status.DONE)
 
         # Pul: sales submit -> bugalter -> admin -> Didox -> to'liq to'lov (12-§1)
+        ContractDocument.objects.update_or_create(
+            contract=Contract.objects.get(pk=contract_id), defaults={'body': '<p>x</p>'},
+        )
         self.client.post(f'/api/contracts/{contract_id}/submit/')
         self.client.force_authenticate(self.bugalter)
         self.client.post(f'/api/contracts/{contract_id}/approve/')

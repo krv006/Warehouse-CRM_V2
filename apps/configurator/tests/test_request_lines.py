@@ -102,6 +102,22 @@ class RequestLinesTests(APITestCase):
         item_line = request_obj.lines.get(kind=ConfigurationRequestLine.Kind.ITEM)
         self.assertIsNone(item_line.configuration_id)
 
+    def test_line_without_explicit_mode_inherits_shared_mode(self):
+        """21-§6: `line_modes` berilmasa qator ham umumiy `mode`ni oladi,
+        BUILD'ga to'g'ridan tushib qolmaydi."""
+        request_obj = self._create_mixed_request()
+        self.client.force_authenticate(self.engineer)
+        response = self.client.post(
+            f'/api/configuration-requests/{request_obj.id}/take/',
+            {'mode': 'modify'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+
+        dell_line = request_obj.lines.get(kind=ConfigurationRequestLine.Kind.MODEL)
+        self.assertEqual(dell_line.configuration.mode, Configuration.Mode.MODIFY)
+        request_obj.refresh_from_db()
+        self.assertEqual(request_obj.configuration.mode, Configuration.Mode.MODIFY)
+
     def test_model_line_rejects_non_machine_product(self):
         self.client.force_authenticate(self.sales)
         response = self.client.post('/api/configuration-requests/', {

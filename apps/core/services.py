@@ -199,10 +199,19 @@ def _configuration_source(user):
         )
 
         def engineer_row(obj):
+            from apps.configurator.services import chain_open_replenishment
+
             if obj.status == Configuration.Status.DRAFT:
                 return 'CFG', obj.number, ('configure', 'info'), None, None
             if obj.assembled_at:
                 return 'CFG', obj.number, ('finalize_ready', 'warning'), None, None
+            # 21-§4: butlovchi yetmasa — engineer navbatida "yig'ish" emas,
+            # "buyurtmachiga yuborish" turadi; TLD allaqachon ochiq bo'lsa
+            # bu ham emas — kutish bosqichi, qayta yuborish so'ralmaydi.
+            if obj.missing_items:
+                if chain_open_replenishment(configuration=obj):
+                    return 'CFG', obj.number, ('procurement_pending', 'info'), None, None
+                return 'CFG', obj.number, ('request_procurement', 'warning'), None, None
             return 'CFG', obj.number, ('assemble', 'warning'), None, None
 
         return {

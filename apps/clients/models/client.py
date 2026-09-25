@@ -31,6 +31,8 @@ class Client(TimeStampedModel):
     bank_name = CharField(max_length=200, blank=True)
     account_number = CharField(max_length=30, unique=True, null=True, blank=True)
     director_name = CharField(max_length=200, blank=True)
+    # 21-§3.4: shartnoma matnida kerak — "Директора" kabi lavozim
+    director_title = CharField(max_length=100, blank=True)
 
     # Umumiy
     jshshir = CharField(max_length=20, unique=True, null=True, blank=True)

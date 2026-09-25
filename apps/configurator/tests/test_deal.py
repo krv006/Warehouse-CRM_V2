@@ -7,7 +7,7 @@ from apps.clients.models import Client
 from apps.configurator.models import Configuration, ConfigurationRequest
 from apps.inventory.models import Product, ProductSpec, StockMovement, Warehouse
 from apps.inventory.services import apply_movement
-from apps.sales.models import Contract
+from apps.sales.models import Contract, ContractDocument
 
 
 class DealTests(APITestCase):
@@ -210,6 +210,7 @@ class DealTests(APITestCase):
         contract = Contract.objects.get()
 
         self.client.force_authenticate(self.sales)
+        ContractDocument.objects.update_or_create(contract=contract, defaults={'body': '<p>x</p>'})
         response = self.client.post(f'/api/contracts/{contract.id}/submit/')
         self.assertEqual(response.status_code, 400)
         self.assertEqual(len(response.data['pending_models']), 1)
@@ -300,6 +301,7 @@ class DealTests(APITestCase):
 
         request_obj.refresh_from_db()
         self.assertTrue(request_obj.is_fully_done)
+        ContractDocument.objects.update_or_create(contract=contract, defaults={'body': '<p>x</p>'})
         response = self.client.post(f'/api/contracts/{contract.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
 
@@ -391,6 +393,7 @@ class DealTests(APITestCase):
         )
 
         self.client.force_authenticate(self.sales)
+        ContractDocument.objects.update_or_create(contract=contract, defaults={'body': '<p>x</p>'})
         response = self.client.post(f'/api/contracts/{contract.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
         contract.refresh_from_db()
@@ -558,5 +561,6 @@ class DealTests(APITestCase):
         self._approve(configuration)
         contract = Contract.objects.get()
         self.client.force_authenticate(self.sales)
+        ContractDocument.objects.update_or_create(contract=contract, defaults={'body': '<p>x</p>'})
         response = self.client.post(f'/api/contracts/{contract.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)

@@ -7,7 +7,7 @@ from apps.clients.models import Client
 from apps.configurator.models import Configuration, ConfigurationRequest
 from apps.inventory.models import Product, Warehouse
 from apps.procurement.models import Replenishment
-from apps.sales.models import Contract, Lead
+from apps.sales.models import Contract, ContractDocument, Lead
 
 
 class ContractOwnershipTests(APITestCase):
@@ -39,6 +39,9 @@ class ContractOwnershipTests(APITestCase):
             ).status_code,
             404,
         )
+        ContractDocument.objects.update_or_create(
+            contract=self.contract_b, defaults={'body': '<p>x</p>'},
+        )
         self.assertEqual(
             self.client.post(f'/api/contracts/{self.contract_b.id}/submit/').status_code,
             404,
@@ -66,6 +69,9 @@ class ContractOwnershipTests(APITestCase):
             quantity=1, unit_price=Decimal('100'),
         )
         self.client.force_authenticate(self.admin)
+        ContractDocument.objects.update_or_create(
+            contract=self.contract_b, defaults={'body': '<p>x</p>'},
+        )
         response = self.client.post(f'/api/contracts/{self.contract_b.id}/submit/')
         self.assertEqual(response.status_code, 200, response.data)
 

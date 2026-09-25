@@ -31,6 +31,10 @@ class ContractChainNotificationTests(APITestCase):
             'client': self.mijoz.id,
             'items': [{'product': product.id, 'quantity': 1, 'unit_price': '5000000'}],
         }, format='json').data['id']
+        # 21-§3.6: submit endi matnsiz o'tmaydi
+        self.client.patch(
+            f'/api/contracts/{self.contract_id}/document/', {'body': '<p>Matn</p>'}, format='json',
+        )
 
     def _post(self, user, action, body=None):
         self.client.force_authenticate(user)

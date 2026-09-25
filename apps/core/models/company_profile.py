@@ -25,6 +25,15 @@ class CompanyProfile(TimeStampedModel):
     mfo = CharField(max_length=10, blank=True)
     account_number = CharField(max_length=30, blank=True)
     director_name = CharField(max_length=200, blank=True)
+    # 21-§3.4: NB2309-26 namunasidan chiqqan, shartnoma matnida kerak
+    director_title = CharField(
+        max_length=100, blank=True,
+        help_text='Masalan: "Генерального директора" — lavozim, shartnoma sarlavhasida',
+    )
+    oked = CharField('ОКЭД', max_length=20, blank=True)
+    registration_code = CharField('Ro\'yxatga olish kodi', max_length=50, blank=True)
+    license = CharField(max_length=300, blank=True, help_text="Litsenziya raqami va kim bergani")
+    city = CharField(max_length=100, blank=True, help_text='Masalan: "г. Ташкент" — shartnoma sarlavhasida')
     contract_terms = TextField(
         blank=True,
         help_text="Shartnoma chop etilganda chiqadigan standart shartlar matni",

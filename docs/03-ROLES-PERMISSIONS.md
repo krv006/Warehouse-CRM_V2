@@ -34,6 +34,7 @@
 | `UserDirectoryAccess` | **admin, bugalter** — xodimlar ro'yxati (`GET /users/`); yozish bu sinfda umuman yo'q |
 | `ProductPricingAccess` | barcha login qilganlar | **admin, bugalter, buyurtmachi** — katalog narx siyosati: `PATCH /products/{id}/` (`sale_price`, `cost_price`, `reorder_level`, `is_active`); buyurtmachi YANGI-OQIM B2 narx so'roviga javoban tannarx kiritadi (§6-B: sotuv narxi yo'q bo'lsa tannarx + `markup_percent` ustama) |
 | `ConfigurationRequestAccess` | barcha login qilganlar | admin, sales, engineer |
+| `ContractTemplateAccess` | barcha login qilganlar (bugalter ham — matnni qaysi shablondan kelganini bilishi kerak) | admin, sales — 21-§3.1 |
 
 Hammasi `RoleAccess` asosida: `read_roles` / `write_roles` ro'yxatlari, admin esa doim o'tadi.
 Qalin yozilgan qatorlar — **sales umuman ko'ra olmaydigan** bo'limlar (TZ 8.3).

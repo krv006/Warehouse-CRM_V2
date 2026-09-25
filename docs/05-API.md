@@ -670,10 +670,12 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | POST | `/contracts/{id}/confirm-payment/` | bugalter; YANGI-OQIM: bu **ish boshlanish signali** — CFG broni qattiqlashadi, engineer xabar oladi, 13–16 qadamlar ochiladi |
 | GET | `/contracts/{id}/timeline/` | hamma |
 | GET | `/contracts/{id}/print/` | **faqat sales, admin** — chop etish shakli (qator narxlari bor) |
-| GET | `/contracts/{id}/document/` | 13-§1/15-§A: **bugalter, admin, sales (egasi)** — hujjat matni (faqat KO'RISH — QOLGAN-ISHLAR-2 §4: `PUT` olib tashlandi); `body`/`body_raw` — `.docx`dan `mammoth` bilan o'girilgan HTML (o'qish rejimi); `can_edit` (**20-§1: bugalter YOKI admin**, shartnoma tegishli bosqichda bo'lsa `true` — yuklash/Collabora tugmalarini shu boshqaradi), `versions_count`; birinchi murojaatda bo'sh hujjat avtomatik ochiladi. 15-§3: `source_file` (URL), `source_file_name`, `source_uploaded_at` — yuklangan asl `.docx`ni qaytadan yuklab olish uchun; yuklanmagan bo'lsa uchalasi ham `null`. **QOLGAN-ISHLAR-2 §3**: `is_stale` — fayl yuklanganda shartnoma summasi qanday edi (`rendered_total`) va hozirgi `total_amount` farq qilsa `true` (partiya, yangi model, detach summani o'zgartirgan bo'lishi mumkin) — front qizil ogohlantirish chizadi: "Shartnoma summasi hujjat yuklangandan keyin o'zgargan — qayta yuklang" |
-| POST | `/contracts/{id}/document/upload/` | 13-§1/15-§A: **bugalter YOKI admin** (20-§1 — sales'ga hamon yopiq, u qatorlarni tahrirlaydi, hujjat matnini emas); `.docx` fayl (`file`) yuklanadi — 15-§A: avval o'rin egallovchilar (`{{ contract.number }}`, `{{ client.name }}`, `{{ total }}`, **QOLGAN-ISHLAR-2 §1**: `{{ items }}` — `{%tr for item in items %}{{ item.name }} {{ item.sku }} {{ item.quantity }} {{ item.unit_price }} {{ item.vat_percent }} {{ item.total }}{%tr endfor %}` Word jadval sikli, `{{ items_total }}`/`{{ vat_total }}` …) `docxtpl` bilan STATIK to'ldiriladi (Didoxga shu fayl aynan shu holicha ketadi — piksel-piksel), keyin `mammoth` shu (to'lgan) fayldan faqat KO'RISH uchun `body` yasaydi, `rendered_total` shu paytdagi summaga o'rnatiladi (`is_stale` shundan hisoblanadi); shablonda `{{ }}` xato bo'lsa 400 (`file`), oddiy `.docx` (tag'siz) ham muammosiz o'tadi; boshqa format (`.pdf` va h.k.) 400 |
-| GET | `/contracts/{id}/document/versions/` | 13-§1: tarix — har versiya `body`, kim va qachon saqlagani (`-created_at`) |
-| POST | `/contracts/{id}/document/edit-session/` | 15-§A/20-§1: **bugalter YOKI admin**; Collabora Online (WOPI) tahrir sessiyasi ochadi — javob `{"edit_url": "https://collabora.../browser/dist/cool.html?WOPISrc=...&access_token=..."}`, front shu URL'ni `<iframe>`ga qo'yadi; `.docx` hali yuklanmagan bo'lsa 400 ("Avval .docx shablon yuklansin") |
+| GET/PATCH | `/contracts/{id}/document/` | 21-§3.2/3.6: shartnoma matni — shablon + avtomatik bloklar (`.docx`/Collabora/WOPI **butunlay olib tashlandi**). `body` — o'rin egallovchilar (`{{ key }}`) TO'LDIRILGAN holda (KO'RSATISHDA hisoblanadi, `render_contract_document`), `body_raw` — bazadagi XOM matn (`{{ }}` saqlangan, front shu ustida tahrirlaydi); `template`/`template_name`, `has_specification`/`has_requisites`, `can_edit` (**sales — egasi, YANGI — ilgari faqat bugalter edi — YOKI bugalter YOKI admin**, shartnoma tegishli bosqichda bo'lsa `true`), `versions_count`. `PATCH {"body": "<p>...</p>"}` — matnni to'g'ridan-to'g'ri saqlaydi; Quill klass (`ql-align-*`, `ql-indent-*`) saqlashda inline uslubga ham ko'chiriladi (§3.7); Didoxga ketgach (`pending_didox`+) — 400 |
+| POST | `/contracts/{id}/document/attach-template/` | 21-§3.6: `{"template": id}` — shablon tanlanadi, `body` **BUTUNLAY almashadi** (qo'lda kiritilgan tahrirlar yo'qoladi); `template` faol bo'lmasa 400 |
+| GET | `/contracts/{id}/document/versions/` | tarix — har versiya `body`, kim va qachon saqlagani (`-created_at`) |
+| GET | `/contracts/{id}/document/export/?format=pdf` | 21-§3.7: A4 PDF (WeasyPrint) — ramka (sarlavha/muqaddima/rekvizit/imzo/spetsifikatsiya) + sales matni birga; faqat `pdf` — boshqa `format` DRF'ning o'z content-negotiation'i orqali 404 |
+| GET/POST | `/contract-templates/` | 21-§3.1: sotuv shabloni — **yozish sales/admin, o'qish hammaga** (bugalter ham); `body` ichida `{{ key }}`, noma'lum kalit saqlashda 400; `is_default` bittadan ko'p bo'lmaydi (ikkinchisi qo'yilsa birinchisi avtomatik `false`) |
+| GET/PATCH/DELETE | `/contract-templates/{id}/` | xuddi shu ruxsat |
 | GET | `/contracts/deadlines/` | hamma |
 | GET/POST | `/contract-items/` | admin, sales; javobda `configuration_number` (QOLGAN-ISHLAR #4) — bitta shartnomada bir nechta model bo'lsa qatorni ajratish uchun, alohida so'rovsiz |
 | GET/POST | `/contract-payments/` | admin, bugalter; POST `confirm-payment` bilan bir xil yo'ldan o'tadi: `paid_at` ixtiyoriy (default: hozir), kassaga kirim, balans yopilsa `completed`; §3: summa qoldiqdan oshsa yoki ≤0 bo'lsa `400` |
@@ -803,26 +805,36 @@ deb olinadi (`400`, `500` emas).
 > `total_with_vat` faqat sales va admin javobida bo'ladi (bugalterga umumiy
 > `total_amount`, `items_total`, `vat_total` ko'rinadi).
 
-### Shartnoma hujjatini Collabora'da tahrirlash (15-§A) — WOPI host
+### Shartnoma matni — shablon + avtomatik bloklar (21-§3)
 
-13-§1 dagi "avtomatik yangilanadigan HTML" g'oyasi Didoxga **aynan shu
-`.docx` ketishi** talabiga zid chiqdi (formatlash — markaz, shrift, jadval
-— o'girishda yo'qoladi). Yechim: fayl endi **o'zi asl** — brauzerda
-Collabora Online (WOPI) orqali to'g'ridan-to'g'ri tahrirlanadi, biz esa
-Collabora uchun **WOPI host** rolini o'ynaymiz (`/api/wopi/files/{id}`).
+`.docx` yuklash, Collabora Online va WOPI **butunlay olib tashlandi**
+(17-to'plam va `DOCX-QARORLAR.md`ning o'rnini bosadi). Endi:
 
-1. Bugalter `.docx` shablon yuklaydi (`document/upload/`) — o'rin
-   egallovchilar shu yerda statik to'ladi.
-2. Front `document/edit-session/` dan `edit_url` oladi, `<iframe src={edit_url}>` ochadi.
-3. Collabora shu `iframe` ichida **bizning backendga** (`WOPISrc`) ulanadi:
-   - `GET /wopi/files/{id}?access_token=...` — **CheckFileInfo** (`BaseFileName`, `Size`, `Version`, `UserCanWrite` …)
-   - `GET /wopi/files/{id}/contents?access_token=...` — **GetFile** (xom `.docx` baytlar)
-   - `POST /wopi/files/{id}?access_token=...` + `X-WOPI-Override: LOCK`/`UNLOCK`/`REFRESH_LOCK` + `X-WOPI-Lock: <id>` — tahrir qulfi (WOPI spetsifikatsiyasi; qulf band bo'lsa **409** + `X-WOPI-Lock` sarlavhasida joriy qulf)
-   - `POST /wopi/files/{id}/contents?access_token=...` — **PutFile**, bugalter saqlagan sari Collabora shu yerga yangi `.docx` yuboradi — `source_file` yangilanadi, `body` (ko'rish rejimi) `mammoth` bilan qayta o'giriladi, yangi `ContractDocumentVersion` yoziladi
+1. Sales (yoki admin) `POST /contract-templates/` orqali shablon yozadi —
+   HTML matn (1-9 bo'lim), ichida `{{ key }}` o'rin egallovchilar
+   (§3.3a jadvali: `contract.*`, `company.*`, `client.*`).
+2. Shartnoma ochilganda sales `POST /contracts/{id}/document/attach-template/`
+   bilan shablon tanlaydi — matn shartnomaga **nusxalanadi**
+   (`ContractDocument.body`); shablon keyin tahrirlansa/o'chirilsa ham
+   ochiq shartnomaga ta'sir qilmaydi.
+3. Kerak bo'lsa `PATCH /contracts/{id}/document/` bilan matn to'g'ridan-to'g'ri
+   tuzatiladi (rich-text HTML).
+4. `GET /contracts/{id}/document/` — `body`da `{{ }}` allaqachon
+   qiymatlar bilan almashtirilgan (summa/qator o'zgarsa hujjat o'zi
+   ergashadi — "eskirdi" degan tushuncha yo'q).
+5. Rekvizit (10-bo'lim), imzo bloklari va spetsifikatsiya (jadval + ИТОГО +
+   summa so'z bilan) sales yozmaydi — tizim avtomatik quradi
+   (`has_specification`/`has_requisites` — shu bloklar chizilsinmi).
+6. `GET /contracts/{id}/document/export/?format=pdf` — WeasyPrint A4 PDF
+   (ramka + matn birga, "yozgani bilan chiqqani bir xil").
 
-`access_token` — `contracts/{id}/document/edit-session/` javobidagi imzolangan, muddatli token (standart JWT emas — Collabora bizning login oynamizni bilmaydi); bu ikki manzil **autentifikatsiyasiz** (token o'zi tekshiradi), shuning uchun ular `/api/` ostidagi boshqa endpointlardan farqli — faqat token orqali ishlaydi. Manzillar ataylab **slashsiz** — Collabora `WOPISrc` ga `/contents` ni to'g'ridan-to'g'ri ulaydi.
+`submit_contract` endi matnsiz o'tmaydi — `body` bo'sh bo'lsa 400
+("Shartnoma matni bo'sh — shablon tanlang").
 
-Serverga qo'shimcha `collabora` Docker xizmati kerak (`docker-compose.yml`), `.env` da `COLLABORA_URL` (Collabora'ning o'zi) va `WOPI_PUBLIC_URL` (Collabora bizga qaytib ulanadigan tashqi manzil).
+Shartnoma raqami (§3.5): yangi shartnomalar `NB2309-26` formatida
+(sales bosh harflari + kun/oy-yil, Kirill ism transliteratsiya bilan,
+bir kunda takror bo'lsa `/2`, `/3` …) — eski `SHT-000xx` yozuvlar
+o'zgarmaydi.
 
 ---
 

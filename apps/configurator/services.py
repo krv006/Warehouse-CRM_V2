@@ -2087,11 +2087,38 @@ def copy_factory_spec(configuration):
         )
 
 
-def take_request(request_obj, user, base_product=None, warehouse=None, mode=None, line_modes=None):
+def _validate_modify_ready(base_product, warehouse, *, field='mode'):
+    """21-§2.5(c): yangi (tarkibsiz-u qoldiqsiz) modelda `modify` erta bloklanadi.
+
+    `copy_factory_spec` bunday modeldan hech narsa ko'chirmaydi, konfiguratsiya
+    bo'sh qoladi va xato faqat `submit`da chiqadi — engineer shu paytgacha
+    ishlab bo'ladi. Xato shu yerda, ishga olishning o'zida chiqishi kerak.
+    """
+    from rest_framework.exceptions import ValidationError
+
+    from apps.inventory.services import available_quantity
+
+    if base_product.specs.exists() or available_quantity(base_product, warehouse) > 0:
+        return
+    raise ValidationError({
+        field: (
+            "Bu model omborda ham yo'q, tarkibi ham kiritilmagan — "
+            "o'zgartirish rejimi ishlamaydi. Butlovchilardan yig'ish tanlang."
+        ),
+    })
+
+
+def take_request(
+    request_obj, user, base_product=None, warehouse=None, mode=None, line_modes=None,
+    new_base_product_name='', new_base_product_sku='', new_base_product_description='',
+):
     """Engineer zayavkani ishga oladi — chernovik konfiguratsiya avtomatik ochiladi.
 
-    Bazaviy model: so'rov tanasidagi `base_product` > zayavkada yozilgani.
-    Ikkalasi ham bo'lmasa 400 — konfiguratsiya modelsiz yaratilmaydi.
+    Bazaviy model: so'rov tanasidagi `base_product` > `new_base_product_name`/
+    `new_base_product_sku` bilan yangi yaratilgani > zayavkada yozilgani.
+    Hech biri bo'lmasa 400 — konfiguratsiya modelsiz yaratilmaydi (21-§2.2:
+    sales modelni bilmasligi, engineer tanlagani ham katalogda bo'lmasligi
+    mumkin — ikkalasi ham shu yerda yopiladi).
 
     12-§2 (B2): bitta amal — agar zayavkada QO'SHIMCHA MODEL qatorlari
     bo'lsa (`ConfigurationRequestLine.Kind.MODEL`), ularga ham shu yerda,
@@ -2111,6 +2138,13 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
     if request_obj.status != ConfigurationRequest.Status.NEW:
         raise ValidationError('Faqat yangi zayavkani ishga olish mumkin.')
 
+    if base_product is None and (new_base_product_name or new_base_product_sku):
+        from apps.inventory.services import create_product_from_order
+
+        base_product = create_product_from_order(
+            name=new_base_product_name, sku=new_base_product_sku,
+            kind=Product.Kind.MACHINE, description=new_base_product_description,
+        )
     base_product = base_product or request_obj.base_product
     if base_product is None:
         raise ValidationError({
@@ -2130,13 +2164,16 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
 
     line_modes = line_modes or {}
     used_warehouse = warehouse or request_obj.warehouse or main_warehouse()
+    used_mode = mode or Configuration.Mode.BUILD
+    if used_mode == Configuration.Mode.MODIFY:
+        _validate_modify_ready(base_product, used_warehouse)
 
     with atomic():
         configuration = Configuration.objects.create(
             base_product=base_product,
             client=request_obj.client,
             warehouse=used_warehouse,
-            mode=mode or Configuration.Mode.BUILD,
+            mode=used_mode,
             # #3: mijoz nechta so'ragani zayavkadan ko'chadi (engineer
             # chernovikda o'zgartira oladi)
             quantity=request_obj.quantity,
@@ -2170,11 +2207,17 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
                         'model, bazaviy model emas.'
                     ),
                 })
+            line_used_mode = (
+                line_modes.get(line.id) or line_modes.get(str(line.id))
+                or mode or Configuration.Mode.BUILD
+            )
+            if line_used_mode == Configuration.Mode.MODIFY:
+                _validate_modify_ready(line.base_product, used_warehouse, field='line_modes')
             line_configuration = Configuration.objects.create(
                 base_product=line.base_product,
                 client=request_obj.client,
                 warehouse=used_warehouse,
-                mode=line_modes.get(line.id) or line_modes.get(str(line.id)) or Configuration.Mode.BUILD,
+                mode=line_used_mode,
                 quantity=line.quantity,
                 note=f'{request_obj.number}: {line.text or line.base_product.name}',
                 created_by=user,

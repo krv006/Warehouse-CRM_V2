@@ -29,7 +29,7 @@ class ClientSerializer(ModelSerializer):
         fields = [
             'id', 'type', 'type_display', 'display_name', 'full_name', 'passport',
             'company_name', 'inn', 'mfo', 'bank_name', 'account_number',
-            'director_name', 'jshshir', 'phone', 'email',
+            'director_name', 'director_title', 'jshshir', 'phone', 'email',
             'address', 'note', 'created_by', 'created_at',
         ]
         read_only_fields = ['created_by']

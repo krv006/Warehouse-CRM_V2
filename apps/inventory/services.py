@@ -342,7 +342,7 @@ def configuration_signature(base_product_id, items):
     return sha256(raw.encode('utf-8')).hexdigest()[:40]
 
 
-def create_product_from_order(*, name, sku='', kind=None, cost_price=0):
+def create_product_from_order(*, name, sku='', kind=None, cost_price=0, description=''):
     """Buyurtma qilingan yangi mahsulotni katalogga qo'shadi (TZ 7).
 
     Buyurtmachi to'ldirish hisobiga hali bazada yo'q tovarni yozganda,
@@ -370,4 +370,5 @@ def create_product_from_order(*, name, sku='', kind=None, cost_price=0):
         name=name or sku,
         kind=kind or Product.Kind.COMPONENT,
         cost_price=cost_price or 0,
+        description=(description or '').strip(),
     )

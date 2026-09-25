@@ -9,9 +9,8 @@ from apps.sales.views import (
     ContractItemViewSet,
     ContractApprovalViewSet,
     ContractPaymentViewSet,
+    ContractTemplateViewSet,
     LeadViewSet,
-    WopiFileContentsView,
-    WopiFileInfoView,
 )
 
 urlpatterns = [
@@ -63,27 +62,26 @@ urlpatterns = [
     path('contracts/<int:pk>/print/', ContractViewSet.as_view({
         'get': 'print_form',
     }), name='contract-print'),
-    # 13-§1: shartnoma matni — bugalter yuklaydi va saytda ko'rinadi.
-    # QOLGAN-ISHLAR-2 §4: `PUT` olib tashlandi — 15-§A dan keyin Didoxga
-    # `source_file` ketadi, `body`ni alohida tahrirlash ikkinchi (eski)
-    # manba yaratardi. O'qish (`GET`) va yuklash (`upload/`) qoladi.
+    # 21-§3.2/3.6: shartnoma matni — shablon + avtomatik bloklar; `.docx`
+    # yuklash va Collabora/WOPI olib tashlandi. Sales (egasi)/bugalter/admin
+    # matnni to'g'ridan-to'g'ri (HTML) tahrirlaydi yoki shablon tanlaydi.
     path('contracts/<int:pk>/document/', ContractViewSet.as_view({
         'get': 'document',
+        'patch': 'document_update',
     }), name='contract-document'),
-    path('contracts/<int:pk>/document/upload/', ContractViewSet.as_view({
-        'post': 'document_upload',
-    }), name='contract-document-upload'),
+    path('contracts/<int:pk>/document/attach-template/', ContractViewSet.as_view({
+        'post': 'document_attach_template',
+    }), name='contract-document-attach-template'),
     path('contracts/<int:pk>/document/versions/', ContractViewSet.as_view({
         'get': 'document_versions',
     }), name='contract-document-versions'),
-    # 15-§A: Collabora Online (WOPI) — brauzerda to'g'ridan-to'g'ri tahrirlash
-    path('contracts/<int:pk>/document/edit-session/', ContractViewSet.as_view({
-        'post': 'document_edit_session',
-    }), name='contract-document-edit-session'),
-    # WOPI host — Collabora shu ikkitasini so'raydi; slashsiz ataylab (WOPI
-    # klienti WOPISrc'ga "/contents"ni to'g'ridan-to'g'ri ulab chaqiradi)
-    path('wopi/files/<int:pk>', WopiFileInfoView.as_view(), name='wopi-file-info'),
-    path('wopi/files/<int:pk>/contents', WopiFileContentsView.as_view(), name='wopi-file-contents'),
+    # 21-§3.7: A4 PDF — ramka + matn birga (WeasyPrint)
+    path('contracts/<int:pk>/document/export/', ContractViewSet.as_view({
+        'get': 'document_export',
+    }), name='contract-document-export'),
+
+    path('contract-templates/', ContractTemplateViewSet.as_view(LIST), name='contracttemplate-list'),
+    path('contract-templates/<int:pk>/', ContractTemplateViewSet.as_view(DETAIL), name='contracttemplate-detail'),
 
     path('contract-items/', ContractItemViewSet.as_view(LIST), name='contractitem-list'),
     path('contract-items/<int:pk>/', ContractItemViewSet.as_view(DETAIL), name='contractitem-detail'),

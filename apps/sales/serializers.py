@@ -14,6 +14,7 @@ from apps.sales.models import (
     ContractPayment,
     ContractDocument,
     ContractDocumentVersion,
+    ContractTemplate,
     Lead,
 )
 
@@ -119,7 +120,7 @@ class ContractSerializer(ModelSerializer):
             'id', 'number', 'client', 'client_name', 'configuration', 'status',
             'status_display', 'created_by_name', 'currency', 'items_total', 'vat_total',
             'items_total_with_vat', 'total_amount', 'prepayment_percent',
-            'prepayment_amount', 'term_days', 'signed_at', 'start_date',
+            'prepayment_amount', 'term_days', 'delivery_days', 'signed_at', 'start_date',
             'delivered_at', 'delivered_by',
             'didox_number', 'didox_sent_at', 'didox_accepted_at', 'note',
             'items', 'approvals', 'payments', 'paid', 'balance', 'days_left', 'color',
@@ -219,33 +220,58 @@ class ContractDocumentVersionSerializer(ModelSerializer):
         fields = ['id', 'body', 'created_by', 'created_by_name', 'created_at']
 
 
+class ContractTemplateSerializer(ModelSerializer):
+    """21-§3.1: sotuv shabloni — sales/admin yozadi, bugalter ham o'qiydi."""
+
+    created_by_name = ReadOnlyField(source='created_by.display_name')
+
+    class Meta:
+        model = ContractTemplate
+        fields = [
+            'id', 'name', 'language', 'body', 'note', 'is_active', 'is_default',
+            'has_specification', 'has_requisites',
+            'created_by', 'created_by_name', 'created_at',
+        ]
+        read_only_fields = ['created_by']
+
+    def validate_body(self, value):
+        """21-§3.3: noma'lum kalit jimgina yo'qolmasin — 400 + ro'yxat."""
+        from apps.sales.services import unknown_placeholder_keys
+
+        unknown = unknown_placeholder_keys(value)
+        if unknown:
+            raise ValidationError(
+                f"Noma'lum kalitlar: {', '.join(unknown)}",
+            )
+        return value
+
+
 class ContractDocumentSerializer(ModelSerializer):
-    """13-§1/15-§A: shartnoma matni — endi faqat KO'RISH (`.docx` yuklanadi/
-    Collabora'da tahrirlanadi, sayt HTML tahriri yo'q — QOLGAN-ISHLAR-2 §4)."""
+    """21-§3.2: shartnoma matni — shablon + avtomatik bloklar.
+
+    `body` — KO'RSATISH uchun (o'rin egallovchilar to'ldirilgan),
+    `body_raw` — bazadagi XOM matn (`{{ key }}` saqlanган holda) —
+    front shu ustida tahrirlaydi.
+    """
 
     body = SerializerMethodField()
-    # Eski hujjatlar uchun: `body`dagi o'rin egallovchilar render qilingan
-    # (bugungi yuklashda docxtpl fayl ichida to'ldiradi, shu bois bu yerda
-    # odatda farq qilmaydi) — `body_raw` XOM nusxa, tarixiy moslik uchun qoladi
     body_raw = ReadOnlyField(source='body')
+    template_name = ReadOnlyField(source='template.name')
     versions_count = ReadOnlyField(source='versions.count')
     updated_by_name = ReadOnlyField(source='updated_by.display_name')
     can_edit = SerializerMethodField()
-    # 15-§3: asl `.docx` yo'qolmasin — o'girish yo'qotishli bo'lsa ham,
-    # bugalter faylni qaytadan yuklab olib, Word'da tuzatib qayta yuklaydi
-    source_file_name = SerializerMethodField()
 
     class Meta:
         model = ContractDocument
         fields = [
-            'id', 'contract', 'body', 'body_raw', 'versions_count',
+            'id', 'contract', 'template', 'template_name', 'body', 'body_raw',
+            'has_specification', 'has_requisites', 'versions_count',
             'updated_by', 'updated_by_name', 'updated_at', 'can_edit',
-            'source_file', 'source_file_name', 'source_uploaded_at', 'is_stale',
         ]
         read_only_fields = [
-            'id', 'contract', 'versions_count',
+            'id', 'contract', 'template', 'template_name', 'body_raw',
+            'has_specification', 'has_requisites', 'versions_count',
             'updated_by', 'updated_by_name', 'updated_at', 'can_edit',
-            'source_file', 'source_file_name', 'source_uploaded_at', 'is_stale',
         ]
 
     def get_body(self, obj):
@@ -253,19 +279,17 @@ class ContractDocumentSerializer(ModelSerializer):
 
         return render_contract_document(obj.contract, obj.body)
 
-    def get_source_file_name(self, obj):
-        import os
-
-        return os.path.basename(obj.source_file.name) if obj.source_file else None
-
     def get_can_edit(self, obj):
-        """20-§1: admin ham bugalter bilan bir xil — tasdiqlash/qaytarishdan
-        oldin hujjatdagi xatoni (Didox raqami, rekvizit) o'zi tuzata oladi."""
+        """21-§3.6: sales (egasi)/bugalter/admin tahrirlaydi — ilgari
+        faqat bugalter edi."""
         from apps.sales.services import CONTRACT_DOCUMENT_EDITABLE_STATUSES
 
         user = getattr(self.context.get('request'), 'user', None)
+        if not (user and user.is_authenticated):
+            return False
+        is_owner_sales = user.is_sales and obj.contract.created_by_id == user.id
         return bool(
-            user and user.is_authenticated and (user.is_bugalter or user.is_admin)
+            (user.is_bugalter or user.is_admin or is_owner_sales)
             and obj.contract.status in CONTRACT_DOCUMENT_EDITABLE_STATUSES
         )
 

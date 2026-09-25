@@ -102,6 +102,7 @@ Property: `is_admin`, `is_bugalter`, `is_sales`, `is_supplier`.
 | `bank_name` | Char(200) | yuridik uchun |
 | `account_number` | Char(30), **unique** | yuridik uchun |
 | `director_name` | Char(200) | yuridik uchun |
+| `director_title` | Char(100) | yo'q — 21-§3.4: shartnoma matnida ("Direktor" kabi lavozim) |
 | `jshshir` | Char(20), **unique** | ikkalasi uchun |
 | `phone` | Char(20), **unique** | ha |
 | `email` | Email | yo'q |
@@ -131,6 +132,7 @@ Property: `display_name` (yuridik → `company_name`, jismoniy → `full_name`).
 | `name` | Char(200) |
 | `kind` | `machine` / `component` / `other` |
 | `description` | Text |
+| `unit` | Char(20), default `dona` — 21-§3.4: spetsifikatsiyada "Ед. Изм" |
 | `cost_price`, `sale_price` | Decimal(18,2) |
 | `reorder_level` | PositiveInteger — TZ 7.1 to'ldirish chegarasi |
 | `is_active` | Bool |
@@ -293,7 +295,8 @@ Property: `items_total`, `total_amount`, `progress`, `days_left`, `color`.
 | `currency` | default `UZS` |
 | `total_amount` | Decimal(18,2) |
 | `prepayment_percent` | Decimal(5,2), bo'sh bo'lsa avtomatik 30/15 |
-| `term_days` | PositiveInteger, default 90 |
+| `term_days` | PositiveInteger, default 90 — shartnomaning umumiy muddati |
+| `delivery_days` | PositiveInteger, default 5 — 21-§3.4: yetkazish muddati (shartnoma matnida alohida) |
 | `signed_at` | Date |
 | `start_date` | Date — pul tasdiqlangan kun, sanoq shundan boshlanadi |
 | `note`, `created_by` | |
@@ -307,20 +310,26 @@ Property: `items_total`, `prepayment_amount`, `paid`, `balance`, `progress`, `da
 mumkin, qator aynan qaysi konfiguratsiyadan kelganini biladi. Property:
 `subtotal`, `vat_amount`, `total_with_vat`.
 
+### `ContractTemplate`
+21-§3.1: sotuv shabloni — 1-9 bo'lim matni. `name`, `language` (default
+`ru`), `body` (TextField — HTML, ichida `{{ key }}` o'rin egallovchilar),
+`note` (blank), `is_active` (default `True`), `is_default` (default
+`False`, bittadan ko'p bo'lmaydi — ikkinchisi qo'yilsa qolganlari
+avtomatik `False`ga tushadi), `has_specification`/`has_requisites`
+(BooleanField, default `True` — spetsifikatsiya/rekvizit bloklari
+chizilsinmi), `created_by` (SET_NULL).
+
 ### `ContractDocument`
-13-§1/15-§A: shartnoma MATNI — bugalter `.docx` yuklaydi (yoki Collabora'da
-tahrirlaydi), sayt faqat KO'RSATADI (QOLGAN-ISHLAR-2 §4: to'g'ridan-to'g'ri
-HTML tahrir olib tashlandi).
-`contract` (OneToOne, CASCADE, `document`), `body` (TextField, blank — HTML,
-`mammoth` bilan qayta o'girilgan, faqat KO'RISH), `source_file` (FileField,
-`.docx` — ASL hujjat, Collabora shuni tahrirlaydi), `source_uploaded_at`
-(DateTime, ixtiyoriy — faylning yuklangan/saqlangan vaqti, `updated_at`dan
-alohida), `rendered_total` (Decimal, ixtiyoriy — QOLGAN-ISHLAR-2 §3: fayl
-TO'LDIRILGAN paytdagi shartnoma summasi, `is_stale` shundan hisoblanadi —
-summa keyin o'zgarsa fayldagi raqam eskiradi), `docx_version` (PositiveInteger,
-default 0 — WOPI `Version`, har saqlashda +1), `wopi_lock` /
-`wopi_lock_expires_at` (CharField / DateTime, ixtiyoriy — Collabora tahrir
-sessiyasi qulfi), `updated_by` (SET_NULL).
+21-§3.2: shartnoma MATNI — shablon + avtomatik bloklar (`.docx`/
+Collabora/WOPI butunlay olib tashlandi). `contract` (OneToOne, CASCADE,
+`document`), `template` (SET_NULL, null — qaysi shablondan kelgani,
+faqat ma'lumot uchun: shablon keyin tahrirlansa/o'chirilsa ochiq
+shartnomaga ta'sir qilmaydi), `body` (TextField, blank — HTML, ichida
+`{{ key }}` **saqlanib turadi**, o'rin egallovchilar faqat KO'RSATISHDA
+to'ldiriladi — `render_contract_document`, shuning uchun summa o'zgarsa
+hujjat o'zi ergashadi, "eskirdi" tushunchasi yo'q), `has_specification`/
+`has_requisites` (attach paytida shablondan nusxalanadi), `updated_by`
+(SET_NULL).
 
 ### `ContractDocumentVersion`
 Har saqlash — yangi versiya (hujjat huquqiy, tarixi kerak). `document`
@@ -421,6 +430,11 @@ Property: `term_days`, `days_left`, `color`, `repaid`, `balance`.
 | address | Char(300) | yuridik manzil |
 | bank_name, mfo, account_number | Char | bank rekvizitlari |
 | director_name | Char(200) | rahbar F.I.SH |
+| director_title | Char(100) | 21-§3.4: lavozim ("Генерального директора") — shartnoma sarlavhasida |
+| city | Char(100) | 21-§3.4: shahar ("г. Ташкент") — shartnoma sarlavhasida |
+| oked | Char(20) | 21-§3.4: ОКЭД kodi |
+| registration_code | Char(50) | 21-§3.4: ro'yxatga olish kodi |
+| license | Char(300) | 21-§3.4: litsenziya raqami va kim bergani |
 | contract_terms | Text | shartnoma chop etishda chiqadigan standart shartlar |
 
 Singleton: ikkinchi yozuv `save()` da bloklanadi; `CompanyProfile.load()`

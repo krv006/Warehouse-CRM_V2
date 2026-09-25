@@ -244,6 +244,11 @@ class FrontFixesTests(APITestCase):
         other = Product.objects.create(
             sku='HP-990', name='HP 990', kind=Product.Kind.MACHINE,
         )
+        # 21-§2.5(c): `modify` erta bloklanadi — tarkibi bo'lmagan-u
+        # qoldiqsiz modelda ishlamaydi; testning maqsadi bu emas
+        ProductSpec.objects.create(
+            product=other, component=self.ssd, label='SSD', quantity=1,
+        )
         self.client.force_authenticate(self.sales)
         request_id = self.client.post('/api/configuration-requests/', {
             'text': 'HP 880 deb yozilgan, lekin 990 kerak', 'base_product': self.base.id,
