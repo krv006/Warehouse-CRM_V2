@@ -393,10 +393,12 @@ class ConfigurationViewSet(BaseModelViewSet):
             removals=request.data.get('removals'), strict=True,
         )
         if assembled:
-            self.log_action(
-                ActivityLog.Action.UPDATE, configuration,
-                f"Yig'ildi: {configuration.variant.sku} omborga kirdi",
+            detail = (
+                f"Yig'ildi: {configuration.variant.sku} ombordan sotiladi"
+                if configuration.variant_id
+                else "Yig'ildi: butlovchilar ombordan chiqdi"
             )
+            self.log_action(ActivityLog.Action.UPDATE, configuration, detail)
         data = self.get_serializer(configuration).data
         data['assembled'] = assembled
         data['assembly_missing'] = missing
@@ -432,19 +434,12 @@ class ConfigurationViewSet(BaseModelViewSet):
                     status=HTTP_400_BAD_REQUEST,
                 )
 
-        configuration, contract, variant_moved = finalize_configuration(
+        configuration, contract = finalize_configuration(
             configuration, request.user, act=act, client=client,
         )
-        if variant_moved:
-            self.log_action(
-                ActivityLog.Action.UPDATE, contract,
-                f'{contract.number} qatori variantga ko\'chdi: '
-                f'{configuration.variant.sku}',
-            )
         self.log_action(
             ActivityLog.Action.UPDATE, configuration,
-            f'Yakunlandi ({configuration.get_mode_display()}), variant: '
-            f'{configuration.variant.sku}'
+            f'Yakunlandi ({configuration.get_mode_display()})'
             + (f', shartnoma: {contract.number}' if contract else ''),
         )
         data = self.get_serializer(configuration).data

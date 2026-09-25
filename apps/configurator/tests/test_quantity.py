@@ -91,11 +91,12 @@ class ConfigurationQuantityTests(APITestCase):
         self.assertEqual(reservation.quantity, Decimal('3'))
 
     def test_assemble_builds_whole_batch(self):
-        """Yig'ish butun partiyani yasaydi: butlovchi ×3 chiqadi, variant 3 kiradi."""
+        """Yig'ish butun partiyani yasaydi: butlovchi ×3 chiqadi, yangi Product yaratilmaydi (§1.3)."""
         apply_movement(
             product=self.ram, warehouse=self.warehouse,
             type=StockMovement.Type.IN, quantity=Decimal('10'),
         )
+        product_count = Product.objects.count()
         configuration = self._make_config(quantity=3)
         url = f'/api/configurations/{configuration.id}'
         self._walk_to_paid(configuration)
@@ -104,7 +105,8 @@ class ConfigurationQuantityTests(APITestCase):
 
         self.assertEqual(self._stock(self.ram), Decimal('7'))  # 10 - 3
         configuration.refresh_from_db()
-        self.assertEqual(self._stock(configuration.variant), Decimal('3'))
+        self.assertIsNone(configuration.variant)
+        self.assertEqual(Product.objects.count(), product_count)
 
     def test_assemble_blocked_when_batch_does_not_fit(self):
         """3 tadan 2 taga butlovchi bor — qisman yig'ish yo'q: hammasi yoki hech nima."""
@@ -146,7 +148,7 @@ class ConfigurationQuantityTests(APITestCase):
         self.assertEqual(contract.total_amount, Decimal('2352000.00'))
 
     def test_modify_mode_batch(self):
-        """Modify: 2 talik partiya — bazadan 2 chiqadi, variant 2 kiradi."""
+        """Modify: 2 talik partiya — bazadan 2 chiqadi, alohida variant yaratilmaydi (§1.3)."""
         from apps.inventory.models import ProductSpec
 
         ram4 = Product.objects.create(
@@ -179,7 +181,7 @@ class ConfigurationQuantityTests(APITestCase):
         self.assertEqual(self._stock(self.ram), Decimal('8'))
         self.assertEqual(self._stock(ram4), Decimal('2'))
         configuration.refresh_from_db()
-        self.assertEqual(self._stock(configuration.variant), Decimal('2'))
+        self.assertIsNone(configuration.variant)
         removal = configuration.removals.get()
         self.assertEqual(removal.quantity, 2)
         self.assertEqual(removal.unit_price, Decimal('300000'))

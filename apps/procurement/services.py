@@ -62,7 +62,10 @@ def low_stock_queryset(warehouse=None):
     reserved_sum = reserved_rows.values('product').annotate(t=Sum('quantity')).values('t')
 
     return (
-        Product.objects.filter(is_active=True)
+        # 21-§1.4: yig'ilgan variant (bir martalik, bitta buyurtma uchun)
+        # yetishmayotganlar ro'yxatiga tushmasin — u qayta buyurtma
+        # qilinadigan haqiqiy mahsulot emas (21-§1.0)
+        Product.objects.filter(is_active=True, base_model__isnull=True)
         .annotate(
             stock_quantity=Coalesce(Subquery(stock_sum), zero),
             hard_reserved=Coalesce(Subquery(reserved_sum), zero),

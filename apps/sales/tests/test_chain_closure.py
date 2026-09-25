@@ -113,9 +113,11 @@ class ChainClosureTests(APITestCase):
         configuration.refresh_from_db()
         self.assertEqual(configuration.status, Configuration.Status.SOLD)
 
-        # B6: shartnoma qatori yig'ilgan variantga ko'chdi
+        # 21-§1.3: shartnoma qatori bazaviy modelda qoladi — alohida
+        # katalog yozuvi (variant) endi yaratilmaydi
         contract = Contract.objects.get(pk=contract_id)
-        self.assertEqual(contract.items.get().product, configuration.variant)
+        self.assertEqual(contract.items.get().product, configuration.base_product)
+        self.assertIsNone(configuration.variant)
 
         # 20-§3: finalize ACT ni avtomatik bugalter tasdig'iga yuboradi —
         # ship shu tasdiqni kutadi

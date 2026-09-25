@@ -109,64 +109,59 @@ class VariantPricingTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('RAM 4', str(response.data['items']))
 
-    def test_finalize_creates_reusable_variant(self):
+    def test_finalize_does_not_create_variant(self):
+        """21-§1.3: yig'ilgan mashina uchun alohida katalog yozuvi yaratilmaydi."""
+        product_count = Product.objects.count()
         configuration = self._configuration([(self.ssd, 1), (self.gpu, 1)])
         response = full_finalize(self.client, configuration.id)
         self.assertEqual(response.status_code, 200, response.data)
 
         configuration.refresh_from_db()
-        variant = configuration.variant
-        self.assertIsNotNone(variant)
-        self.assertEqual(variant.base_model, self.base)
-        self.assertEqual(variant.sale_price, Decimal('5500000'))
-        self.assertEqual(variant.specs.count(), 2)
-        self.assertTrue(variant.sku.startswith('HP-880-V'))
+        self.assertIsNone(configuration.variant)
+        self.assertEqual(Product.objects.count(), product_count)
+        contract = configuration.active_contract
+        self.assertEqual(contract.items.get().product, self.base)
 
-    def test_same_combination_reuses_existing_variant(self):
-        """Bir xil tarkib ikkinchi marta yig'ilsa — yangi mahsulot yaratilmaydi."""
+    def test_same_combination_creates_independent_configurations(self):
+        """Bir xil tarkib ikkinchi marta yig'ilsa — mustaqil, umumiy Product yo'q."""
         first = self._configuration([(self.ssd, 1), (self.gpu, 1)])
         full_finalize(self.client, first.id)
         first.refresh_from_db()
 
         second = self._configuration([(self.gpu, 1), (self.ssd, 1)])  # tartibi boshqa
         self.assertEqual(second.signature, first.signature)
-        self.assertEqual(second.matching_variant, first.variant)
 
         response = full_finalize(self.client, second.id)
         self.assertEqual(response.status_code, 200, response.data)
         second.refresh_from_db()
-        self.assertEqual(second.variant, first.variant)
-        self.assertEqual(Product.objects.filter(base_model=self.base).count(), 1)
+        self.assertIsNone(second.variant)
+        self.assertIsNone(first.variant)
+        self.assertNotEqual(second.active_contract.id, first.active_contract.id)
 
-    def test_ready_variant_price_is_used(self):
-        first = self._configuration([(self.ssd, 1), (self.gpu, 1)])
-        full_finalize(self.client, first.id)
-        first.refresh_from_db()
+    def test_total_price_is_items_total(self):
+        """21-§1.3: narx doim qatorlar yig'indisi — variant narxiga bog'liq emas."""
+        configuration = self._configuration([(self.ssd, 1), (self.gpu, 1)])
+        self.assertEqual(configuration.items_total, Decimal('5500000'))
+        self.assertEqual(configuration.total_price, Decimal('5500000'))
 
-        # Ombordagi tayyor pozitsiya narxi o'zgardi
-        variant = first.variant
-        variant.sale_price = Decimal('5000000')
-        variant.save()
-
-        second = self._configuration([(self.ssd, 1), (self.gpu, 1)])
-        self.assertEqual(second.items_total, Decimal('5500000'))
-        self.assertEqual(second.total_price, Decimal('5000000'))
-
-    def test_different_combination_creates_second_variant(self):
+    def test_different_combination_does_not_create_variant(self):
         first = self._configuration([(self.ssd, 1), (self.gpu, 1)])
         full_finalize(self.client, first.id)
 
+        product_count = Product.objects.count()
         second = self._configuration([(self.ssd, 2), (self.gpu, 1)])
         self.assertIsNone(second.matching_variant)
-        full_finalize(self.client, second.id)
-        self.assertEqual(Product.objects.filter(base_model=self.base).count(), 2)
+        response = full_finalize(self.client, second.id)
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(Product.objects.count(), product_count)
 
-    def test_stock_check_shows_ready_variant(self):
+    def test_stock_check_after_finalize_has_no_ready_variant(self):
+        """Tarkib zavod standartidan farq qilgani uchun tayyor pozitsiya yo'q."""
         configuration = self._configuration([(self.ssd, 1), (self.gpu, 1)])
         full_finalize(self.client, configuration.id)
         response = self.client.get(f'/api/configurations/{configuration.id}/stock-check/')
         self.assertEqual(response.status_code, 200)
-        self.assertTrue(response.data['ready_variant'].startswith('HP-880-V'))
+        self.assertIsNone(response.data['ready_variant'])
 
 
 class BaseModelAsReadyPositionTests(APITestCase):
@@ -232,8 +227,8 @@ class BaseModelAsReadyPositionTests(APITestCase):
         self.assertTrue(ready['is_base_model'])
         self.assertEqual(Decimal(ready['price']), Decimal('25000000'))
         self.assertEqual(Decimal(ready['stock']), Decimal('3'))
-        # umumiy narx qatorlar yig'indisi (6 mln) emas, tayyor mahsulot narxi
-        self.assertEqual(Decimal(response.data['total_price']), Decimal('25000000'))
+        # 21-§1.3: umumiy narx endi doim qatorlar yig'indisi (SSD+GPU=6 mln)
+        self.assertEqual(Decimal(response.data['total_price']), Decimal('6000000'))
 
     def test_finalize_unchanged_does_not_create_new_product(self):
         from datetime import date
@@ -347,12 +342,10 @@ class ModifyModeTests(APITestCase):
         )
         self.assertEqual(response.status_code, 200, response.data)
 
-        # Ombor: HP 880 2->1, RAM 8 3->2, RAM 4 0->1, variant 0->1
+        # Ombor: HP 880 2->1, RAM 8 3->2, RAM 4 0->1 — §1.3: variant kirimi yo'q
         self.assertEqual(self._stock(self.base), Decimal('1'))
         self.assertEqual(self._stock(self.ram8), Decimal('2'))
         self.assertEqual(self._stock(self.ram4), Decimal('1'))
-        variant = Product.objects.get(base_model=self.base)
-        self.assertEqual(self._stock(variant), Decimal('1'))
 
         # Yechib olingani narxi bilan yozildi (o'zgartirilgan narx)
         removal = response.data['removals'][0]
@@ -411,10 +404,8 @@ class ModifyModeTests(APITestCase):
         self.assertEqual(self._stock(self.base), Decimal('1'))
 
     def test_build_mode_assembles_variant(self):
-        """§10.1: build rejimida yig'ish qadami — butlovchi chiqadi, variant kiradi.
-
-        Avval hech qanday harakat yozilmas, variant qoldig'i 0 bo'lib
-        shartnoma to'lovi hech qachon o'tmas edi.
+        """§1.3: build rejimida yig'ish qadami — butlovchi chiqadi, alohida
+        katalog yozuvi (variant) yaratilmaydi, shartnoma bazaviy modelda qoladi.
         """
         response = self.client.post('/api/configurations/', {
             'base_product': self.base.id, 'warehouse': self.warehouse.id,
@@ -427,10 +418,10 @@ class ModifyModeTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         self.assertTrue(response.data['assembled'])
 
-        # RAM 8: 3 -> 2 (yig'ishga ketdi), variant omborda 1 dona — sotishga tayyor
+        # RAM 8: 3 -> 2 (yig'ishga ketdi) — variant kirimi yo'q (§1.3)
         self.assertEqual(self._stock(self.ram8), Decimal('2'))
-        variant = Product.objects.get(base_model=self.base)
-        self.assertEqual(self._stock(variant), Decimal('1'))
+        configuration = Configuration.objects.get(pk=config_id)
+        self.assertIsNone(configuration.variant)
         # Endi yakunlash o'tadi — mahsulot haqiqatan tayyor
         response = self.client.post(f'/api/configurations/{config_id}/finalize/')
         self.assertEqual(response.status_code, 200, response.data)
@@ -463,7 +454,7 @@ class ModifyModeTests(APITestCase):
         response = self.client.post(f'/api/configurations/{config_id}/assemble/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertTrue(response.data['assembled'])
-        variant = Product.objects.get(base_model=self.base)
-        self.assertEqual(self._stock(variant), Decimal('1'))
+        configuration = Configuration.objects.get(pk=config_id)
+        self.assertIsNone(configuration.variant)
         response = self.client.post(f'/api/configurations/{config_id}/finalize/')
         self.assertEqual(response.status_code, 200, response.data)

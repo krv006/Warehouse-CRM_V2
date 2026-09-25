@@ -162,12 +162,11 @@ class RequiredFromStockTests(APITestCase):
         response = self.client.post(f'/api/configurations/{configuration.id}/assemble/')
         self.assertEqual(response.status_code, 200, response.data)
         configuration.refresh_from_db()
-        # 10 ta model va 10 ta RAM ishga ketdi, 10 ta variant yig'ildi
+        # 10 ta model va 10 ta RAM ishga ketdi — §1.3: alohida variant
+        # yaratilmaydi, shartnoma qatori bazaviy modelda qoladi
         self.assertEqual(available_quantity(self.base, self.warehouse), Decimal('0'))
         self.assertEqual(available_quantity(self.ram, self.warehouse), Decimal('10'))
-        self.assertEqual(
-            available_quantity(configuration.variant, self.warehouse), Decimal('10'),
-        )
+        self.assertIsNone(configuration.variant)
 
     def test_assemble_blocked_lists_model_shortage(self):
         """Model yetmasa yig'ish 400 — xabarda modelning o'zi turadi."""

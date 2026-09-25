@@ -38,6 +38,13 @@ class ActShipGuardTests(APITestCase):
             product=self.part, warehouse=self.warehouse,
             type=StockMovement.Type.IN, quantity=Decimal('50'),
         )
+        # 21-§1.3: bu testdagi zayavka tarkibi zavod spetsifikatsiyasiga teng
+        # qoladi (engineer hech narsa o'zgartirmaydi) — bunday holatda yig'ish
+        # shart emas, ship bevosita bazaviy modelning o'z qoldig'idan chiqaradi
+        apply_movement(
+            product=self.hp, warehouse=self.warehouse,
+            type=StockMovement.Type.IN, quantity=Decimal('5'),
+        )
         profile = CompanyProfile.load()
         profile.admin_approval_threshold = Decimal('0')
         profile.save()

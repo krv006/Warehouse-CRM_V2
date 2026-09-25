@@ -79,10 +79,11 @@ class ContractFirstTests(APITestCase):
         self.assertEqual(contract.client, self.mijoz)
 
         # Qator: hozircha bazaviy model (variant hali yig'ilmagan), partiya soni
+        # 21-§1.3: narx endi doim qatorlar yig'indisi (RAM 1 x 1 500 000)
         item = contract.items.get()
         self.assertEqual(item.product, self.base)
         self.assertEqual(item.quantity, 2)
-        self.assertEqual(item.unit_price, Decimal('12000000'))
+        self.assertEqual(item.unit_price, Decimal('1500000'))
 
         # B9: konfiguratsiya javobida shartnoma — front to'lov holatini ko'radi
         self.assertEqual(response.data['contract']['number'], contract.number)

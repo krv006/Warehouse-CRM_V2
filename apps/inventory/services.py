@@ -41,6 +41,7 @@ def needs_price_queryset():
     from apps.inventory.models import Product
 
     return Product.objects.filter(
+        base_model__isnull=True,
         configuration_items__unit_price=0,
         configuration_items__configuration__status__in=[
             Configuration.Status.DRAFT,
@@ -182,29 +183,22 @@ def release_reservations(*, contract=None, configuration=None,
     return qs.update(status=status, released_by=user, release_note=note)
 
 
-def _contract_needs(contract, warehouse):
-    """Shartnoma nimani band qilishi kerak: {product: miqdor}.
+def _contract_needs(contract):
+    """Shartnoma nimani band qilishi kerak: {product: miqdor} (21-§1.3).
 
-    Yig'ilmagan variant (build rejimi, §10.1) omborda yo'q — unga bron qo'yib
-    bo'lmaydi, shuning uchun bron uning BUTLOVCHILARIGA tushadi; to'lov paytida
-    butlovchilar chiqib, yig'ilgan variant chiqim bo'ladi.
+    Yig'ilgan mashina uchun alohida katalog yozuvi (variant) yo'q, shuning
+    uchun konfiguratsiyali qator bron uchun yagona ta'rifdan —
+    `Configuration.required_from_stock` (3-to'plam §1) — o'qiydi: build
+    butlovchilarga, modify bazaviy model + qo'shilganlarga tushadi. Oddiy
+    qator (konfiguratsiyasiz) — mahsulotning o'zi.
     """
     needs = {}
-    configuration = contract.configuration
-    for item in contract.items.select_related('product'):
-        product = item.product
-        if (
-            configuration is not None
-            and configuration.variant_id == product.pk
-            and available_quantity(product, warehouse) < item.quantity
-        ):
-            for config_item in configuration.items.select_related('component'):
-                component = config_item.component
-                needs[component] = (
-                    needs.get(component, 0) + config_item.quantity * item.quantity
-                )
+    for item in contract.items.select_related('product', 'configuration'):
+        if item.configuration_id:
+            for product, quantity in item.configuration.required_from_stock:
+                needs[product] = needs.get(product, 0) + quantity
         else:
-            needs[product] = needs.get(product, 0) + item.quantity
+            needs[item.product] = needs.get(item.product, 0) + item.quantity
     return needs
 
 
@@ -247,7 +241,7 @@ def sync_contract_reservations(contract):
     # B5: pul to'langan shartnomaning broni muddatsiz — muddat o'tdi deb
     # bo'shatib bo'lmaydi (chernovik/tasdiq bosqichlarida esa muddat ishlaydi)
     paid = contract.status == Contract.Status.ACTIVE
-    for product, quantity in _contract_needs(contract, warehouse).items():
+    for product, quantity in _contract_needs(contract).items():
         free = sellable_quantity(product, warehouse, for_contract=contract)
         take = min(quantity, max(free, 0))
         if take > 0:

@@ -602,6 +602,13 @@ def _ship_contract_items(contract, user):
     Birinchi to'lov tasdiqlanganda har bir shartnoma qatori bo'yicha
     ombor qoldig'i kamayadi. Ombor hali sozlanmagan bo'lsa (bo'sh tizim)
     harakat yozilmaydi.
+
+    21-§1.3: konfiguratsiyali qator — agar yig'ishda haqiqatan narsa
+    iste'mol qilingan bo'lsa (butlovchilar yoki modify — bunda
+    `configuration.variant` bo'sh qoladi), mol allaqachon chiqqan, ship'da
+    ikkinchi marta chiqarilmaydi. Faqat tarkib zavod standartiga teng
+    bo'lgan holatda (`variant` = bazaviy modelning o'zi) ship oddiy
+    qatordek ombordan chiqaradi.
     """
     from apps.inventory.models import StockMovement, Warehouse
     from apps.inventory.services import apply_movement, sellable_quantity
@@ -621,10 +628,15 @@ def _ship_contract_items(contract, user):
             for_configuration=contract.configuration,
         )
 
+    items = [
+        item for item in contract.items.select_related('product', 'configuration')
+        if not item.configuration_id or item.configuration.variant_id
+    ]
+
     shortages = [
         f'{item.product.name} (kerak: {item.quantity}, '
         f'sotuvga ochiq: {_open(item.product)})'
-        for item in contract.items.select_related('product')
+        for item in items
         if _open(item.product) < item.quantity
     ]
     if shortages:
@@ -633,7 +645,7 @@ def _ship_contract_items(contract, user):
             'items': shortages,
         })
 
-    for item in contract.items.select_related('product'):
+    for item in items:
         apply_movement(
             product=item.product,
             warehouse=warehouse,

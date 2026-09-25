@@ -265,10 +265,6 @@ class Command(BaseCommand):
         # Shartnoma faol — finalize CFG'ni to'g'ri SOLD qiladi (B7)
         config_a.status = config_a.Status.SOLD
         config_a.save()
-        # B6: shartnoma qatori yig'ilgan variantga ko'chadi (son/narx tegilmaydi)
-        contract_a.items.filter(product=products['HP-880']).update(
-            product=config_a.variant,
-        )
         sync_configuration_reservations(config_a)
         from apps.inventory.services import sync_contract_reservations
 

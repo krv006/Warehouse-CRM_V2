@@ -158,6 +158,10 @@ class DealActionsTests(APITestCase):
         request_obj = self._take(self._dual_model_request())
         primary = request_obj.configuration
         dell_config = request_obj.lines.get(base_product=self.dell).configuration
+        # 21-§1.3: tarkib zavod spetsifikatsiyasiga teng bo'lsa yig'ish shart
+        # emas (gate `ship`ga ko'chadi) — bu test haqiqiy butlovchi
+        # tanqisligini tekshirishi uchun Dell tarkibi ataylab o'zgartiriladi
+        dell_config.items.filter(component=self.dell_ram).update(quantity=2)
 
         self.client.force_authenticate(self.engineer)
         self.client.post(f'/api/configuration-requests/{request_obj.id}/submit/')

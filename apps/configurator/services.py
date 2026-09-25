@@ -56,44 +56,6 @@ def build_configuration_workbook(configuration):
     return workbook
 
 
-def resolve_variant(configuration):
-    """Konfiguratsiya uchun tayyor variantni topadi yoki yangisini yaratadi.
-
-    TZ 6.2: bir xil tarkib avval bo'lgan bo'lsa — ombordagi tayyor pozitsiya
-    va uning narxi ishlatiladi; bo'lmasa yangi variant omborga qo'shiladi va
-    keyingi safar qayta ishlatiladi.
-    """
-    from django.db.transaction import atomic
-
-    from apps.inventory.models import Product, ProductSpec
-
-    existing = configuration.matching_variant
-    if existing:
-        return existing, False
-
-    base = configuration.base_product
-    with atomic():
-        index = Product.objects.filter(base_model=base).count() + 1
-        variant = Product.objects.create(
-            sku=f'{base.sku}-V{index:02d}',
-            name=f'{base.name} ({configuration.number})',
-            kind=base.kind,
-            description=f'{base.name} bazasida yig\'ilgan konfiguratsiya',
-            cost_price=configuration.items_total,
-            sale_price=configuration.items_total,
-            base_model=base,
-            signature=configuration.signature,
-        )
-        for item in configuration.items.select_related('component'):
-            ProductSpec.objects.create(
-                product=variant,
-                component=item.component,
-                label=item.label,
-                quantity=item.quantity,
-            )
-    return variant, True
-
-
 def _owning_request(configuration, **filters):
     """Konfiguratsiya ortidagi zayavka — 12-§2 (B): qo'shimcha model qatori
     bo'lsa, `ConfigurationRequest.configuration` bo'sh qoladi (faqat
@@ -503,6 +465,12 @@ def add_request_line(request_obj, user, *, kind, base_product, quantity, text=''
                 "model turidagi qator faqat tayyor model bo'lishi mumkin — "
                 'tovar bo\'lsa `item` turini tanlang.'
             ),
+        })
+    if kind == ConfigurationRequestLine.Kind.MODEL and base_product.base_model_id:
+        # §1.4: variant — bitta buyurtma uchun yig'ilgan narsa, u yangi
+        # zayavkaning bazaviy modeli bo'la olmaydi (§1.2.3)
+        raise ValidationError({
+            'base_product': "Bu — buyurtma uchun yig'ilgan model, bazaviy model emas.",
         })
     if mode and mode not in Configuration.Mode.values:
         raise ValidationError({'mode': f"Noto'g'ri rejim: {mode}."})
@@ -1625,7 +1593,7 @@ def deal_finalize(request_obj, user, *, act=None, client=None):
 
     finalized, contract = [], None
     for cfg in candidates:
-        cfg_result, cfg_contract, _moved = finalize_configuration(cfg, user, act=act, client=client)
+        cfg_result, cfg_contract = finalize_configuration(cfg, user, act=act, client=client)
         finalized.append(cfg_result.number)
         contract = contract or cfg_contract
 
@@ -1765,10 +1733,13 @@ def _require_paid_chain(configuration):
 def assemble_configuration(configuration, user, *, removals=None, strict=True):
     """Yig'ish — alohida qadam (TOPSHIRIQ-2 #4): faqat tasdiqlangan yechim.
 
-    build: variant topiladi/yaratiladi va butlovchilardan yig'iladi;
-    modify: tayyor mahsulot fizik o'zgartiriladi (ombor harakatlari,
-    bugalterga ACT xabari). Muvaffaqiyatda `assembled_at` yoziladi —
-    `finalize` shusiz o'tmaydi.
+    21-to'plam §1.3: yig'ilgan mashina uchun alohida katalog yozuvi
+    (variant) endi yaratilmaydi. Tarkib zavod standartiga teng bo'lsa —
+    yig'ish shart emas, bazaviy modelning o'zi ishlatiladi
+    (`matching_variant`). Aks holda: build — butlovchilar ombordan
+    chiqadi; modify — tayyor mahsulot fizik o'zgartiriladi. Ikkala
+    holatda ham alohida ombor kirimi yo'q. Muvaffaqiyatda `assembled_at`
+    yoziladi — `finalize` shusiz o'tmaydi.
     """
     from django.utils.timezone import now
 
@@ -1788,21 +1759,18 @@ def assemble_configuration(configuration, user, *, removals=None, strict=True):
         return True, []
 
     if configuration.mode == Configuration.Mode.MODIFY:
-        variant, _ = finalize_modification(configuration, user, removals)
-        configuration.variant = variant
+        finalize_modification(configuration, user, removals)
         assembled, missing = True, []
     else:
-        variant, _ = resolve_variant(configuration)
-        configuration.variant = variant
-        configuration.save(update_fields=['variant'])
-        assembled, missing = assemble_variant(configuration, user, strict=strict)
-        # Variant allaqachon omborda yetarli bo'lsa ham "yig'ilgan" hisoblanadi
-        from apps.inventory.services import available_quantity
-
-        if not assembled and not missing and available_quantity(
-            variant, configuration.warehouse,
-        ) >= configuration.quantity:
-            assembled = True
+        variant = configuration.matching_variant
+        if variant is not None:
+            # Tarkib zavod standartiga teng — yig'ish shart emas, mol
+            # ombordagi bazaviy modeldan ketadi (§1.3)
+            configuration.variant = variant
+            configuration.save(update_fields=['variant'])
+            assembled, missing = True, []
+        else:
+            assembled, missing = assemble_variant(configuration, user, strict=strict)
 
     if assembled:
         configuration.assembled_at = now()
@@ -1880,7 +1848,6 @@ def finalize_configuration(configuration, user, *, act=None, client=None):
             'items': [item.component.name for item in no_price],
         })
 
-    variant_moved = False
     with atomic():
         if client and not configuration.client_id:
             configuration.client = client
@@ -1897,15 +1864,9 @@ def finalize_configuration(configuration, user, *, act=None, client=None):
         )
 
         # YANGI OQIM: shartnoma allaqachon bor (B1, approve'da ochilgan).
-        # B6: qatordagi bazaviy model yig'ilgan VARIANTGA ko'chadi — son va
-        # narx tegilmaydi, faqat SKU aniqlashadi (12-§2 C: qator
-        # `configuration` FK orqali topiladi — bir nechta model bo'lsa ham to'g'ri)
+        # §1.3: shartnoma qatori bazaviy modelda qoladi — yig'ilgan mashina
+        # uchun alohida Product yaratilmagani sabab ko'chirishga hojat yo'q.
         contract = configuration.active_contract
-        if contract and configuration.variant_id:
-            variant_moved = bool(
-                contract.items.filter(configuration=configuration)
-                .update(product=configuration.variant),
-            )
         # B7: pul allaqachon kelgan bo'lsa zanjir yopildi — sold
         if contract and contract.status in ('active', 'completed'):
             configuration.status = Configuration.Status.SOLD
@@ -1935,41 +1896,28 @@ def finalize_configuration(configuration, user, *, act=None, client=None):
             if deal_act.status in (deal_act.Status.DRAFT, deal_act.Status.REJECTED):
                 submit_act_for_review(deal_act, user)
 
-    return configuration, contract, variant_moved
+    return configuration, contract
 
 
 def assemble_variant(configuration, user, *, strict=True):
-    """Build rejimida jismoniy yig'ish (§10.1): butlovchilar chiqadi, variant kiradi.
+    """Build rejimida jismoniy yig'ish (§1.3): butlovchilar ombordan chiqadi.
 
-    Avval bu qadam umuman yo'q edi: variant katalogda yaratilardi-yu, ombor
-    qoldig'i 0 bo'lib qolar, shartnoma to'lovi hech qachon o'tmas edi.
+    Yig'ilgan mashina uchun alohida ombor kirimi yo'q — u endi faqat
+    Configuration/ConfigurationItem va ACT orqali kuzatiladi; shartnoma
+    qatori bazaviy modelda qoladi (`finalize_configuration` uni ko'chirmaydi).
 
-    Variant omborda allaqachon bor bo'lsa (>= 1) yig'ilmaydi — sotuv tayyor
-    qoldiqdan ketadi. Butlovchi yetmasa: strict=True — 400 (nomlar bilan,
-    narxsiz — engineer pul ko'rmaydi), strict=False — (False, nomlar) qaytadi
-    va jarayon davom etadi (mol TLD orqali kelgach yig'iladi).
+    Butlovchi yetmasa: strict=True — 400 (nomlar bilan, narxsiz — engineer
+    pul ko'rmaydi), strict=False — (False, nomlar) qaytadi va jarayon
+    davom etadi (mol TLD orqali kelgach yig'iladi).
     """
     from django.db.transaction import atomic
     from rest_framework.exceptions import ValidationError
 
     from apps.inventory.models import StockMovement
-    from apps.inventory.services import (
-        apply_movement,
-        available_quantity,
-        main_warehouse,
-        sellable_quantity,
-    )
-
-    variant = configuration.variant
-    if variant is None:
-        if strict:
-            raise ValidationError({'detail': 'Avval konfiguratsiyani yakunlang.'})
-        return False, []
+    from apps.inventory.services import apply_movement, main_warehouse, sellable_quantity
 
     warehouse = configuration.warehouse or main_warehouse()
     batch = configuration.quantity
-    if available_quantity(variant, warehouse) >= batch:
-        return False, []
 
     # §11.4: boshqa shartnomalarga band qilingan butlovchi yig'ishga olinmaydi;
     # shu konfiguratsiyaning o'z shartnomasi band qilgani esa ochiq
@@ -2002,12 +1950,6 @@ def assemble_variant(configuration, user, *, strict=True):
                 reason=StockMovement.Reason.CONFIGURATION,
                 reference=configuration.number, user=user,
             )
-        apply_movement(
-            product=variant, warehouse=warehouse,
-            type=StockMovement.Type.IN, quantity=batch,
-            reason=StockMovement.Reason.CONFIGURATION,
-            reference=configuration.number, user=user,
-        )
     return True, []
 
 
@@ -2017,8 +1959,11 @@ def finalize_modification(configuration, user, removal_overrides=None):
     Ombor harakatlari:
       - butun bazaviy mahsulotdan 1 dona chiqim;
       - qo'shilgan butlovchilar ombordan chiqim;
-      - yechib olinganlar omborga kirim (narxi bilan yozib qo'yiladi);
-      - o'zgartirilgan mahsulot (variant) omborga 1 dona kirim.
+      - yechib olinganlar omborga kirim (narxi bilan yozib qo'yiladi).
+
+    §1.3: o'zgartirilgan mahsulot uchun alohida katalog yozuvi (variant)
+    endi yaratilmaydi va omborga kirim ham qilinmaydi — shartnoma qatori
+    bazaviy modelda qoladi.
 
     removal_overrides: {component_id: narx} — yechib olingan qism narxini
     o'zgartirish imkoniyati. Yakunda bugalterga xabar boradi.
@@ -2067,8 +2012,6 @@ def finalize_modification(configuration, user, removal_overrides=None):
     overrides = {int(k): Decimal(str(v)) for k, v in (removal_overrides or {}).items()}
 
     with atomic():
-        variant, created = resolve_variant(configuration)
-
         # butun partiya ishga olinadi
         apply_movement(
             product=base, warehouse=warehouse,
@@ -2105,14 +2048,6 @@ def finalize_modification(configuration, user, removal_overrides=None):
                 f"{row['component'].name} x{row['quantity'] * batch} — {price}",
             )
 
-        # o'zgartirilgan mahsulot tayyor pozitsiya sifatida omborga kiradi
-        apply_movement(
-            product=variant, warehouse=warehouse,
-            type=StockMovement.Type.IN, quantity=batch,
-            reason=StockMovement.Reason.CONFIGURATION,
-            reference=configuration.number, user=user,
-        )
-
         # TZ: yechib olinganini ACT qilib bugalterga jo'natamiz — faqat unga
         # (user'siz xabar hammaga ko'rinardi, ACT tafsiloti esa pul ma'lumoti)
         from apps.accounts.models import User
@@ -2131,7 +2066,7 @@ def finalize_modification(configuration, user, removal_overrides=None):
                 object_id=str(configuration.pk),
             )
 
-    return variant, created
+    return removed_lines
 
 
 def copy_factory_spec(configuration):
@@ -2183,6 +2118,12 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
         })
     if base_product.kind != Product.Kind.MACHINE:
         raise ValidationError({'base_product': 'Faqat tayyor model tanlanadi.'})
+    if base_product.base_model_id:
+        # §1.4: variant — bitta buyurtma uchun yig'ilgan narsa, u yangi
+        # zayavkaning bazaviy modeli bo'la olmaydi (§1.2.3)
+        raise ValidationError({
+            'base_product': "Bu — buyurtma uchun yig'ilgan model, bazaviy model emas.",
+        })
 
     from apps.inventory.services import main_warehouse
     from apps.inventory.services import sync_configuration_reservations
@@ -2220,6 +2161,13 @@ def take_request(request_obj, user, base_product=None, warehouse=None, mode=None
                     'detail': (
                         f'{line.base_product.name}: model turidagi qator faqat '
                         "tayyor model bo'lishi mumkin — tovar bo'lsa `item` turini tanlang."
+                    ),
+                })
+            if line.base_product.base_model_id:
+                raise ValidationError({
+                    'detail': (
+                        f"{line.base_product.name}: bu — buyurtma uchun yig'ilgan "
+                        'model, bazaviy model emas.'
                     ),
                 })
             line_configuration = Configuration.objects.create(

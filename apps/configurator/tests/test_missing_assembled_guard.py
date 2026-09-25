@@ -34,6 +34,17 @@ class MissingExcludesAssembledTests(APITestCase):
             sale_price=Decimal('900000'),
         )
         ProductSpec.objects.create(product=self.hp, component=self.part, label='NVMe', quantity=1)
+        # 21-§1.3: tarkib zavod spetsifikatsiyasiga aynan teng bo'lsa yig'ish
+        # shart emas (butlovchi iste'mol qilinmaydi) — bu testlar aynan
+        # iste'mol vaqtini tekshirgani uchun tarkib ataylab bittaga farqlanadi
+        self.extra = Product.objects.create(
+            sku='RAM-EXTRA', name='Qo\'shimcha RAM', kind=Product.Kind.COMPONENT,
+            sale_price=Decimal('100000'),
+        )
+        apply_movement(
+            product=self.extra, warehouse=self.warehouse,
+            type=StockMovement.Type.IN, quantity=Decimal('100'),
+        )
 
     def _pay(self, contract):
         from apps.sales.services import approve_contract, confirm_didox, confirm_payment, send_didox
@@ -66,6 +77,15 @@ class MissingExcludesAssembledTests(APITestCase):
         self.assertEqual(response.status_code, 200, response.data)
         request_obj.refresh_from_db()
         configuration = request_obj.configuration
+        # Tarkibni zavod spetsifikatsiyasidan ataylab farqlantiramiz —
+        # aks holda §1.3 bo'yicha yig'ish shart emas deb topilib, butlovchi
+        # umuman iste'mol qilinmaydi
+        from apps.configurator.models import ConfigurationItem
+
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=self.extra,
+            label='Qo\'shimcha RAM', quantity=1, unit_price=Decimal('100000'),
+        )
 
         self.client.force_authenticate(self.engineer)
         response = self.client.post(f'/api/configurations/{configuration.id}/submit/')

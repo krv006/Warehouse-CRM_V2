@@ -144,8 +144,8 @@ class PaymentGateTests(APITestCase):
         contract.refresh_from_db()
         item = contract.items.get()
         self.assertEqual(item.quantity, 4)
-        # 4 × 12 000 000 = 48 000 000 + 12% QQS
-        self.assertEqual(contract.total_amount, Decimal('53760000.00'))
+        # 21-§1.3: narx qatorlar yig'indisi — 4 × 1 500 000 = 6 000 000 + 12% QQS
+        self.assertEqual(contract.total_amount, Decimal('6720000.00'))
 
     def test_request_quantity_syncs_configuration(self):
         """B16: zayavka soni o'zgarsa konfiguratsiya, bron va ZVK birga o'zgaradi."""

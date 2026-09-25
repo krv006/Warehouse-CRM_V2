@@ -59,8 +59,14 @@ class ProductViewSet(BaseModelViewSet):
         `cost_price=0` emas (katalogda hech kim so'ramagan narxsiz yozuvlar
         bu ro'yxatni ko'mib tashlardi). Buyurtmachining doimiy ro'yxati:
         eslatma bir martalik signal, bu esa har doim ko'rinadi.
+
+        21-§1.4: bitta buyurtma uchun yig'ilgan variant (`base_model` bor)
+        sukut bo'yicha katalogdan yashirinadi — u qayta sotiladigan haqiqiy
+        mahsulot emas (21-§1.0/§1.2). Audit uchun `?include_variants=true`.
         """
         qs = super().get_queryset()
+        if self.request.query_params.get('include_variants') not in ('true', '1'):
+            qs = qs.filter(base_model__isnull=True)
         if self.request.query_params.get('needs_price') in ('true', '1'):
             from apps.inventory.services import needs_price_queryset
 

@@ -103,26 +103,22 @@ class Configuration(StatusTrackedModel):
 
     @property
     def matching_variant(self):
-        """Xuddi shu tarkib omborda tayyor pozitsiya sifatida bormi?
+        """Tarkib zavod standartiga teng bo'lsa — bazaviy modelning o'zi
+        tayyor pozitsiya hisoblanadi (TZ 6.2).
 
-        Bazaviy modelning o'zi ham tayyor pozitsiya: tarkib zavod tarkibiga
-        teng bo'lsa, aynan bazaviy model va uning ombordagi narxi qo'llanadi.
+        21-to'plam §1.3: yig'ilgan mashina uchun alohida katalog yozuvi
+        (variant) endi umuman yaratilmaydi — bu funksiyaning yagona qolgan
+        vazifasi shu: tarkib o'zgartirilmagan bo'lsa, yig'ish shart emas,
+        mol bevosita bazaviy modeldan sotiladi.
         """
-        from apps.inventory.models import Product
-
         if not self.items.exists():
             return None
-        signature = self.signature
-        if self.base_product and self.base_product.composition_signature == signature:
+        if self.base_product and self.base_product.composition_signature == self.signature:
             return self.base_product
-        return Product.objects.filter(signature=signature).first()
+        return None
 
     @property
     def total_price(self):
-        """Tayyor variant bo'lsa — ombordagi narxi, aks holda qatorlar yig'indisi."""
-        variant = self.variant or self.matching_variant
-        if variant and variant.stock_price:
-            return variant.stock_price
         return self.items_total
 
     @property
