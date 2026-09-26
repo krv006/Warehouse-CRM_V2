@@ -138,8 +138,10 @@ class MissingExcludesAssembledTests(APITestCase):
         request_obj.refresh_from_db()
         configuration = request_obj.configuration
 
+        # 21-§1.3/22-§6: tarkib zavodnikiday (matching_variant) — bu holatda
+        # yetarlilik BAZAVIY MODELNING o'zida tekshiriladi, butlovchida emas
         apply_movement(
-            product=self.part, warehouse=self.warehouse,
+            product=self.hp, warehouse=self.warehouse,
             type=StockMovement.Type.IN, quantity=Decimal('10'),
         )
         response = self.client.post(f'/api/configurations/{configuration.id}/submit/')

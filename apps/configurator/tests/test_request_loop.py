@@ -47,6 +47,12 @@ class RequestLoopTests(APITestCase):
             product=self.ram, warehouse=self.warehouse,
             type=StockMovement.Type.IN, quantity=Decimal('10'),
         )
+        # 21-§1.3/22-§6: tarkib zavodnikiday (matching_variant) — bron endi
+        # bazaviy modelga tushadi, uning ham qoldig'i kerak
+        apply_movement(
+            product=self.base, warehouse=self.warehouse,
+            type=StockMovement.Type.IN, quantity=Decimal('10'),
+        )
 
     def _request(self):
         self.client.force_authenticate(self.sales)

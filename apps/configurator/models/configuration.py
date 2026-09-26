@@ -155,12 +155,20 @@ class Configuration(StatusTrackedModel):
         Yagona ta'rif (3-to'plam §1) — bron, yetishmovchilik va TLD shu
         yerdan o'qiydi:
           build : har bir qator × partiya (mahsulot butlovchilardan yig'iladi);
+                  22-§6 (21-§1 regressiyasi): **tarkib zavod standartiga
+                  teng bo'lsa** (`matching_variant`) butlovchilar EMAS,
+                  bazaviy modelning O'ZI × partiya — yig'ish shart emas,
+                  `ship` ham mol'ni bevosita shundan chiqaradi (21-§1.3);
+                  aks holda bron/yetishmovchilik noto'g'ri narsani
+                  (butlovchini) ushlab, bazaviy model band qilinmay qolardi;
           modify: bazaviy modelning O'ZI × partiya + FAQAT qo'shilgan qatorlar
                   × partiya. O'zgarmagan qismlar tayyor mashinaning ichida
                   keladi — ombor bilan aloqasi yo'q: band ham qilinmaydi,
                   yetishmovchilikka ham tushmaydi.
         """
         batch = self.quantity
+        if self.mode != self.Mode.MODIFY and self.matching_variant is not None:
+            return [(self.base_product, batch)]
         needs = {}
         if self.mode == self.Mode.MODIFY:
             needs[self.base_product] = batch

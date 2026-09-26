@@ -67,6 +67,11 @@ class Contract(StatusTrackedModel):
     # 21-§3.4: "Срок поставки" — shartnoma matnida alohida, `term_days`
     # (90) shartnomaning umumiy muddati, bu esa yetkazish muddati (5)
     delivery_days = PositiveIntegerField(default=5)
+    # 22-§5: bron muddati (`contract_reservation_days`) bilan ALMASHTIRIB
+    # bo'lmaydi — bittasi ombor bronini, ikkinchisi huquqiy to'lov shartini
+    # bildiradi; sukut qiymati saqlashda `CompanyProfile`dan olinadi (null —
+    # hali hisoblanmagan holat, `prepayment_percent` naqshi bilan bir xil)
+    prepayment_days = PositiveIntegerField(null=True, blank=True)
     signed_at = DateField(null=True, blank=True)
     start_date = DateField(null=True, blank=True)
     # TOPSHIRIQ-2 #2: yetkazib berish — alohida hodisa (`ship`), to'lov emas.
@@ -102,6 +107,10 @@ class Contract(StatusTrackedModel):
             self.number = unique_contract_number(contract_number(self.created_by))
         if self.prepayment_percent is None:
             self.prepayment_percent = default_prepayment_percent(self.total_amount)
+        if self.prepayment_days is None:
+            from apps.core.models import CompanyProfile
+
+            self.prepayment_days = CompanyProfile.load().contract_reservation_days
         super().save(*args, **kwargs)
 
     @property

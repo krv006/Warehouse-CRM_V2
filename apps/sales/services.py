@@ -100,6 +100,9 @@ def create_contract_from_configuration(configuration, user, client=None):
         note=f'{configuration.number} konfiguratsiyasi asosida avtomatik ochildi',
         created_by=owner,
     )
+    # 22-§7.3: 21-§3.1 "is_default — yangi shartnomaga o'zi tanlanadi" va'dasi
+    # bajarilmagan edi — shablonsiz ochilgan shartnoma `submit`da 400 olardi
+    attach_default_contract_template(contract, owner)
     ContractItem.objects.create(
         contract=contract,
         product=configuration.variant or configuration.base_product,
@@ -1034,7 +1037,17 @@ def _format_contract_date(date_obj, language):
 
 def _contract_document_placeholders(contract):
     """21-§3.3(a): qiymat kalitlari — KO'RSATISHDA to'ldiriladi, bazada
-    saqlanmaydi (summa o'zgarsa hujjat o'zi ergashadi, `is_stale` yo'q)."""
+    saqlanmaydi (summa o'zgarsa hujjat o'zi ergashadi, `is_stale` yo'q).
+
+    22-§2: qaytgan qiymatlar HAMMASI ma'lumotdan keladi (sales yozgan
+    matn emas) — shuning uchun har biri `escape()` qilinadi, aks holda
+    `<`/`>`/`&` bo'lgan mijoz/kompaniya nomi HTML teg deb o'qilib jimgina
+    yo'qoladi. 22-§3: sana ham raqam bilan BIR XIL manbadan — aks holda
+    `draft`/`pending_*` holatida sana har kun o'qilganda o'zgarib turadi,
+    raqam esa (`Contract.save()`) ochilgan kunga QOTGAN.
+    """
+    from django.utils.html import escape
+
     from apps.core.models import CompanyProfile
     from apps.core.utils import amount_in_words
 
@@ -1043,19 +1056,17 @@ def _contract_document_placeholders(contract):
     document = getattr(contract, 'document', None)
     template = document.template if document and document.template_id else None
     language = template.language if template else 'ru'
-    date_source = contract.signed_at or localdate()
+    date_source = contract.signed_at or contract.created_at.date()
     total = contract.items_total_with_vat
 
-    return {
+    values = {
         'contract.number': contract.number,
         'contract.date': _format_contract_date(date_source, language),
         'contract.city': company.city,
         'contract.total': str(total),
         'contract.total_words': amount_in_words(total, language=language),
         'contract.prepayment_percent': str(contract.prepayment_percent or ''),
-        # §3.4: alohida "necha kun ichida to'lansin" maydon yo'q — bron
-        # muddati (`contract_reservation_days`) shu ma'noni eng yaqin beradi
-        'contract.prepayment_days': str(company.contract_reservation_days),
+        'contract.prepayment_days': str(contract.prepayment_days),
         'contract.delivery_days': str(contract.delivery_days),
         'company.name': company.name,
         'company.director_name': company.director_name,
@@ -1077,6 +1088,7 @@ def _contract_document_placeholders(contract):
         'client.mfo': getattr(client, 'mfo', '') or '',
         'client.account_number': getattr(client, 'account_number', '') or '',
     }
+    return {key: escape(value) for key, value in values.items()}
 
 
 def render_contract_document(contract, body):
@@ -1117,6 +1129,20 @@ def attach_contract_template(contract, template, user):
     document.save()
     document.versions.create(body=document.body, created_by=user)
     return document
+
+
+def attach_default_contract_template(contract, user):
+    """22-§7.3: yangi shartnoma ochilganda `is_default` shablon o'zi biriktiriladi.
+
+    Faol standart shablon bo'lmasa jim o'tkazib yuboriladi — bu holda
+    `submit_contract` shablon tanlanguncha 400 berishda davom etadi
+    (jonli serverda hali bitta ham shablon yo'q bo'lsa xatti-xat oldingidek).
+    """
+    from apps.sales.models import ContractTemplate
+
+    template = ContractTemplate.objects.filter(is_default=True, is_active=True).first()
+    if template is not None:
+        attach_contract_template(contract, template, user)
 
 
 _QL_ALIGN_STYLES = {
@@ -1169,8 +1195,15 @@ def set_contract_document_body(contract, user, body):
 
     `.docx` yuklash yo'li olib tashlandi — endi HTML to'g'ridan-to'g'ri
     saqlanadi, muharrir sinflari saqlash chegarasida inline uslubga
-    ko'chiriladi (§3.7).
+    ko'chiriladi (§3.7). 22-§4: shablon saqlashdagi bilan bir xil —
+    noma'lum `{{ }}` kalit shu yerda ham to'silmasa, sales tahrir
+    paytida yozgani PDF'ga o'zgarmagan holda chiqib ketardi.
     """
+    unknown = unknown_placeholder_keys(body)
+    if unknown:
+        raise ValidationError({
+            'body': f"Noma'lum kalitlar: {', '.join(unknown)}",
+        })
     _require_document_editable(contract)
     document = get_or_create_contract_document(contract)
     document.body = _inline_legacy_styles(body)
@@ -1181,11 +1214,13 @@ def set_contract_document_body(contract, user, body):
 
 
 def _specification_rows_html(contract):
+    from django.utils.html import escape
+
     rows = []
     for idx, item in enumerate(contract.items.select_related('product'), start=1):
         rows.append(
-            f'<tr><td>{idx}</td><td>{item.product.name}</td>'
-            f'<td>{item.product.unit}</td><td>{item.quantity}</td>'
+            f'<tr><td>{idx}</td><td>{escape(item.product.name)}</td>'
+            f'<td>{escape(item.product.unit)}</td><td>{item.quantity}</td>'
             f'<td>{item.unit_price}</td><td>{item.total_with_vat}</td></tr>',
         )
     return ''.join(rows)
@@ -1221,6 +1256,8 @@ def requisites_block_html(contract):
     Mijoz turi bo'yicha shoxlanadi: jismoniy shaxsda passport/JSHSHIR,
     yuridik shaxsda INN/bank (§3.6 case — jismoniy shaxs mijoz).
     """
+    from django.utils.html import escape
+
     from apps.core.models import CompanyProfile
     from apps.clients.models import Client
 
@@ -1228,31 +1265,31 @@ def requisites_block_html(contract):
     client = contract.client
     company_html = (
         '<div class="requisites-party">'
-        f'<p>{company.name}</p>'
-        f'<p>ИНН: {company.inn}</p>'
-        f'<p>{company.address}</p>'
-        f'<p>Банк: {company.bank_name}, МФО: {company.mfo}</p>'
-        f'<p>Р/с: {company.account_number}</p>'
-        f'<p>ОКЭД: {company.oked}</p>'
+        f'<p>{escape(company.name)}</p>'
+        f'<p>ИНН: {escape(company.inn)}</p>'
+        f'<p>{escape(company.address)}</p>'
+        f'<p>Банк: {escape(company.bank_name)}, МФО: {escape(company.mfo)}</p>'
+        f'<p>Р/с: {escape(company.account_number)}</p>'
+        f'<p>ОКЭД: {escape(company.oked)}</p>'
         '</div>'
     )
     if client and client.type == Client.Type.LEGAL:
         client_html = (
             '<div class="requisites-party">'
-            f'<p>{client.display_name}</p>'
-            f'<p>ИНН: {client.inn}</p>'
-            f'<p>{client.address}</p>'
-            f'<p>Банк: {client.bank_name}, МФО: {client.mfo}</p>'
-            f'<p>Р/с: {client.account_number}</p>'
+            f'<p>{escape(client.display_name)}</p>'
+            f'<p>ИНН: {escape(client.inn)}</p>'
+            f'<p>{escape(client.address)}</p>'
+            f'<p>Банк: {escape(client.bank_name)}, МФО: {escape(client.mfo)}</p>'
+            f'<p>Р/с: {escape(client.account_number)}</p>'
             '</div>'
         )
     else:
         client_html = (
             '<div class="requisites-party">'
-            f'<p>{client.display_name if client else ""}</p>'
-            f'<p>Паспорт: {getattr(client, "passport", "") or ""}</p>'
-            f'<p>ПИНФЛ: {getattr(client, "jshshir", "") or ""}</p>'
-            f'<p>{getattr(client, "address", "") or ""}</p>'
+            f'<p>{escape(client.display_name) if client else ""}</p>'
+            f'<p>Паспорт: {escape(getattr(client, "passport", "") or "")}</p>'
+            f'<p>ПИНФЛ: {escape(getattr(client, "jshshir", "") or "")}</p>'
+            f'<p>{escape(getattr(client, "address", "") or "")}</p>'
             '</div>'
         )
     return f'<div class="requisites">{company_html}{client_html}</div>'
@@ -1260,6 +1297,8 @@ def requisites_block_html(contract):
 
 def signature_block_html(contract):
     """21-§3.3(b): imzo bloklari (lavozim, F.I.SH, М.П.)."""
+    from django.utils.html import escape
+
     from apps.core.models import CompanyProfile
     from apps.clients.models import Client
 
@@ -1273,12 +1312,12 @@ def signature_block_html(contract):
     return (
         '<div class="signatures">'
         '<div class="signatures-party">'
-        f'<p>{company.director_title or "Директор"}</p>'
-        f'<p>____________ {company.director_name}</p><p>М.П.</p>'
+        f'<p>{escape(company.director_title) or "Директор"}</p>'
+        f'<p>____________ {escape(company.director_name)}</p><p>М.П.</p>'
         '</div>'
         '<div class="signatures-party">'
-        f'<p>{client_title}</p>'
-        f'<p>____________ {client_signer}</p><p>М.П.</p>'
+        f'<p>{escape(client_title)}</p>'
+        f'<p>____________ {escape(client_signer)}</p><p>М.П.</p>'
         '</div>'
         '</div>'
     )
@@ -1312,6 +1351,8 @@ def render_contract_pdf_html(contract):
     qilinadi — ikkinchi himoya, saqlashdagi inline uslub (§3.7) yetarli
     bo'lmagan eski yozuvlar uchun ham ishlaydi.
     """
+    from django.utils.html import escape
+
     from apps.core.models import CompanyProfile
     from apps.clients.models import Client
 
@@ -1323,6 +1364,15 @@ def render_contract_pdf_html(contract):
     company = CompanyProfile.load()
     client = contract.client
 
+    # 22-§2: kompaniya/mijoz nomi, lavozim, direktor — hammasi ma'lumotdan
+    # keladi (sales matni emas), shuning uchun ekranlanadi
+    company_name = escape(company.name)
+    company_director_title = escape(company.director_title)
+    company_director_name = escape(company.director_name)
+    client_name = escape(client.display_name) if client else ''
+    client_director_title = escape(client.director_title) if client else ''
+    client_director_name = escape(client.director_name) if client else ''
+
     title = (
         f'{contract.number}-SON YETKAZIB BERISH SHARTNOMASI' if language == 'uz'
         else f'ДОГОВОР ПОСТАВКИ № {contract.number}'
@@ -1331,16 +1381,16 @@ def render_contract_pdf_html(contract):
     client_role = 'Mijoz' if language == 'uz' else 'Заказчик'
     is_legal = bool(client and client.type == Client.Type.LEGAL)
     preamble = (
-        f'<p>«{company.name}», bundan buyon "{company_role}" '
-        f'({company.director_title} {company.director_name} shaxsida), va '
-        f'«{client.display_name if client else ""}», bundan buyon "{client_role}"'
-        f'{f" ({client.director_title} {client.director_name} shaxsida)" if is_legal else ""}, '
+        f'<p>«{company_name}», bundan buyon "{company_role}" '
+        f'({company_director_title} {company_director_name} shaxsida), va '
+        f'«{client_name}», bundan buyon "{client_role}"'
+        f'{f" ({client_director_title} {client_director_name} shaxsida)" if is_legal else ""}, '
         'quyidagi shartnomani tuzdilar:</p>'
         if language == 'uz' else
-        f'<p>«{company.name}», именуемое в дальнейшем "{company_role}", '
-        f'в лице {company.director_title} {company.director_name}, и '
-        f'«{client.display_name if client else ""}», именуемое в дальнейшем "{client_role}"'
-        f'{f", в лице {client.director_title} {client.director_name}" if is_legal else ""}, '
+        f'<p>«{company_name}», именуемое в дальнейшем "{company_role}", '
+        f'в лице {company_director_title} {company_director_name}, и '
+        f'«{client_name}», именуемое в дальнейшем "{client_role}"'
+        f'{f", в лице {client_director_title} {client_director_name}" if is_legal else ""}, '
         'заключили настоящий договор:</p>'
     )
 

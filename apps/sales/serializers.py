@@ -120,7 +120,7 @@ class ContractSerializer(ModelSerializer):
             'id', 'number', 'client', 'client_name', 'configuration', 'status',
             'status_display', 'created_by_name', 'currency', 'items_total', 'vat_total',
             'items_total_with_vat', 'total_amount', 'prepayment_percent',
-            'prepayment_amount', 'term_days', 'delivery_days', 'signed_at', 'start_date',
+            'prepayment_amount', 'term_days', 'delivery_days', 'prepayment_days', 'signed_at', 'start_date',
             'delivered_at', 'delivered_by',
             'didox_number', 'didox_sent_at', 'didox_accepted_at', 'note',
             'items', 'approvals', 'payments', 'paid', 'balance', 'days_left', 'color',

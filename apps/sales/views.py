@@ -152,11 +152,13 @@ class ContractViewSet(BaseModelViewSet):
         super().perform_create(serializer)
         # Mijozning ochiq kelishuvi shartnomaga bog'lanadi — quvur yopiladi
         from apps.inventory.services import sync_contract_reservations
-        from apps.sales.services import link_lead_to_contract
+        from apps.sales.services import attach_default_contract_template, link_lead_to_contract
 
         link_lead_to_contract(serializer.instance)
         # §11.4: shartnoma tuzilishi bilan mahsulot band qilinadi
         sync_contract_reservations(serializer.instance)
+        # 22-§7.3: is_default shablon o'zi biriktiriladi (21-§3.1 va'dasi)
+        attach_default_contract_template(serializer.instance, self._current_user())
 
     def perform_update(self, serializer):
         self._check_editable(serializer.instance)

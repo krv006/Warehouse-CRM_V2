@@ -116,6 +116,19 @@ class ContractDocumentTests(APITestCase):
         document = ContractDocument.objects.get(contract=self.contract)
         self.assertEqual(document.versions.count(), 1)
 
+    def test_patch_rejects_unknown_placeholder_key(self):
+        """22-§4: shablondagi bilan bir xil tekshiruv PATCH'da ham bo'lsin —
+        sales tahrir paytida yozgan noma'lum kalit jimgina PDF'ga chiqmasin."""
+        self.client.force_authenticate(self.sales)
+        response = self.client.patch(
+            f'/api/contracts/{self.contract.id}/document/',
+            {'body': '<p>{{ clientt.inn }}</p>'}, format='json',
+        )
+        self.assertEqual(response.status_code, 400, response.data)
+        self.assertIn('clientt.inn', str(response.data))
+        # Xato tekshiruvi hujjat yaratilishidan OLDIN ishlaydi — yozuv umuman ochilmagan
+        self.assertFalse(ContractDocument.objects.filter(contract=self.contract).exists())
+
     def test_document_upload_endpoint_removed(self):
         response = self.client.post(f'/api/contracts/{self.contract.id}/document/upload/')
         self.assertEqual(response.status_code, 404)
@@ -233,3 +246,56 @@ class ContractTemplateTests(APITestCase):
         self.assertEqual(response.status_code, 201, response.data)
         first.refresh_from_db()
         self.assertFalse(first.is_default)
+
+
+class DefaultTemplateAutoAttachTests(APITestCase):
+    """22-§7.3: 21-§3.1 "is_default — yangi shartnomaga o'zi tanlanadi"
+    va'dasi — avtomatik va qo'lda ochilgan shartnomalarning ikkalasida ham."""
+
+    def setUp(self):
+        self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
+        self.default_template = ContractTemplate.objects.create(
+            name='Standart', body='<p>{{ contract.number }}</p>',
+            is_default=True, created_by=self.sales,
+        )
+        self.product = Product.objects.create(sku='HP-880', name='HP 880')
+
+    def test_manually_created_contract_gets_default_template(self):
+        self.client.force_authenticate(self.sales)
+        response = self.client.post('/api/contracts/', {
+            'client': self.mijoz.id,
+            'items': [{'product': self.product.id, 'quantity': 1, 'unit_price': '1000000'}],
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        document = ContractDocument.objects.get(contract_id=response.data['id'])
+        self.assertEqual(document.template_id, self.default_template.id)
+        self.assertEqual(document.body, self.default_template.body)
+
+    def test_auto_opened_contract_gets_default_template(self):
+        from apps.configurator.models import Configuration
+        from apps.sales.services import create_contract_from_configuration
+
+        engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
+        base = Product.objects.create(sku='HP-990', name='HP 990', kind=Product.Kind.MACHINE)
+        configuration = Configuration.objects.create(
+            base_product=base, client=self.mijoz, created_by=engineer,
+        )
+        contract = create_contract_from_configuration(configuration, engineer)
+        document = ContractDocument.objects.get(contract=contract)
+        self.assertEqual(document.template_id, self.default_template.id)
+
+    def test_no_default_template_leaves_document_empty(self):
+        self.default_template.delete()
+        self.client.force_authenticate(self.sales)
+        response = self.client.post('/api/contracts/', {
+            'client': self.mijoz.id,
+            'items': [{'product': self.product.id, 'quantity': 1, 'unit_price': '1000000'}],
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        # Standart shablon yo'q — hujjat yozuvi hali umuman ochilmagan
+        # (GET /document/ birinchi murojaatda uni bo'sh holda lazily ochadi)
+        self.assertFalse(ContractDocument.objects.filter(contract_id=response.data['id']).exists())

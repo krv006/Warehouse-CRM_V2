@@ -78,6 +78,9 @@ class ChangeQuantityTests(APITestCase):
     def test_approved_updates_everything_and_returns_to_sales(self):
         """10 -> 100: son, bron, holat, zayavka soni — hammasi birga o'zgaradi."""
         self._stock_in(self.ram, 150)
+        # 21-§1.3/22-§6: tarkib zavod spetsifikatsiyasiga teng (matching_variant)
+        # — bron endi BAZAVIY MODELGA tushadi, shuning uchun uning ham qoldig'i kerak
+        self._stock_in(self.base, 150)
         configuration = self._approved_config(quantity=10)
         Notification.objects.all().delete()
 
@@ -86,11 +89,12 @@ class ChangeQuantityTests(APITestCase):
         self.assertEqual(response.data['quantity'], 100)
         self.assertEqual(response.data['status'], Configuration.Status.PENDING_SALES)
 
-        # Bron yangi partiyaga mos: RAM x100 (omborda 150 bor)
+        # Bron yangi partiyaga mos: HP-880 x100 (tarkib zavodnikiday — omborda 150 bor)
         reservation = StockReservation.objects.get(
             configuration=configuration,
             status=StockReservation.Status.ACTIVE,
         )
+        self.assertEqual(reservation.product, self.base)
         self.assertEqual(reservation.quantity, Decimal('100'))
 
         # Zayavka soni ergashdi — ikki hujjatda bir xil son

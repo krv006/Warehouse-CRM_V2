@@ -297,6 +297,7 @@ Property: `items_total`, `total_amount`, `progress`, `days_left`, `color`.
 | `prepayment_percent` | Decimal(5,2), bo'sh bo'lsa avtomatik 30/15 |
 | `term_days` | PositiveInteger, default 90 — shartnomaning umumiy muddati |
 | `delivery_days` | PositiveInteger, default 5 — 21-§3.4: yetkazish muddati (shartnoma matnida alohida) |
+| `prepayment_days` | PositiveInteger, null — 22-§5: to'lov sharti (huquqiy), saqlashda `CompanyProfile.contract_reservation_days`dan olinadi, lekin bron muddati keyin o'zgarsa ham bu maydon O'ZGARMAYDI (bron va to'lov sharti boshqa-boshqa narsa) |
 | `signed_at` | Date |
 | `start_date` | Date — pul tasdiqlangan kun, sanoq shundan boshlanadi |
 | `note`, `created_by` | |

@@ -221,21 +221,31 @@ TZ misoli: HP 880 (SSD 512 GB, GPU 16, 4 yadro, RAM 8) → mijoz SSD 1 TB va GPU
 6. `GET /{id}/export-excel/` — chernovik Excel (butlovchi, miqdor, narx, omborda, yetishmaydi, manba, jami).
 7. Tayyor bo'lsa `POST /{id}/attach/` bilan kirim buyurtmasiga biriktiriladi → status `attached`.
 
-### Tayyor variantni tanish (TZ 6.2)
+### Tayyor variantni tanish (TZ 6.2, 21-§1 bilan yangilangan)
 
-Har bir konfiguratsiya tarkibi **imzo** bilan saqlanadi (`Product.signature`) — bazaviy model +
-butlovchilar va ularning miqdori. Shu sababli:
+Har bir konfiguratsiya tarkibi **imzo** bilan hisoblanadi (`configuration_signature`) —
+bazaviy model + butlovchilar va ularning miqdori (tartib ahamiyatsiz:
+`SSD + GPU` va `GPU + SSD` bir xil imzo beradi). 21-§1.3: bitta buyurtma
+uchun yig'ilgan mashina uchun **alohida katalog yozuvi (variant) endi
+umuman yaratilmaydi** — bu yig'ilgan narsa boshqa mijozga sotib bo'lmaydi,
+katalogda turishi xato edi (variant `Product.kind=machine`,
+`base_model`=bazaviy model bo'lib yaratilardi va low-stock/TLD/katalog
+ro'yxatlarini ko'mib tashlardi — jonli o'lchov: 51 ta mahsulotning 21 tasi,
+31 ta TLD yozuvining 13 tasi variant edi).
 
-- Aynan shunday kombinatsiya avval yig'ilgan bo'lsa, tizim uni taniydi va
-  **ombordagi tayyor pozitsiya narxini** qo'llaydi (`ready_variant`, `total_price`)
-- Yangi kombinatsiya yakunlanganda omborga **alohida mahsulot** bo'lib qo'shiladi
-  (`sku` = `HP-880-V01`, `base_model` = bazaviy model), keyingi safar qayta ishlatiladi
-- Komponentlar tartibi ahamiyatsiz: `SSD + GPU` va `GPU + SSD` bir xil imzo beradi
-- **Bazaviy modelning o'zi ham tayyor pozitsiya**: tarkib zavod tarkibiga teng bo'lsa,
-  tizim aynan bazaviy modelni taniydi — uning ombordagi narxi va qoldig'i qo'llanadi,
-  yangi variant yaratilmaydi
+- **Bazaviy modelning o'zi tayyor pozitsiya**: tarkib zavod ProductSpec'iga
+  aynan teng bo'lsa (`Configuration.matching_variant`), yig'ish shart emas —
+  mol bevosita bazaviy modelning ombordagi narxi va qoldig'idan ketadi
+  (`total_price` esa har doim `items_total` — qatorlar yig'indisi, alohida
+  "variant narxi" tushunchasi yo'q)
+- Tarkib o'zgartirilgan bo'lsa (`matching_variant` topilmaydi) — mahsulot
+  har doim butlovchilardan yig'iladi, natija hech qanday yangi katalog
+  yozuviga aylanmaydi
 - Model tanlanganda **zavod tarkibi avtomatik yuklanadi** (`items` yuborilmasa) —
   ichidagi barcha narsa tayyor keladi, foydalanuvchi faqat keraklisini o'zgartiradi (TZ 6.1)
+- Eski (21-to'plamgacha) yaratilgan variantlar bazada qoladi, lekin
+  `is_active=False` qilib o'chirilgan va katalog/TLD ro'yxatlarida sukut
+  bo'yicha yashiringan (`?include_variants=true` bilan audit uchun ko'rinadi)
 
 ### Ikki rejim: yig'ish va tayyor mahsulotni o'zgartirish
 
@@ -325,19 +335,25 @@ Ta'minot va yig'ish faqat `approved`dan keyin; `finalize` endi bitta ish —
 Ikki xil tasdiq bor: **texnik** (shu tarkib to'g'rimi — konfiguratsiyada)
 va **narx** (mijoz summaga rozimi — TLD `pending_sales`).
 
-**Yig'ish qadami (§10.1):** `build` rejimida `finalize` endi jismoniy
-yig'ishni ham qiladi — butlovchilar ombordan chiqadi, variant 1 dona kirim
-bo'ladi (shu tufayli shartnoma to'lovi o'tadi). Butlovchi yetmasa finalize
-bloklanmaydi: yig'ish keyinga qoladi (`assembly_missing` ro'yxati), mol
-kelgach `POST /configurations/{id}/assemble/` yoki to'lov paytida avtomatik
-yig'iladi.
+**Yig'ish qadami (§10.1, 21-§1 bilan yangilangan):** `POST /configurations/{id}/assemble/`
+— `build` rejimida tarkib zavod spetsifikatsiyasidan farq qilsa butlovchilar
+ombordan chiqadi (kirim YO'Q — variant endi umuman yaratilmaydi); tarkib
+zavodnikiga teng bo'lsa (`matching_variant`) yig'ish shart emas, ombor
+harakati bo'lmaydi, mol to'g'ridan-to'g'ri bazaviy modelning o'zidan
+ketadi. Butlovchi yetmasa `assemble` bloklanadi, engineer
+`request-procurement` bilan TLD ochadi; mol kelgach qayta chaqiriladi.
+`finalize` — alohida qadam, ACT bilan yakunlaydi, ombor harakatiga
+tegmaydi.
 
 **Bron (§11.4):** shartnoma tuzilishi bilan mahsulot **band** (qattiq bron),
 konfiguratsiya chernovigi esa **rejada** (yumshoq — to'smaydi, ogohlantiradi).
 Chiqim vaqti o'zgarmagan (to'lovda), bron shartnoma–to'lov oralig'idagi oynani
 yopadi: yetishmovchilik endi to'lovda emas, shartnoma tuzilayotganda ko'rinadi.
 Har amal o'z bronini o'ziga ochiq hisoblaydi. Muddati o'tgan bron
-`check_deadlines`da bo'shaydi. Yig'ilmagan variantda bron butlovchilarga tushadi.
+`check_deadlines`da bo'shaydi. 22-§6 (21-§1 regressiyasi tuzatildi): bron
+`required_from_stock`dan o'qiydi — tarkib zavodnikiga teng bo'lsa
+(`matching_variant`) BAZAVIY MODELGA tushadi, o'zgargan bo'lsa
+butlovchilarga (ikkalasi ham bitta ta'rifdan chiqadi, ikki xil haqiqat yo'q).
 
 **Tannarx yangilanishi:** `receive` (TLD ham, KIR ham) har bir qator
 uchun mahsulot `cost_price`ini xarid narxi (QQS'siz `unit_price`) bilan
@@ -399,9 +415,10 @@ mol` (avval `CFG → mol → SHT → pul` edi):
    bog'langan shartnoma CFG `ready`/`sold` bo'lmaguncha o'z bronini
    qo'ymaydi (ikki marta band bo'lmasin). Boshlang'ich to'lov kelgach CFG
    broni **yumshoqdan qattiqqa** o'tadi va muddatsiz bo'ladi.
-4. `finalize` endi shartnoma ochmaydi — qatordagi bazaviy modelni
-   **yig'ilgan variantga ko'chiradi** (B6; son va narx tegilmaydi) va CFG
-   `ready` (pul kelgan bo'lsa `sold`) bo'ladi; bron shartnomaga o'tadi.
+4. `finalize` endi shartnoma ochmaydi — 21-§1 dan keyin qator **bazaviy
+   modelda qoladi** (variantga ko'chirilmaydi, chunki variant endi
+   umuman yaratilmaydi; son va narx tegilmaydi) va CFG `ready` (pul
+   kelgan bo'lsa `sold`) bo'ladi; bron shartnomaga o'tadi.
 5. ZVK endi shartnoma `completed` bo'lgandagina arxivlanadi (B7, §3.5) —
    u zanjir umurtqasi bo'lib ro'yxatlarda turadi.
 6. **Ta'minot va yig'ish to'lovdan keyin** (B4): `assemble` ham,

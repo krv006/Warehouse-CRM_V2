@@ -44,6 +44,12 @@ class RoadmapTests(APITestCase):
             product=self.ram, warehouse=self.warehouse,
             type=StockMovement.Type.IN, quantity=Decimal('10'),
         )
+        # 21-§1.3/22-§6: tarkib zavodnikiday (matching_variant) — yetarlilik
+        # endi bazaviy modelning o'zida tekshiriladi
+        apply_movement(
+            product=self.base, warehouse=self.warehouse,
+            type=StockMovement.Type.IN, quantity=Decimal('10'),
+        )
 
     def _to_waiting_payment(self):
         """ZVK -> ... -> bugalter/admin -> Didox: pul kutilmoqda (12-§1)."""

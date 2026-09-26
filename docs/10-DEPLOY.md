@@ -163,6 +163,19 @@ docker exec edu_platform-caddy-1 caddy reload --config /etc/caddy/Caddyfile --fo
 Xuddi shu sababdan kodni yangilashda `docker compose up -d --build` emas,
 **`make deploy`** yoki `sudo bash deploy/server-setup.sh` ishlating.
 
+### WeasyPrint (shartnoma PDF, 21-§3.7/22-§1)
+
+`Dockerfile`da `apt-get install libpango-1.0-0 libpangoft2-1.0-0
+libharfbuzz0b libcairo2 libgdk-pixbuf-2.0-0 libffi8 shared-mime-info
+fonts-dejavu-core` qatori bor — WeasyPrint sof Python paket emas, u
+ishga tushganda (import vaqtida) shu tizim kutubxonalarini yuklaydi.
+Ular bo'lmasa Django bemalol ko'tariladi-yu, birinchi PDF so'ralganda
+`500` beradi (§1 — jonli serverda aynan shu xato chiqqan edi, chunki
+import `render_contract_pdf` funksiyasi ICHIDA, lazy).
+`deploy/entrypoint.sh` konteyner ishga tushganda `import weasyprint`ni
+bir marta sinab ko'radi — muammo bo'lsa konteyner **umuman ko'tarilmaydi**,
+xato deploy paytida ko'rinadi, mijoz PDF so'raganda emas.
+
 ### Baza qayerda turadi
 
 Baza `SQLITE_PATH` bo'yicha ochiladi — u **Dockerfile ichida** `/app/data/db.sqlite3` qilib

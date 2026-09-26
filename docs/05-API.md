@@ -812,21 +812,32 @@ deb olinadi (`400`, `500` emas).
 
 1. Sales (yoki admin) `POST /contract-templates/` orqali shablon yozadi —
    HTML matn (1-9 bo'lim), ichida `{{ key }}` o'rin egallovchilar
-   (§3.3a jadvali: `contract.*`, `company.*`, `client.*`).
+   (§3.3a jadvali: `contract.*`, `company.*`, `client.*`). 22-§7.3:
+   `is_default` shablon **yangi shartnomaga o'zi biriktiriladi**
+   (avtomatik ochilganda ham, `POST /contracts/` bilan qo'lda ochilganda ham) —
+   faol standart shablon bo'lmasa hujjat bo'sh qoladi, `submit` shablon
+   tanlanguncha 400 beradi.
 2. Shartnoma ochilganda sales `POST /contracts/{id}/document/attach-template/`
-   bilan shablon tanlaydi — matn shartnomaga **nusxalanadi**
+   bilan boshqa shablon tanlaydi — matn shartnomaga **nusxalanadi**
    (`ContractDocument.body`); shablon keyin tahrirlansa/o'chirilsa ham
    ochiq shartnomaga ta'sir qilmaydi.
 3. Kerak bo'lsa `PATCH /contracts/{id}/document/` bilan matn to'g'ridan-to'g'ri
-   tuzatiladi (rich-text HTML).
+   tuzatiladi (rich-text HTML) — 22-§4: bu yerda ham noma'lum `{{ }}` kalit
+   400 bilan to'siladi (shablon saqlashdagi bilan bir xil tekshiruv).
 4. `GET /contracts/{id}/document/` — `body`da `{{ }}` allaqachon
    qiymatlar bilan almashtirilgan (summa/qator o'zgarsa hujjat o'zi
-   ergashadi — "eskirdi" degan tushuncha yo'q).
+   ergashadi — "eskirdi" degan tushuncha yo'q); 22-§2: qiymatlar
+   ma'lumotdan (mahsulot/mijoz/kompaniya) kelsa `escape()` qilingan —
+   `<`/`>`/`&` bo'lgan nom jimgina yo'qolmaydi. 22-§3: sana raqam bilan
+   bir xil manbadan (`signed_at`, bo'lmasa `created_at`) — draft holatida
+   har kun o'qishda o'zgarib turmaydi.
 5. Rekvizit (10-bo'lim), imzo bloklari va spetsifikatsiya (jadval + ИТОГО +
    summa so'z bilan) sales yozmaydi — tizim avtomatik quradi
    (`has_specification`/`has_requisites` — shu bloklar chizilsinmi).
 6. `GET /contracts/{id}/document/export/?format=pdf` — WeasyPrint A4 PDF
-   (ramka + matn birga, "yozgani bilan chiqqani bir xil").
+   (ramka + matn birga, "yozgani bilan chiqqani bir xil"); 22-§1:
+   konteynerga kerakli tizim kutubxonalari (`libpango`, `libcairo`,
+   `libgdk-pixbuf`, `fonts-dejavu-core`) `Dockerfile`ga qo'shildi.
 
 `submit_contract` endi matnsiz o'tmaydi — `body` bo'sh bo'lsa 400
 ("Shartnoma matni bo'sh — shablon tanlang").
@@ -835,6 +846,11 @@ Shartnoma raqami (§3.5): yangi shartnomalar `NB2309-26` formatida
 (sales bosh harflari + kun/oy-yil, Kirill ism transliteratsiya bilan,
 bir kunda takror bo'lsa `/2`, `/3` …) — eski `SHT-000xx` yozuvlar
 o'zgarmaydi.
+
+`prepayment_days` (22-§5) — to'lov sharti (huquqiy), yaratishda
+`CompanyProfile.contract_reservation_days`dan olinadi, lekin bron
+muddati keyin o'zgarsa ham bu maydon o'zgarmaydi (bron va to'lov sharti
+boshqa-boshqa narsa — `delivery_days` bilan bir qatorda `Contract`da).
 
 ---
 

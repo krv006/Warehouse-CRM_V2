@@ -120,15 +120,17 @@ class DealProcurementViewTests(APITestCase):
         rows = {row['number']: row for row in deal['models']}
         self.assertEqual(set(rows), {primary.number, dell_config.number})
 
+        # 21-§1.3/22-§6: tarkib zavod spetsifikatsiyasiga teng (matching_variant)
+        # — yetishmayotgan narsa endi BAZAVIY MODELNING O'ZI, butlovchi emas
         hp_row = rows[primary.number]
         self.assertEqual(hp_row['missing_count'], 1)
         self.assertEqual(len(hp_row['missing']), 1)
-        self.assertEqual(hp_row['missing'][0]['name'], self.hp_part.name)
+        self.assertEqual(hp_row['missing'][0]['name'], self.hp.name)
         self.assertEqual(hp_row['missing'][0]['shortage'], 10)
 
         dell_row = rows[dell_config.number]
         self.assertEqual(dell_row['missing_count'], 1)
-        self.assertEqual(dell_row['missing'][0]['name'], self.dell_part.name)
+        self.assertEqual(dell_row['missing'][0]['name'], self.dell.name)
         self.assertEqual(dell_row['missing'][0]['shortage'], 2)
 
         # Ikkinchi model sahifasidan ham xuddi shu ro'yxat ko'rinadi
@@ -144,7 +146,8 @@ class DealProcurementViewTests(APITestCase):
         response = self.client.get(f'/api/configurations/{configuration.id}/')
         self.assertIsNone(response.data['deal'])
         self.assertEqual(response.data['missing_count'], 1)
-        self.assertEqual(response.data['missing'][0]['name'], self.hp_part.name)
+        # 21-§1.3/22-§6: tarkib zavodnikiday — yetishmayotgan narsa bazaviy model
+        self.assertEqual(response.data['missing'][0]['name'], self.hp.name)
 
     # -------------------------------------------------------------------- §2
 

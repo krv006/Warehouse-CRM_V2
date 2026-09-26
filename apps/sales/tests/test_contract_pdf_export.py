@@ -1,4 +1,5 @@
 from decimal import Decimal
+from unittest import skipUnless
 from unittest.mock import patch
 
 from rest_framework.test import APITestCase
@@ -15,6 +16,17 @@ from apps.sales.services import (
     requisites_block_html,
     specification_block_html,
 )
+
+
+def _weasyprint_available():
+    """22-§1(b): haqiqiy chizish faqat native GTK/Pango bor joyda (CI/konteyner)
+    sinaladi — bu Windows sandbox'da yo'q, shuning uchun shu yerda o'tkazib
+    yuboriladi (qolgan testlar `render_contract_pdf`ni mock qiladi)."""
+    try:
+        import weasyprint  # noqa: F401
+    except OSError:
+        return False
+    return True
 
 
 class RenderContractDocumentTests(APITestCase):
@@ -69,6 +81,90 @@ class RenderContractDocumentTests(APITestCase):
     def test_total_words_present(self):
         values = _contract_document_placeholders(self.contract)
         self.assertIn('сум', values['contract.total_words'])
+
+
+class HtmlEscapingTests(APITestCase):
+    """22-§2: ma'lumotdan kelgan qiymatlar (sales matni EMAS) ekranlanadi —
+    aks holda `<`/`>`/`&` bo'lgan nom HTML teg deb o'qilib jimgina yo'qoladi."""
+
+    def setUp(self):
+        self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
+        self.mijoz = Client.objects.create(
+            type=Client.Type.LEGAL, company_name='OOO "Standart & Ko" <VIP>',
+            inn='123456789', jshshir='11112222333344', mfo='00014',
+            bank_name='Bank', account_number='2020000000000000001',
+            director_name='Aliyev A.', director_title='Direktor',
+            phone='+998900000001',
+        )
+        self.product = Product.objects.create(
+            sku='KBL-1', name='Kabel <2m> & adapter', sale_price=Decimal('100000'), unit='dona',
+        )
+        self.contract = Contract.objects.create(client=self.mijoz, created_by=self.sales)
+        ContractItem.objects.create(
+            contract=self.contract, product=self.product, quantity=1,
+            unit_price=Decimal('100000'),
+        )
+
+    def test_specification_escapes_product_name(self):
+        html = specification_block_html(self.contract)
+        self.assertIn('Kabel &lt;2m&gt; &amp; adapter', html)
+        self.assertNotIn('Kabel <2m> & adapter', html)
+
+    def test_requisites_escapes_client_name(self):
+        html = requisites_block_html(self.contract)
+        self.assertIn('&lt;VIP&gt;', html)
+        self.assertNotIn('<VIP>', html)
+
+    def test_placeholder_values_are_escaped(self):
+        values = _contract_document_placeholders(self.contract)
+        self.assertIn('&amp;', values['client.name'] + values['company.name'])
+
+    def test_pdf_frame_html_escapes_preamble_and_title(self):
+        html = render_contract_pdf_html(self.contract)
+        self.assertIn('&lt;VIP&gt;', html)
+        self.assertNotIn('<VIP>', html)
+        # Text still present, just escaped — not silently dropped
+        self.assertIn('Standart', html)
+
+    def test_sales_body_is_not_escaped(self):
+        """Sales yozgan matn — allaqachon HTML, ekranlanmasin."""
+        from apps.sales.services import set_contract_document_body
+
+        set_contract_document_body(self.contract, self.sales, '<p><strong>Muhim</strong></p>')
+        html = render_contract_pdf_html(self.contract)
+        self.assertIn('<strong>Muhim</strong>', html)
+
+
+class ContractDateSourceTests(APITestCase):
+    """22-§3: raqam va matndagi sana bitta manbadan — `created_at`, `signed_at`
+    bo'lmasa (draft holatida sana har kun o'qishda o'zgarib turmasligi kerak)."""
+
+    def setUp(self):
+        self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
+
+    def test_date_uses_created_at_not_today(self):
+        """`signed_at` yo'q (draft) — sana raqam bilan bir xil manbadan:
+        shartnoma OCHILGAN kun, o'qish kuni emas."""
+        contract = Contract.objects.create(client=self.mijoz, created_by=self.sales)
+        Contract.objects.filter(pk=contract.pk).update(
+            created_at='2026-09-23 10:00:00+00:00',
+        )
+        contract.refresh_from_db()
+        values = _contract_document_placeholders(contract)
+        self.assertIn('23 сентября', values['contract.date'])
+
+    def test_signed_at_still_takes_priority(self):
+        from datetime import date
+
+        contract = Contract.objects.create(
+            client=self.mijoz, created_by=self.sales, signed_at=date(2026, 1, 5),
+        )
+        values = _contract_document_placeholders(contract)
+        self.assertIn('5 января', values['contract.date'])
 
 
 class SpecificationBlockTests(APITestCase):
@@ -214,6 +310,16 @@ class RenderContractPdfHtmlTests(APITestCase):
         self.assertIn('ql-align-center', html)
         self.assertIn('text-align: center', html)
 
+    @skipUnless(_weasyprint_available(), 'WeasyPrint kutubxonalari yo\'q (native GTK/Pango)')
+    def test_real_pdf_bytes(self):
+        """22-§1(b): mock emas — haqiqiy WeasyPrint chaqiriladi, natija
+        chinakam PDF baytlari bo'lishi kerak. Bu depo Windows sandbox'da
+        o'tkazib yuboriladi, konteyner/CI'da (apt paketlari bilan) yuradi."""
+        from apps.sales.services import render_contract_pdf
+
+        pdf = render_contract_pdf(self.contract)
+        self.assertTrue(pdf.startswith(b'%PDF'))
+
 
 class ContractPdfExportViewTests(APITestCase):
     """21-§3.7: `GET /document/export/?format=pdf` — view darajasidagi huquq/javob.
@@ -270,3 +376,52 @@ class ContractPdfExportViewTests(APITestCase):
         )
         self.assertEqual(response.status_code, 404)
         mock_render.assert_not_called()
+
+
+class PrepaymentDaysFieldTests(APITestCase):
+    """22-§5: `prepayment_days` — huquqiy to'lov sharti, bron muddati EMAS."""
+
+    def setUp(self):
+        self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
+
+    def test_defaults_from_company_reservation_days_but_is_own_field(self):
+        from apps.core.models import CompanyProfile
+
+        company = CompanyProfile.load()
+        company.contract_reservation_days = 3
+        company.save()
+        contract = Contract.objects.create(client=self.mijoz, created_by=self.sales)
+        self.assertEqual(contract.prepayment_days, 3)
+
+        # Bron muddati keyin o'zgarsa ham — HUQUQIY hujjatdagi raqam qotib qoladi
+        company.contract_reservation_days = 30
+        company.save()
+        contract.refresh_from_db()
+        self.assertEqual(contract.prepayment_days, 3)
+
+    def test_explicit_value_not_overridden(self):
+        contract = Contract.objects.create(
+            client=self.mijoz, created_by=self.sales, prepayment_days=14,
+        )
+        self.assertEqual(contract.prepayment_days, 14)
+
+    def test_placeholder_uses_contract_field(self):
+        contract = Contract.objects.create(
+            client=self.mijoz, created_by=self.sales, prepayment_days=7,
+        )
+        values = _contract_document_placeholders(contract)
+        self.assertEqual(values['contract.prepayment_days'], '7')
+
+    def test_exposed_in_serializer(self):
+        product = Product.objects.create(sku='HP-880', name='HP 880')
+        self.client.force_authenticate(self.sales)
+        response = self.client.post('/api/contracts/', {
+            'client': self.mijoz.id, 'prepayment_days': 10,
+            'items': [{'product': product.id, 'quantity': 1, 'unit_price': '1000000'}],
+        }, format='json')
+        self.assertEqual(response.status_code, 201, response.data)
+        self.assertEqual(response.data['prepayment_days'], 10)
