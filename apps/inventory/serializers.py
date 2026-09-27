@@ -121,6 +121,7 @@ class ProductSerializer(ModelSerializer):
             'id', 'sku', 'name', 'kind', 'kind_display', 'description', 'unit',
             'cost_price', 'sale_price', 'stock_price', 'reorder_level',
             'is_active', 'base_model', 'is_variant', 'signature',
+            'tnved_code', 'is_imported',
             'total_stock', 'reserved_hard', 'reserved_soft',
             'sellable_stock', 'plannable_stock', 'is_low_stock', 'specs',
         ]

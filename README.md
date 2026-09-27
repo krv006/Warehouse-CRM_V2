@@ -44,11 +44,11 @@ Login: `POST /api/auth/login/` → `{"access": "...", "refresh": "..."}`, so'ngr
 
 | Ko'rsatkich | Qiymat |
 |---|---|
-| REST endpoint | **141 endpoint** (Swagger va OpenAPI sahifalaridan tashqari) |
+| REST endpoint | **150 endpoint** (Swagger va OpenAPI sahifalaridan tashqari) |
 | Django ilovalari | 9 ta (`core`, `accounts`, `clients`, `inventory`, `configurator`, `purchases`, `procurement`, `sales`, `finance`) |
-| Modellar | 39 ta |
-| Rollar | 5 ta: admin, bugalter, sales, buyurtmachi, engineer |
-| Testlar | **663 ta**, hammasi o'tadi |
+| Modellar | 40 ta |
+| Rollar | 7 ta: admin, bugalter, sales, buyurtmachi, engineer, logist, deklarant |
+| Testlar | **701 ta**, hammasi o'tadi |
 
 ---
 
@@ -192,7 +192,7 @@ Shartnoma, qarz, import va kelishuv ("Keyingi aloqa") muddatlarini tekshirib esl
 ```bash
 .venv/Scripts/python.exe manage.py test apps
 ```
-Barcha testlar (504 ta).
+Barcha testlar (701 ta).
 
 ---
 
@@ -206,7 +206,7 @@ Barcha testlar (504 ta).
 | Configurator + ACT + Excel | ✅ tayyor |
 | Client (jismoniy / yuridik) | ✅ tayyor |
 | Buyurtmachi moduli (to'ldirish, qarz, yetkazib berish) | ✅ tayyor |
-| Rollar (5 ta), audit, eslatmalar | ✅ tayyor |
+| Rollar (7 ta), audit, eslatmalar | ✅ tayyor |
 | Export (USD / EUR / CNY) | 🟡 modelda joy bor, jarayon yozilmagan |
 | Serverga o'rnatish (Docker / systemd + nginx) | ✅ tayyor |
 | React frontend | ⬜ keyingi bosqich |

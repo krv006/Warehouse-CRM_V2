@@ -1,22 +1,26 @@
 from rest_framework.exceptions import PermissionDenied, ValidationError
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 
 from apps.accounts.permissions import (
     FinanceAccess,
+    ImportCostAccess,
     ProcurementAccess,
     ProcurementApprovalAccess,
     ProcurementSharedAccess,
 )
 from apps.core.mixins import BaseModelViewSet
 from apps.core.models import ActivityLog
-from apps.inventory.models import Warehouse
+from apps.inventory.models import Product, Warehouse
 from apps.procurement.models import (
+    ImportCostSheet,
     Replenishment,
     ReplenishmentApproval,
     ReplenishmentEvent,
     ReplenishmentItem,
 )
 from apps.procurement.serializers import (
+    ImportCostSheetSerializer,
     ReplenishmentApprovalSerializer,
     ReplenishmentEventSerializer,
     ReplenishmentItemSerializer,
@@ -26,10 +30,17 @@ from apps.procurement.services import (
     add_event,
     approve,
     build_from_low_stock,
+    cancel_import_sheet,
+    change_import_sheet_quantity,
+    fill_customs_section,
+    fill_goods_section,
+    fill_logistics_section,
     low_stock_products,
+    open_import_sheet,
     pay,
     receive,
     reject,
+    return_import_sheet,
     submit,
 )
 
@@ -267,3 +278,120 @@ class ReplenishmentEventViewSet(BaseModelViewSet):
     serializer_class = ReplenishmentEventSerializer
     permission_classes = [ProcurementAccess]
     filterset_fields = ['replenishment', 'stage']
+
+
+# 24-to'plam: bo'lim ichida kim qaysi maydonni yozishi servis darajasida
+# tekshiriladi (§6.3) — bu amallar uchun ViewSet faqat autentifikatsiyani
+# talab qiladi, aniq rolni `fill_*`/`open`/`return_sheet`/`cancel`/
+# `change_quantity` servis funksiyalarining o'zi tekshiradi.
+IMPORT_SHEET_SERVICE_ACTIONS = {
+    'open', 'fill_goods', 'fill_logistics', 'fill_customs',
+    'return_sheet', 'cancel', 'change_quantity',
+}
+
+
+class ImportCostSheetViewSet(BaseModelViewSet):
+    """24-to'plam: import tannarx varaqasi — tovar → logistika → bojxona.
+
+    Generic PATCH/PUT/DELETE yo'q — har bir bo'lim faqat o'z servis
+    funksiyasi orqali to'ldiriladi (§6.3: ketma-ketlik shu yerda ham
+    qat'iy). §4.1: engineer bu bo'limni umuman ochmaydi (`ImportCostAccess`
+    ro'yxatida yo'q — 403); logist/deklarant/buyurtmachi/bugalter rol
+    bo'ylab hammasini ko'radi (egasi bo'yicha emas, §7 case 17).
+    """
+
+    queryset = ImportCostSheet.objects.select_related(
+        'product', 'configuration', 'goods_filled_by',
+        'logistics_filled_by', 'customs_filled_by', 'created_by',
+    ).all()
+    serializer_class = ImportCostSheetSerializer
+    permission_classes = [ImportCostAccess]
+    filterset_fields = ['status', 'product', 'configuration']
+    ordering_fields = ['created_at', 'number']
+
+    def get_permissions(self):
+        if self.action in IMPORT_SHEET_SERVICE_ACTIONS:
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
+    def open(self, request):
+        """POST /import-cost-sheets/open/ — §6.4: Engineer/buyurtmachi/admin."""
+        product = Product.objects.filter(pk=request.data.get('product')).first()
+        if product is None:
+            raise ValidationError({'product': 'Mahsulot topilmadi.'})
+        configuration = None
+        if request.data.get('configuration'):
+            from apps.configurator.models import Configuration
+
+            configuration = Configuration.objects.filter(
+                pk=request.data['configuration'],
+            ).first()
+        sheet = open_import_sheet(
+            product, request.user,
+            quantity=request.data.get('quantity', 1),
+            configuration=configuration,
+        )
+        self.log_action(ActivityLog.Action.CREATE, sheet, f'{sheet.number} ochildi')
+        return Response(self.get_serializer(sheet).data, status=201)
+
+    def fill_goods(self, request, pk=None):
+        """POST /import-cost-sheets/{id}/fill-goods/ — A. Buyurtmachi."""
+        sheet = fill_goods_section(
+            self.get_object(), request.user,
+            currency=request.data.get('currency', 'USD'),
+            goods_price=request.data.get('goods_price'),
+            exchange_rate=request.data.get('exchange_rate'),
+            origin_country=request.data.get('origin_country', ''),
+        )
+        self.log_action(ActivityLog.Action.UPDATE, sheet, f'{sheet.number}: tovar ma\'lumoti to\'ldirildi')
+        return Response(self.get_serializer(sheet).data)
+
+    def fill_logistics(self, request, pk=None):
+        """POST /import-cost-sheets/{id}/fill-logistics/ — B. Logist."""
+        sheet = fill_logistics_section(
+            self.get_object(), request.user,
+            logistics_total=request.data.get('logistics_total'),
+            note=request.data.get('note', ''),
+        )
+        self.log_action(ActivityLog.Action.UPDATE, sheet, f'{sheet.number}: logistika narxi kiritildi')
+        return Response(self.get_serializer(sheet).data)
+
+    def fill_customs(self, request, pk=None):
+        """POST /import-cost-sheets/{id}/fill-customs/ — C. Deklarant, hisobni yopadi."""
+        data = request.data
+        sheet = fill_customs_section(
+            self.get_object(), request.user,
+            tnved_code=data.get('tnved_code', ''),
+            freight_to_border=data.get('freight_to_border'),
+            duty_percent=data.get('duty_percent', 0),
+            duty_amount=data.get('duty_amount', 0),
+            excise_amount=data.get('excise_amount', 0),
+            vat_percent=data.get('vat_percent', 12),
+            customs_fee=data.get('customs_fee'),
+            certificate_cost=data.get('certificate_cost', 0),
+            laboratory_cost=data.get('laboratory_cost', 0),
+            declarant_fee=data.get('declarant_fee', 0),
+            note=data.get('note', ''),
+        )
+        self.log_action(ActivityLog.Action.UPDATE, sheet, f'{sheet.number}: bojxona hisobi yopildi')
+        return Response(self.get_serializer(sheet).data)
+
+    def return_sheet(self, request, pk=None):
+        """POST /import-cost-sheets/{id}/return/ — logist/deklarant orqaga qaytaradi."""
+        sheet = return_import_sheet(self.get_object(), request.user, request.data.get('comment', ''))
+        self.log_action(ActivityLog.Action.UPDATE, sheet, f'{sheet.number} qaytarildi')
+        return Response(self.get_serializer(sheet).data)
+
+    def cancel(self, request, pk=None):
+        """POST /import-cost-sheets/{id}/cancel/ — admin yoki ochgan odam."""
+        sheet = cancel_import_sheet(self.get_object(), request.user, request.data.get('reason', ''))
+        self.log_action(ActivityLog.Action.UPDATE, sheet, f'{sheet.number} bekor qilindi')
+        return Response(self.get_serializer(sheet).data)
+
+    def change_quantity(self, request, pk=None):
+        """POST /import-cost-sheets/{id}/change-quantity/ — §7 case 6."""
+        sheet = change_import_sheet_quantity(
+            self.get_object(), request.user, request.data.get('quantity'),
+        )
+        self.log_action(ActivityLog.Action.UPDATE, sheet, f'{sheet.number}: miqdor o\'zgartirildi')
+        return Response(self.get_serializer(sheet).data)

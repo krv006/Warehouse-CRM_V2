@@ -41,6 +41,8 @@ erDiagram
     ExpenseRequest ||--o{ CashTransaction : ""
     Contract ||--o{ CashTransaction : ""
     Purchase ||--o{ CashTransaction : ""
+    Product ||--o{ ImportCostSheet : ""
+    Configuration ||--o{ ImportCostSheet : ""
 ```
 
 ---
@@ -138,6 +140,8 @@ Property: `display_name` (yuridik → `company_name`, jismoniy → `full_name`).
 | `is_active` | Bool |
 | `base_model` | FK `inventory.Product` (SET_NULL) — variant uchun bazaviy model |
 | `signature` | Char(64), unique — konfiguratsiya tarkibi imzosi |
+| `tnved_code` | Char(20), blank — 24-to'plam: TN VED (bojxona) kodi, ikkinchi importda oldindan to'ladi |
+| `is_imported` | Bool, default `False` — 24-to'plam: `True` bo'lsa narx so'ralganda `ImportCostSheet` ochiladi, oddiy buyurtmachi eslatmasi o'rniga |
 
 Property: `total_stock`, `is_low_stock`, `stock_price` (sotuv narxi, bo'lmasa tannarx), `is_variant`.
 
@@ -391,6 +395,43 @@ Property: `subtotal`, `vat_amount`, `total_with_vat`, `needs_price`.
 `replenishment` (CASCADE, `events`), `stage` (`ordered` / `shipped` / `customs` /
 `cleared` / `arrived` / `note`), `comment`, `happened_at`, `created_by`.
 
+### `ImportCostSheet` — import tannarx varaqasi (24-to'plam)
+
+Uchta odam ketma-ket to'ldiradi: buyurtmachi (A. tovar) → logist (B. logistika) →
+deklarant (C. bojxona). Hisoblangan qiymatlar (BQ, boj, QQS, jami, dona tannarx)
+bazaga YOZILMAYDI — har o'qishda `@property` orqali qayta chiqadi (21-§3.2 dagi
+qaror shu yerda ham amal qiladi). Yopilgan (`done`/`cancelled`) varaqa
+tahrirlanmaydi — keyingi import uchun yangisi ochiladi (varaqa — surat).
+
+| Maydon | Tur |
+|---|---|
+| `status` | `draft` → `waiting_logistics` → `waiting_customs` → `done` (yoki `cancelled` har qadamda) |
+| `number` | `IMP-00001` (avtomatik) |
+| `product` | FK Product (PROTECT, `import_sheets`) |
+| `quantity` | Decimal(18,2) |
+| `vat_recoverable` | Bool — ochilganda `CompanyProfile.vat_recoverable`dan NUSXALANADI (keyin sozlama o'zgarsa ham yopiq varaqa o'zgarmaydi) |
+| `configuration` | FK Configuration (SET_NULL, `import_sheets`, ixtiyoriy) — qaysi ZVK/CFG uchun ochilgani |
+| **A. Tovar** | `currency`, `goods_price`, `exchange_rate`, `origin_country`, `goods_filled_by`, `goods_filled_at` |
+| **B. Logistika** | `logistics_total` (bitta umumiy raqam), `logistics_note`, `logistics_filled_by`, `logistics_filled_at` |
+| **C. Bojxona** | `tnved_code`, `freight_to_border` (BQga qanchasi kiradi — deklarant belgilaydi), `duty_percent`/`duty_amount` (summa foizdan USTUN), `excise_amount`, `vat_percent` (default 12), `customs_fee` (bo'sh bo'lsa `CompanyProfile.default_customs_fee`dan), `certificate_cost`, `laboratory_cost`, `declarant_fee`, `customs_note`, `customs_filled_by`, `customs_filled_at` |
+| `created_by` | FK User |
+
+Hisoblangan property'lar (§5.3 — bazada saqlanmaydi):
+
+| Property | Formula |
+|---|---|
+| `goods_uzs` | `goods_price * exchange_rate` |
+| `customs_value` (BQ) | `goods_uzs + freight_to_border` — **TO'LIQ logistika emas**, faqat chegaragacha |
+| `duty` | `duty_amount` bo'lsa o'sha; aks holda `customs_value * duty_percent / 100` |
+| `vat` (QQS) | `(customs_value + duty + excise_amount) * vat_percent / 100` — **BQ + bojdan, invoysdan EMAS** (eng ko'p xato qiladigan joy) |
+| `vat_in_cost` | `not vat_recoverable` |
+| `customs_total` | `duty + excise_amount + (vat agar vat_in_cost) + customs_fee + certificate_cost + laboratory_cost + declarant_fee` |
+| `landed_total` | `goods_uzs + logistics_total (TO'LIQ) + customs_total` |
+| `unit_cost` | `landed_total / quantity`, 2 xonaga yaxlitlangan (`ROUND_HALF_UP`) — yagona joy qayerda yaxlitlash bo'ladi |
+
+`fill-customs` yopilganda `Product.tnved_code`/`cost_price` yangilanadi va
+`price_arrived()` chaqiriladi — narxsiz qatorlar avtomatik yopiladi (B2.3 bilan bir xil yo'l).
+
 ---
 
 ## finance
@@ -437,6 +478,8 @@ Property: `term_days`, `days_left`, `color`, `repaid`, `balance`.
 | registration_code | Char(50) | 21-§3.4: ro'yxatga olish kodi |
 | license | Char(300) | 21-§3.4: litsenziya raqami va kim bergani |
 | contract_terms | Text | shartnoma chop etishda chiqadigan standart shartlar |
+| vat_recoverable | Bool, default `False` | 24-to'plam: import tannarx varaqasi ochilganda shu qiymat NUSXALANADI (`ImportCostSheet.vat_recoverable`) |
+| default_customs_fee | Decimal(18,2), default 0 | 24-to'plam: deklarant `customs_fee`ni bo'sh qoldirsa shu qiymat ishlatiladi |
 
 Singleton: ikkinchi yozuv `save()` da bloklanadi; `CompanyProfile.load()`
 yagona yozuvni qaytaradi (bo'lmasa bo'sh ochadi). Yozish faqat adminda.

@@ -894,6 +894,29 @@ POST /api/replenishment-items/
   kiritiladi; javobda `vat_amount` va `total_with_vat` hisoblab beriladi
 | GET | `/replenishment-approvals/`, `/replenishment-events/` | faqat o'qish |
 
+## Import tannarx varaqasi — Logist/Deklarant (24-to'plam)
+
+Zanjir: `CFG/TLD → SHT: buyurtmachi (A) → logist (B) → deklarant (C)`, qat'iy
+ketma-ket. Generic PATCH/PUT/DELETE yo'q — har bo'lim faqat o'z amali orqali
+to'ldiriladi. `Product.is_imported=True` bo'lsa (yoki `request-prices`ga
+`imported_products` ro'yxati berilsa), narx so'rovi buyurtmachiga oddiy
+eslatma o'rniga shu varaqani ochadi (§6.2/§8.1).
+
+| Metod | Manzil | Kim |
+|---|---|---|
+| POST | `/import-cost-sheets/open/` | buyurtmachi, engineer, admin; `{"product": id, "quantity": "10", "configuration": id}` — bitta mahsulotga ikkinchi OCHIQ varaqa yo'q, mavjudi qaytadi |
+| GET | `/import-cost-sheets/`, `/import-cost-sheets/{id}/` | logist, deklarant, bugalter, buyurtmachi (rol bo'ylab — egasi emas); **engineer 403** |
+| POST | `/import-cost-sheets/{id}/fill-goods/` | buyurtmachi; `{"currency": "USD", "goods_price": "1000", "exchange_rate": "12500", "origin_country": "China"}`; faqat `draft`; `exchange_rate`/`goods_price` 0 dan katta bo'lishi shart |
+| POST | `/import-cost-sheets/{id}/fill-logistics/` | logist; `{"logistics_total": "1000000", "note": "..."}`; faqat `waiting_logistics` |
+| POST | `/import-cost-sheets/{id}/fill-customs/` | deklarant; `{"tnved_code": "...", "freight_to_border": "...", "duty_percent"/"duty_amount", "excise_amount", "vat_percent", "customs_fee", "certificate_cost", "laboratory_cost", "declarant_fee", "note"}`; faqat `waiting_customs` (logistdan OLDIN — 400, aniq matn); hisobni yopadi (`done`), `Product.tnved_code`/`cost_price` yangilanadi, narxsiz qatorlar avtomatik yopiladi |
+| POST | `/import-cost-sheets/{id}/change-quantity/` | buyurtmachi, engineer, admin; miqdor o'zgarsa `waiting_customs` → `waiting_logistics`ga qaytadi (logistika raqami eskiradi), logistga eslatma; yopilgan varaqada 400 |
+| POST | `/import-cost-sheets/{id}/return/` | logist, deklarant, admin; `comment` majburiy — `draft`ga qaytaradi, ochgan odamga eslatma |
+| POST | `/import-cost-sheets/{id}/cancel/` | ochgan odam, admin |
+
+Javobda hisoblangan maydonlar ham keladi (bazada saqlanmaydi, har o'qishda
+qayta chiqadi): `goods_uzs`, `customs_value`, `duty`, `vat`, `vat_in_cost`,
+`customs_total`, `landed_total`, `unit_cost`.
+
 **Yetishmayotganlar ro'yxati:**
 ```json
 GET /api/replenishments/low-stock/?warehouse=1

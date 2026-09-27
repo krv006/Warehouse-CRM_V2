@@ -108,8 +108,12 @@ class RoadmapTests(APITestCase):
             f'/api/configuration-requests/{request_obj.id}/roadmap/',
         )
         steps = {s['key']: s for s in response.data['steps']}
-        # 20-§3.5: `finalize` bilan `ship` orasiga `act_review` qo'shildi
-        self.assertEqual(len(response.data['steps']), 20)
+        # 20-§3.5: `finalize` bilan `ship` orasiga `act_review` qo'shildi;
+        # 24-to'plam: `price_request`dan keyin `logistics_quote` va
+        # `customs_clearance` (import bo'lmasa `skipped`)
+        self.assertEqual(len(response.data['steps']), 22)
+        self.assertEqual(steps['logistics_quote']['state'], 'skipped')
+        self.assertEqual(steps['customs_clearance']['state'], 'skipped')
 
         self.assertEqual(steps['zvk_created']['state'], 'done')
         self.assertEqual(steps['sales_review']['state'], 'done')
@@ -125,6 +129,49 @@ class RoadmapTests(APITestCase):
         self.assertEqual(
             steps['prepayment']['document']['number'], contract.number,
         )
+
+    def test_import_linked_chain_draws_logistics_and_customs_steps(self):
+        """24-§9.2: import zanjirida `logistics_quote`/`customs_clearance`
+        CHIZILADI (mahalliy zanjirda `skipped`, §9.2 jadval)."""
+        from apps.configurator.models import ConfigurationItem
+        from apps.procurement.models import ImportCostSheet
+
+        logist = User.objects.create_user('log', password='p', role=User.Role.LOGIST)
+        imported_part = Product.objects.create(
+            sku='CHIP-RM', name='Chip', kind=Product.Kind.COMPONENT, is_imported=True,
+        )
+        self.client.force_authenticate(self.sales)
+        request_id = self.client.post('/api/configuration-requests/', {
+            'text': '1 ta HP 880', 'base_product': self.base.id,
+            'client': self.mijoz.id, 'quantity': 1,
+        }, format='json').data['id']
+        self.client.force_authenticate(self.engineer)
+        take = self.client.post(f'/api/configuration-requests/{request_id}/take/')
+        configuration = Configuration.objects.get(pk=take.data['configuration'])
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=imported_part, label='Chip', quantity=1,
+        )
+        self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
+        sheet = ImportCostSheet.objects.get(product=imported_part)
+
+        self.client.force_authenticate(self.supplier)
+        self.client.post(f'/api/import-cost-sheets/{sheet.id}/fill-goods/', {
+            'currency': 'USD', 'goods_price': '1000', 'exchange_rate': '12500',
+        }, format='json')
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['logistics_quote']['state'], 'current')
+        self.assertEqual(steps['logistics_quote']['actor']['role'], 'logist')
+        self.assertEqual(steps['customs_clearance']['state'], 'pending')
+        self.assertEqual(response.data['current_key'], 'logistics_quote')
+
+        # Rol bo'ylab hovuzda — logist zanjirni ro'yxatida ko'radi (10-§5)
+        self.client.force_authenticate(logist)
+        list_response = self.client.get('/api/roadmaps/')
+        numbers = [row['request']['number'] for row in list_response.data['results']]
+        self.assertIn(response.data['request']['number'], numbers)
 
     def test_finalize_sla_counts_from_assembled_not_cfg_approval(self):
         """QOLGAN-ISHLAR #3: qadam HAQIQATAN boshlangan paytdan sanaladi —

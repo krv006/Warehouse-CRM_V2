@@ -16,6 +16,7 @@ class CompanyProfileSerializer(ModelSerializer):
             'replenishment_approval_threshold',
             'sla_cutoff_hour', 'sla_working_days',
             'contract_reservation_days', 'configuration_reservation_days',
+            'vat_recoverable', 'default_customs_fee',
             'updated_at',
         ]
         read_only_fields = ['id', 'updated_at']

@@ -4,6 +4,7 @@ from django.urls import path
 
 from apps.core.routing import DETAIL, LIST, READ_DETAIL, READ_LIST
 from apps.procurement.views import (
+    ImportCostSheetViewSet,
     ReplenishmentViewSet,
     ReplenishmentItemViewSet,
     ReplenishmentApprovalViewSet,
@@ -49,4 +50,30 @@ urlpatterns = [
 
     path('replenishment-events/', ReplenishmentEventViewSet.as_view(READ_LIST), name='replenishmentevent-list'),
     path('replenishment-events/<int:pk>/', ReplenishmentEventViewSet.as_view(READ_DETAIL), name='replenishmentevent-detail'),
+
+    # 24-to'plam: import tannarx varaqasi — generic POST/PATCH yo'q, har
+    # bo'lim o'z amali orqali (§6.3)
+    path('import-cost-sheets/', ImportCostSheetViewSet.as_view(READ_LIST), name='importcostsheet-list'),
+    path('import-cost-sheets/open/', ImportCostSheetViewSet.as_view({
+        'post': 'open',
+    }), name='importcostsheet-open'),
+    path('import-cost-sheets/<int:pk>/', ImportCostSheetViewSet.as_view(READ_DETAIL), name='importcostsheet-detail'),
+    path('import-cost-sheets/<int:pk>/fill-goods/', ImportCostSheetViewSet.as_view({
+        'post': 'fill_goods',
+    }), name='importcostsheet-fill-goods'),
+    path('import-cost-sheets/<int:pk>/fill-logistics/', ImportCostSheetViewSet.as_view({
+        'post': 'fill_logistics',
+    }), name='importcostsheet-fill-logistics'),
+    path('import-cost-sheets/<int:pk>/fill-customs/', ImportCostSheetViewSet.as_view({
+        'post': 'fill_customs',
+    }), name='importcostsheet-fill-customs'),
+    path('import-cost-sheets/<int:pk>/return/', ImportCostSheetViewSet.as_view({
+        'post': 'return_sheet',
+    }), name='importcostsheet-return'),
+    path('import-cost-sheets/<int:pk>/cancel/', ImportCostSheetViewSet.as_view({
+        'post': 'cancel',
+    }), name='importcostsheet-cancel'),
+    path('import-cost-sheets/<int:pk>/change-quantity/', ImportCostSheetViewSet.as_view({
+        'post': 'change_quantity',
+    }), name='importcostsheet-change-quantity'),
 ]

@@ -45,6 +45,12 @@ class Product(TimeStampedModel):
         null=True, blank=True,
     )
     signature = CharField(max_length=64, unique=True, null=True, blank=True)
+    # 24-§3/§5.5: kod mahsulotga eslab qolinadi — keyingi importda oldindan
+    # taklif qilinadi (deklarant qo'yadi, tizim taxmin qilmaydi)
+    tnved_code = CharField('TN VED', max_length=20, blank=True)
+    # 24-§8.1: shu mahsulot importdanmi — request_prices shu bayroqqa qarab
+    # narxni buyurtmachidan (mahalliy) yoki ImportCostSheet orqali (import) so'raydi
+    is_imported = BooleanField(default=False)
 
     class Meta:
         ordering = ['name']

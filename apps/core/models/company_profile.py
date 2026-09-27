@@ -1,5 +1,6 @@
 from django.core.exceptions import ValidationError
 from django.db.models import (
+    BooleanField,
     CharField,
     DecimalField,
     EmailField,
@@ -82,6 +83,21 @@ class CompanyProfile(TimeStampedModel):
     configuration_reservation_days = PositiveIntegerField(
         default=14,
         help_text='Konfiguratsiya chernovigi rejadagi bronni necha kun ushlab turadi (0 — cheksiz)',
+    )
+    # 24-§8.3: import QQS si tannarxga kiradimi. Sukut False — ikkita xatodan
+    # arzonrog'i: ko'rinmaydigan pul yo'qotishdan ko'ra ko'rinadigan qimmat
+    # narx afzal (§8.3 jadvali). Varaqa ochilganda bu bayroq VARAQAGA
+    # nusxalanadi — sozlama keyin o'zgarsa yopilgan hisoblar o'zgarmaydi.
+    vat_recoverable = BooleanField(
+        default=False,
+        help_text='Import QQS si hisobga olinadimi (olinsa tannarxga QO\'SHILMAYDI)',
+    )
+    # 24-§2.3: bojxona yig'imi BRV'ga bog'liq qat'iy summa, lekin koeffitsient
+    # manbalari qarama-qarshi — kodda hech qanday hisob-kitob yo'q, faqat
+    # TAKLIF qilinadigan summa; deklarant har doim ustidan yozadi.
+    default_customs_fee = DecimalField(
+        max_digits=18, decimal_places=2, default=0,
+        help_text="Bojxona yig'imi uchun taklif qilinadigan summa (deklarant o'zgartira oladi)",
     )
 
     def __str__(self):

@@ -509,6 +509,47 @@ Bosqichlar: `ordered` → `shipped` → `customs` → `cleared` → `arrived`.
 Har bir bosqich `ReplenishmentEvent` sifatida vaqti va izohi bilan saqlanadi,
 `GET /{id}/timeline/` da qarz muddati bilan birga qaytariladi.
 
+### Import tannarxi — Logist/Deklarant (24-to'plam)
+
+`Product.is_imported=True` bo'lgan (yoki narx so'rovida `imported_products`
+bilan birinchi marta shu deb belgilangan) mahsulotga narx so'ralganda,
+buyurtmachiga oddiy "tannarx kiriting" eslatmasi o'rniga `ImportCostSheet`
+ochiladi — uchta odam ketma-ket to'ldiradi:
+
+1. **Buyurtmachi (A)** — tovar narxi, valyuta, kurs, chiqarilgan davlat.
+2. **Logist (B)** — bitta umumiy yetkazish summasi (`logistics_total`).
+3. **Deklarant (C)** — TN VED kodi, boj (foiz yoki qo'lda summa — summa
+   USTUN turadi), aksiz, QQS foizi, bojxona/sertifikat/laboratoriya/
+   xizmat yig'imlari — hisobni **yopadi**.
+
+Ketma-ketlik qat'iy: deklarant logistdan OLDIN yozmoqchi bo'lsa `400`
+("Avval logist logistika narxini yozishi kerak").
+
+**Eng muhim qoida — QQS bazasi (§2.1 4-qadam):**
+
+```
+Bojxona qiymati (BQ) = tovar narxi (so'mda) + CHEGARAGACHA yetkazish
+                        (TO'LIQ logistika emas — deklarant belgilaydi)
+Boj                   = BQ × boj foizi  (yoki qo'lda kiritilgan summa)
+QQS                   = (BQ + boj + aksiz) × QQS foizi   ← INVOYSDAN EMAS
+Jami tannarx           = tovar (so'mda) + TO'LIQ logistika + bojxona xarajatlari
+Dona tannarx           = Jami tannarx / miqdor   (2 xonaga yaxlitlanadi)
+```
+
+QQS invoys (tovar) narxidan emas, bojxona qiymati + bojdan hisoblanadi — bu
+eng ko'p xato qiladigan joy. `CompanyProfile.vat_recoverable` bo'lsa (QQS
+qaytariladigan), QQS hisoblanadi va ko'rsatiladi, lekin jami tannarxga
+QO'SHILMAYDI (varaqa ochilgan paytda sozlamadan nusxalanadi — keyin
+o'zgarsa yopiq varaqa hisobi o'zgarmaydi).
+
+Hisob **yopilganda** (`fill-customs`): `Product.tnved_code`/`cost_price`
+yangilanadi, ikkinchi importda TN VED oldindan to'ladi; narxsiz qatorlar
+mahalliy oqim bilan bir xil yo'l (`price_arrived`) orqali avtomatik yopiladi.
+Miqdor keyin o'zgarsa — `waiting_customs` bosqichi `waiting_logistics`ga
+qaytadi (logistika raqami eskirgan bo'lishi mumkin), logistga eslatma ketadi.
+Yopilgan (`done`/`cancelled`) varaqa tahrirlanmaydi — keyingi import uchun
+yangisi ochiladi (varaqa — surat, tarix o'zgarmaydi).
+
 ## 8. Audit
 
 Har bir yaratish / o'zgartirish / o'chirish / tasdiqlash `ActivityLog` ga tushadi

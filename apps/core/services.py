@@ -20,14 +20,14 @@ from apps.core.utils import RED_ZONE_DAYS, sla_deadline, working_days_since
 SECTIONS = (
     'contracts', 'leads', 'requests', 'configurations',
     'replenishments', 'low_stock', 'needs_price', 'expense_requests', 'loans',
-    'acts',
+    'acts', 'import_sheets',
 )
 
 # TOPSHIRIQ #3: SLA qamrovi — tasdiq zanjiridagi hujjatlar. leads/loans o'z
 # muddati bilan yuritiladi (check_deadlines), low_stock hujjat emas.
 SLA_SECTIONS = {
     'contracts', 'requests', 'configurations', 'replenishments', 'expense_requests',
-    'acts',
+    'acts', 'import_sheets',
 }
 
 
@@ -351,6 +351,28 @@ def _act_source(user):
     }
 
 
+def _import_sheet_source(user):
+    """24-§6.5: import tannarx varaqasi — 12-§5 invarianti (ish kimdadir
+    bo'lsa eslatma HAM, navbat HAM). Rol bo'ylab ish — egasi bo'yicha emas
+    (§7 case 17), shuning uchun queryset filtrlanmaydi, faqat status."""
+    from apps.procurement.models import ImportCostSheet
+
+    if user.is_supplier:
+        reasons = {ImportCostSheet.Status.DRAFT: ('fill_goods', 'warning')}
+    elif user.is_logist:
+        reasons = {ImportCostSheet.Status.WAITING_LOGISTICS: ('fill_logistics', 'warning')}
+    elif user.is_declarant:
+        reasons = {ImportCostSheet.Status.WAITING_CUSTOMS: ('fill_customs', 'warning')}
+    else:
+        return None
+    return {
+        'section': 'import_sheets',
+        'entity': 'ImportCostSheet',
+        'queryset': ImportCostSheet.objects.filter(status__in=list(reasons)),
+        'row': lambda obj: ('IMP', obj.number, reasons[obj.status], None, None),
+    }
+
+
 def _needs_price_count(user):
     """QOLGAN-ISHLAR-2 §6: "Narx kutilmoqda" — buyurtmachining doimiy ro'yxati
     (`?needs_price=true`) endi yon panelda ham — front alohida so'rov
@@ -521,6 +543,7 @@ def collect_work(user, include_items=True):
             _expense_source(user),
             _loan_source(user),
             _act_source(user),
+            _import_sheet_source(user),
         )
         if source is not None
     ]

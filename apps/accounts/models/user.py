@@ -11,6 +11,9 @@ class User(AbstractUser):
         SALES = 'sales', 'Sales'
         SUPPLIER = 'buyurtmachi', 'Buyurtmachi'
         ENGINEER = 'engineer', 'Engineer'
+        # 24-to'plam: import tannarxini hisoblaydigan ikkita tor rol
+        LOGIST = 'logist', 'Logist'
+        DECLARANT = 'deklarant', 'Deklarant'
 
     class Language(TextChoices):
         UZ = 'uz', "O'zbekcha"
@@ -54,3 +57,13 @@ class User(AbstractUser):
     def is_engineer(self):
         """Engineer — configurator ishlari to'liq unga tegishli."""
         return self.role == self.Role.ENGINEER
+
+    @property
+    def is_logist(self):
+        """24-to'plam: import tannarx varaqasining logistika bo'limi."""
+        return self.role == self.Role.LOGIST
+
+    @property
+    def is_declarant(self):
+        """24-to'plam: import tannarx varaqasining bojxona bo'limi."""
+        return self.role == self.Role.DECLARANT

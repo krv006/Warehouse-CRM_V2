@@ -11,6 +11,7 @@ from rest_framework.serializers import (
 from apps.inventory.models import Product, Warehouse
 from apps.inventory.services import create_product_from_order, main_warehouse
 from apps.procurement.models import (
+    ImportCostSheet,
     Replenishment,
     ReplenishmentApproval,
     ReplenishmentEvent,
@@ -186,3 +187,63 @@ class ReplenishmentSerializer(ModelSerializer):
         if not validated_data.get('warehouse'):
             validated_data['warehouse'] = main_warehouse()
         return super().create(validated_data)
+
+
+class ImportCostSheetSerializer(ModelSerializer):
+    """24-to'plam: import tannarx varaqasi.
+
+    §4.1: hisob (BQ, boj, QQS bazasi, jami, dona tannarx) kartada
+    ko'rinib turishi kerak — deklarant o'z raqamini tekshira olsin.
+    Bo'lim maydonlari to'g'ridan-to'g'ri yoziladi (`goods_price`,
+    `logistics_total`, `tnved_code` va h.k.) — har bo'limni to'ldirish
+    o'z servis funksiyasi (`fill_goods_section`/...) orqali, bu
+    serializer faqat KO'RSATISH va ro'yxat/filtr uchun.
+    """
+
+    status_display = ReadOnlyField(source='get_status_display')
+    product_name = ReadOnlyField(source='product.name')
+    configuration_number = ReadOnlyField(source='configuration.number')
+    goods_filled_by_name = ReadOnlyField(source='goods_filled_by.display_name')
+    logistics_filled_by_name = ReadOnlyField(source='logistics_filled_by.display_name')
+    customs_filled_by_name = ReadOnlyField(source='customs_filled_by.display_name')
+    created_by_name = ReadOnlyField(source='created_by.display_name')
+    # §5.3: hisoblangan — bazada saqlanmaydi, har o'qishda qayta chiqadi
+    goods_uzs = ReadOnlyField()
+    customs_value = ReadOnlyField()
+    duty = ReadOnlyField()
+    vat = ReadOnlyField()
+    vat_in_cost = ReadOnlyField()
+    customs_total = ReadOnlyField()
+    landed_total = ReadOnlyField()
+    unit_cost = ReadOnlyField()
+
+    class Meta:
+        model = ImportCostSheet
+        fields = [
+            'id', 'number', 'status', 'status_display', 'product', 'product_name',
+            'quantity', 'vat_recoverable', 'configuration', 'configuration_number',
+            'currency', 'goods_price', 'exchange_rate', 'origin_country',
+            'goods_filled_by', 'goods_filled_by_name', 'goods_filled_at',
+            'logistics_total', 'logistics_note',
+            'logistics_filled_by', 'logistics_filled_by_name', 'logistics_filled_at',
+            'tnved_code', 'freight_to_border', 'duty_percent', 'duty_amount',
+            'excise_amount', 'vat_percent', 'customs_fee', 'certificate_cost',
+            'laboratory_cost', 'declarant_fee', 'customs_note',
+            'customs_filled_by', 'customs_filled_by_name', 'customs_filled_at',
+            'goods_uzs', 'customs_value', 'duty', 'vat', 'vat_in_cost',
+            'customs_total', 'landed_total', 'unit_cost',
+            'created_by', 'created_by_name', 'created_at',
+        ]
+        read_only_fields = [
+            'id', 'number', 'status', 'status_display', 'product_name',
+            'configuration', 'configuration_number', 'vat_recoverable',
+            'goods_price', 'exchange_rate', 'origin_country', 'currency',
+            'goods_filled_by', 'goods_filled_by_name', 'goods_filled_at',
+            'logistics_total', 'logistics_note',
+            'logistics_filled_by', 'logistics_filled_by_name', 'logistics_filled_at',
+            'tnved_code', 'freight_to_border', 'duty_percent', 'duty_amount',
+            'excise_amount', 'vat_percent', 'customs_fee', 'certificate_cost',
+            'laboratory_cost', 'declarant_fee', 'customs_note',
+            'customs_filled_by', 'customs_filled_by_name', 'customs_filled_at',
+            'created_by', 'created_by_name', 'created_at',
+        ]

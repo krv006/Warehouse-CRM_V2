@@ -29,6 +29,10 @@ class ConfigurationRequestEvent(TimeStampedModel):
         RESENT = 'resent', 'Sales tuzatib qayta yubordi'
         PRICE_ASKED = 'price_asked', "Narx so'raldi (buyurtmachiga)"
         PRICE_GIVEN = 'price_given', 'Narx kiritildi'
+        # 24-to'plam §6.7: import tannarx varaqasi bosqichlari
+        LOGISTICS_ASKED = 'logistics_asked', "Logistika narxi so'raldi"
+        LOGISTICS_GIVEN = 'logistics_given', 'Logistika narxi keldi'
+        CUSTOMS_GIVEN = 'customs_given', 'Bojxona hisobi keldi'
         CANCELLED = 'cancelled', 'Zanjir bekor qilindi'
         NOTE = 'note', 'Izoh'
 

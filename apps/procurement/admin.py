@@ -1,6 +1,7 @@
 from django.contrib.admin import ModelAdmin, TabularInline, register
 
 from apps.procurement.models import (
+    ImportCostSheet,
     Replenishment,
     ReplenishmentApproval,
     ReplenishmentEvent,
@@ -29,3 +30,10 @@ class ReplenishmentAdmin(ModelAdmin):
     list_filter = ['status', 'warehouse', 'currency']
     search_fields = ['number', 'supplier']
     inlines = [ReplenishmentItemInline, ReplenishmentEventInline, ReplenishmentApprovalInline]
+
+
+@register(ImportCostSheet)
+class ImportCostSheetAdmin(ModelAdmin):
+    list_display = ['number', 'product', 'status', 'quantity', 'created_at']
+    list_filter = ['status']
+    search_fields = ['number', 'product__name', 'product__sku']

@@ -351,8 +351,14 @@ class ConfigurationViewSet(BaseModelViewSet):
 
         TLD emas: buyurtmachi shunchaki tannarxni mahsulot kartasida kiritadi.
         Takrorida eski eslatma yangilanadi. Narx kelgach sales xabar oladi.
+        24-§8.1: tanadagi `imported_products` (id ro'yxati) — bu safar
+        IMPORT deb belgilanadigan narxsiz butlovchilar (`ImportCostSheet`
+        ochiladi, bayroq mahsulotga yoziladi — keyingi safar shart emas).
         """
-        products = request_prices(self.get_object(), request.user)
+        products = request_prices(
+            self.get_object(), request.user,
+            imported_products=request.data.get('imported_products'),
+        )
         self.log_action(
             ActivityLog.Action.UPDATE, self.get_object(),
             f"Narx so'raldi: {', '.join(products)}",

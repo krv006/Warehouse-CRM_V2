@@ -660,7 +660,7 @@ def submit_configuration(configuration, user):
     return configuration
 
 
-def request_prices(configuration, user):
+def request_prices(configuration, user, *, imported_products=None):
     """Narxsiz qatorlar uchun buyurtmachidan narx so'raydi (YANGI-OQIM B2).
 
     Bu TLD EMAS: hech narsa buyurtma qilinmaydi, pul to'lanmaydi — buyurtmachi
@@ -668,12 +668,19 @@ def request_prices(configuration, user):
     sotuv narxiga aylanadi). §2.1 aylanmasi bir necha bor aylanishi mumkin,
     shuning uchun bu amal necha marta ham chaqiriladi; takrorida buyurtmachining
     eski o'qilmagan eslatmasi yangilanadi — yangisi qo'shilmaydi.
+
+    24-§6.2/§8.1: narxsiz qator IMPORT bo'lsa (`Product.is_imported` yoki
+    shu chaqiruvda `imported_products` orqali birinchi marta belgilansa),
+    buyurtmachiga oddiy eslatma o'rniga `ImportCostSheet` ochiladi —
+    logist va deklarant orqali o'tib tannarxni to'ldiradi. Bayroq mahsulotga
+    bir marta yoziladi va keyingi importlarda o'zi ishlaydi (§8.1).
     """
     from rest_framework.exceptions import PermissionDenied, ValidationError
 
     from apps.accounts.models import User
     from apps.configurator.models import Configuration
     from apps.core.models import Notification
+    from apps.inventory.models import Product
 
     if not (user.is_admin or user.is_engineer):
         raise PermissionDenied('Narx so\'rovini Engineer yuboradi.')
@@ -709,6 +716,21 @@ def request_prices(configuration, user):
         User.objects.filter(role=User.Role.SUPPLIER, is_active=True)
     )
     for item in no_price:
+        is_imported = item.component.is_imported or bool(
+            imported_products and item.component_id in imported_products
+        )
+        if is_imported:
+            from apps.procurement.services import open_import_sheet
+
+            open_import_sheet(
+                item.component, user,
+                quantity=item.quantity * configuration.quantity,
+                configuration=configuration,
+            )
+            if not item.component.is_imported:
+                # §8.1: tanlov mahsulotga yoziladi — keyingi safar o'zi biladi
+                Product.objects.filter(pk=item.component_id).update(is_imported=True)
+            continue
         for supplier in suppliers:
             Notification.objects.update_or_create(
                 user=supplier, entity='Product',

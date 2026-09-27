@@ -9,6 +9,8 @@
 | Sales | `sales` | Zakaz shakllantiradi, configurator qiladi, client qo'shadi, sotuv narxini ko'radi |
 | Buyurtmachi | `buyurtmachi` | Omborda yetishmayotgan mahsulotlarni to'ldiradi: ta'minotchidan narx, logistika xarajati, yetkazib berish kuzatuvi |
 | Engineer | `engineer` | **Configurator tahriri to'liq unda**: sales'dan matnli zayavka oladi, konfiguratsiyani tayyorlaydi, **ACT kiritib yakunlaydi** va salesga topshiradi (§11.1) |
+| Logist | `logist` | 24-to'plam: import tannarx varaqasining B-bo'limi — umumiy logistika (yetkazish) summasini kiritadi |
+| Deklarant | `deklarant` | 24-to'plam: import tannarx varaqasining C-bo'limi — TN VED, boj, QQS bazasi va bojxona xarajatlarini kiritib hisobni yopadi |
 
 `is_superuser = True` bo'lgan foydalanuvchi ham admin sifatida qaraladi
 (`User.is_admin` property — `apps/accounts/models/user.py`).
@@ -35,6 +37,7 @@
 | `ProductPricingAccess` | barcha login qilganlar | **admin, bugalter, buyurtmachi** — katalog narx siyosati: `PATCH /products/{id}/` (`sale_price`, `cost_price`, `reorder_level`, `is_active`); buyurtmachi YANGI-OQIM B2 narx so'roviga javoban tannarx kiritadi (§6-B: sotuv narxi yo'q bo'lsa tannarx + `markup_percent` ustama) |
 | `ConfigurationRequestAccess` | barcha login qilganlar | admin, sales, engineer |
 | `ContractTemplateAccess` | barcha login qilganlar (bugalter ham — matnni qaysi shablondan kelganini bilishi kerak) | admin, sales — 21-§3.1 |
+| `ImportCostAccess` | **logist, deklarant, bugalter, buyurtmachi** | **logist, deklarant** — 24-to'plam; aniq bo'limni kim to'ldirishini servis (`fill_goods_section`/`fill_logistics_section`/`fill_customs_section`) tekshiradi |
 
 Hammasi `RoleAccess` asosida: `read_roles` / `write_roles` ro'yxatlari, admin esa doim o'tadi.
 Qalin yozilgan qatorlar — **sales umuman ko'ra olmaydigan** bo'limlar (TZ 8.3).
@@ -65,6 +68,7 @@ Global default: `IsAuthenticated` (`root/settings/rest.py`) — login qilmagan h
 | `/api/purchases/`, `/purchase-items/` | **admin, bugalter, buyurtmachi** | admin, bugalter | sales — 403 |
 | `/api/replenishments/` va qatorlari | admin, bugalter, buyurtmachi, sales | admin, buyurtmachi | `approve`/`reject` — bosqichga qarab: **sales (mijoz roziligi) → bugalter → admin** (mijoz buyurtmasidan ochilgan hisobda; oddiy to'ldirishda sales bosqichi yo'q); `pay` — admin, bugalter; `receive`/`events` — buyurtmachi va bugalter |
 | `/api/cash-categories/`, `/cash-transactions/`, `/loans/`, `/expense-requests/` | **admin, bugalter** | admin, bugalter | `expense-requests/approve\|reject` — **faqat admin**; sales — 403 |
+| `/api/import-cost-sheets/` | **logist, deklarant, bugalter, buyurtmachi** (engineer — 403, §4.1) | **logist, deklarant** | 24-to'plam: generic PATCH/PUT/DELETE yo'q — har bo'lim faqat `fill-goods`/`fill-logistics`/`fill-customs` orqali; egasi bo'yicha emas, **rol bo'ylab** ko'rinadi (§7 case 17) |
 
 ### Sales roli aynan nimani ko'radi (TZ 8.3)
 
@@ -118,6 +122,22 @@ kirmagan bosqichda).
 
 Ya'ni bugalter admin bosqichini "sakrab" o'tolmaydi — bu testlar bilan qopalangan
 (`apps/sales/tests/test_contract_flow.py`).
+
+## Import tannarx varaqasi zanjiridagi tekshiruv (24-to'plam)
+
+`apps/procurement/services.py` — zanjir: `CFG/TLD → SHT: buyurtmachi → logist → deklarant`,
+qat'iy ketma-ket (deklarant logistdan OLDIN yozmoqchi bo'lsa `400`, "Bu bosqichda
+kiritilmaydi" emas, aniq matn bilan).
+
+| Amal | Kim bajara oladi | Bosqich sharti |
+|---|---|---|
+| `open` (varaqa ochish) | buyurtmachi, engineer, admin | — (bitta mahsulotga ikkinchi OCHIQ varaqa yo'q — mavjudi qaytadi) |
+| `fill-goods` (A: narx, valyuta, kurs, davlat) | buyurtmachi, admin | faqat `draft` |
+| `fill-logistics` (B: umumiy yetkazish summasi) | logist, admin | faqat `waiting_logistics` |
+| `fill-customs` (C: TN VED, boj, QQS, yig'imlar — hisobni yopadi) | deklarant, admin | faqat `waiting_customs`; tovar narxi (`goods_price`) kiritilmagan bo'lsa ham `400` |
+| `change-quantity` | buyurtmachi, engineer, admin | yopilgan (`done`/`cancelled`) varaqa — `400`, yangisi ochiladi |
+| `return` (orqaga qaytarish, izoh majburiy) | logist, deklarant, admin | — |
+| `cancel` | varaqani ochgan (engineer/buyurtmachi), admin | — |
 
 ## Yangi foydalanuvchi ochish
 

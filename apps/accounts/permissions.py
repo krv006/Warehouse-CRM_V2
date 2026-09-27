@@ -17,6 +17,8 @@ BUGALTER = User.Role.BUGALTER
 SALES = User.Role.SALES
 SUPPLIER = User.Role.SUPPLIER
 ENGINEER = User.Role.ENGINEER
+LOGIST = User.Role.LOGIST
+DECLARANT = User.Role.DECLARANT
 
 
 def _authenticated(user):
@@ -204,6 +206,20 @@ class ProcurementSharedAccess(ProcurementAccess):
     """Qabul qilish va bosqich qo'shish — buyurtmachi ham, bugalter ham."""
 
     write_roles = (SUPPLIER, BUGALTER)
+
+
+class ImportCostAccess(RoleAccess):
+    """24-§4.2: import tannarx varaqasi — logist, deklarant, bugalter,
+    buyurtmachi o'qiydi. Yozish (list/POST darajasida) — logist va
+    deklarant; buyurtmachi (tovar bo'limi) va boshqa bo'lim-darajasidagi
+    ruxsatlar har bir amal (`fill_goods`/`fill_logistics`/`fill_customs`/...)
+    ichida servis darajasida tekshiriladi (§6.3) — ruxsat sinfi buni bilmaydi,
+    shuning uchun ViewSet bu amallar uchun `get_permissions()`da alohida
+    (`IsAuthenticated`) qaytaradi."""
+
+    read_roles = (LOGIST, DECLARANT, BUGALTER, SUPPLIER)
+    write_roles = (LOGIST, DECLARANT)
+    message = 'Import tannarx varaqasi logist, deklarant va buyurtmachi uchun.'
 
 
 class ProcurementApprovalAccess(ProcurementAccess):
