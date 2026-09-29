@@ -247,6 +247,38 @@ class ContractTemplateTests(APITestCase):
         first.refresh_from_db()
         self.assertFalse(first.is_default)
 
+    def test_search_matches_name(self):
+        """25-§1: `SearchFilter` uchun `search_fields` yo'q edi — jim ishlamasdi."""
+        ContractTemplate.objects.create(
+            name='Yetkazib berish shartnomasi', body='<p>x</p>', created_by=self.sales,
+        )
+        ContractTemplate.objects.create(
+            name='Xizmat shartnomasi', body='<p>y</p>', created_by=self.sales,
+        )
+        self.client.force_authenticate(self.sales)
+        response = self.client.get('/api/contract-templates/?search=Yetkaz')
+        self.assertEqual(response.status_code, 200, response.data)
+        names = [row['name'] for row in response.data['results']]
+        self.assertEqual(names, ['Yetkazib berish shartnomasi'])
+
+    def test_search_no_match_returns_empty(self):
+        ContractTemplate.objects.create(
+            name='Standart', body='<p>x</p>', created_by=self.sales,
+        )
+        self.client.force_authenticate(self.sales)
+        response = self.client.get('/api/contract-templates/?search=Notopiladigan')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['count'], 0)
+
+    def test_search_empty_returns_full_list(self):
+        ContractTemplate.objects.create(
+            name='Standart', body='<p>x</p>', created_by=self.sales,
+        )
+        self.client.force_authenticate(self.sales)
+        response = self.client.get('/api/contract-templates/?search=')
+        self.assertEqual(response.status_code, 200, response.data)
+        self.assertEqual(response.data['count'], 1)
+
 
 class DefaultTemplateAutoAttachTests(APITestCase):
     """22-§7.3: 21-§3.1 "is_default — yangi shartnomaga o'zi tanlanadi"

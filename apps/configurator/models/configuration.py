@@ -26,6 +26,11 @@ class Configuration(StatusTrackedModel):
     class Mode(TextChoices):
         BUILD = 'build', "Butlovchilardan yig'ish"
         MODIFY = 'modify', "Tayyor mahsulotni o'zgartirish"
+        # 25-§6: yangi (tarkibsiz-u qoldiqsiz) model — mol butun holda,
+        # BITTA mashina sifatida buyurtma qilinadi, alohida butlovchi
+        # buyurtma qilinmaydi. Qatorlar buyurtma ro'yxati emas —
+        # SPETSIFIKATSIYA (mol qanday tarkibda kelishi kerak).
+        ORDER = 'order', 'Butun model sifatida buyurtma'
 
     class Status(TextChoices):
         DRAFT = 'draft', 'Chernovik'
@@ -165,8 +170,12 @@ class Configuration(StatusTrackedModel):
                   × partiya. O'zgarmagan qismlar tayyor mashinaning ichida
                   keladi — ombor bilan aloqasi yo'q: band ham qilinmaydi,
                   yetishmovchilikka ham tushmaydi.
+          order : bazaviy modelning O'ZI × partiya — QATORLAR SPETSIFIKATSIYA,
+                  ombordan hech narsa (butlovchi) alohida olinmaydi (25-§6).
         """
         batch = self.quantity
+        if self.mode == self.Mode.ORDER:
+            return [(self.base_product, batch)]
         if self.mode != self.Mode.MODIFY and self.matching_variant is not None:
             return [(self.base_product, batch)]
         needs = {}
@@ -265,5 +274,11 @@ class Configuration(StatusTrackedModel):
 
     @property
     def items_without_price(self):
-        """Narxi aniqlanmagan qatorlar — yakunlashga to'sqinlik qiladi."""
+        """Narxi aniqlanmagan qatorlar — yakunlashga to'sqinlik qiladi.
+
+        25-§6: `order` rejimida qatorlar buyurtma ro'yxati emas — SPETSIFIKATSIYA;
+        narx qatorlarda emas, modelning o'zida (`base_product.cost_price`) turadi.
+        """
+        if self.mode == self.Mode.ORDER:
+            return []
         return [item for item in self.items.all() if item.needs_price]

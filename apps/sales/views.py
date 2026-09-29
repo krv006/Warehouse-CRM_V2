@@ -657,3 +657,7 @@ class ContractTemplateViewSet(BaseModelViewSet):
     serializer_class = ContractTemplateSerializer
     permission_classes = [ContractTemplateAccess]
     filterset_fields = ['language', 'is_active', 'is_default']
+    # 25-§1: qidiruv maydoni frontda bor edi, lekin SearchFilter uchun
+    # `search_fields` yo'q edi — jim ishlamas edi. `body` kiritilmaydi:
+    # HTML va mijoz rekvizitlari bo'lishi mumkin.
+    search_fields = ['name', 'note']

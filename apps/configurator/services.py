@@ -511,11 +511,12 @@ def add_request_line(request_obj, user, *, kind, base_product, quantity, text=''
         ):
             from apps.inventory.services import main_warehouse, sync_configuration_reservations
 
+            used_warehouse = request_obj.warehouse or main_warehouse()
             configuration = Configuration.objects.create(
                 base_product=base_product,
                 client=request_obj.client,
-                warehouse=request_obj.warehouse or main_warehouse(),
-                mode=mode or Configuration.Mode.BUILD,
+                warehouse=used_warehouse,
+                mode=mode or _default_mode(base_product, used_warehouse),
                 quantity=quantity,
                 note=f'{request_obj.number}: {text or base_product.name}',
                 created_by=request_obj.taken_by,
@@ -1783,6 +1784,11 @@ def assemble_configuration(configuration, user, *, removals=None, strict=True):
     if configuration.mode == Configuration.Mode.MODIFY:
         finalize_modification(configuration, user, removals)
         assembled, missing = True, []
+    elif configuration.mode == Configuration.Mode.ORDER:
+        # 25-§6: mashina BUTUN HOLDA keladi — komponent yig'ish yo'q;
+        # `finalize` buni umuman talab qilmaydi, lekin chaqirilsa ham
+        # xavfsiz muvaffaqiyat (hech narsa ombordan chiqarilmaydi).
+        assembled, missing = True, []
     else:
         variant = configuration.matching_variant
         if variant is not None:
@@ -1825,7 +1831,9 @@ def finalize_configuration(configuration, user, *, act=None, client=None):
                 'sales approve — shundan keyin yakunlanadi.'
             ),
         })
-    if not configuration.assembled_at:
+    # 25-§6: `order` rejimida yig'ish (assemble) shart emas — mashina
+    # BUTUN HOLDA keladi, komponent yig'ilmaydi.
+    if configuration.mode != Configuration.Mode.ORDER and not configuration.assembled_at:
         raise ValidationError({
             'detail': "Avval mahsulot yig'ilsin (assemble) — yakunlash tayyor mahsulot bilan bo'ladi.",
         })
@@ -1875,6 +1883,12 @@ def finalize_configuration(configuration, user, *, act=None, client=None):
             configuration.client = client
         configuration.status = Configuration.Status.READY
         configuration.save()
+
+        if configuration.mode == Configuration.Mode.ORDER:
+            # 25-§6: birinchi import shu modelning zavod tarkibini belgilaydi
+            # — keyingi safar u oddiy katalog modeli bo'lib ishlaydi
+            # (`copy_factory_spec` tarkibni yuklaydi, build/modify ochiladi).
+            _copy_items_to_factory_spec(configuration)
 
         from apps.core.services import resolve_notifications
 
@@ -2109,12 +2123,33 @@ def copy_factory_spec(configuration):
         )
 
 
+def _copy_items_to_factory_spec(configuration):
+    """25-§6: `order` rejimida engineer yozgan spetsifikatsiya (qatorlar)
+    endi modelning O'Z zavod tarkibi bo'ladi — `copy_factory_spec`ning
+    aksi. Shundan keyin bu model oddiy katalog modeli sifatida ishlaydi:
+    keyingi zayavkada tarkibi ko'chadi, `build`/`modify` ochiladi."""
+    from apps.inventory.models import ProductSpec
+
+    base_product = configuration.base_product
+    for item in configuration.items.select_related('component'):
+        ProductSpec.objects.update_or_create(
+            product=base_product, component=item.component,
+            defaults={'label': item.label, 'quantity': item.quantity},
+        )
+
+
 def _validate_modify_ready(base_product, warehouse, *, field='mode'):
     """21-§2.5(c): yangi (tarkibsiz-u qoldiqsiz) modelda `modify` erta bloklanadi.
 
     `copy_factory_spec` bunday modeldan hech narsa ko'chirmaydi, konfiguratsiya
     bo'sh qoladi va xato faqat `submit`da chiqadi — engineer shu paytgacha
     ishlab bo'ladi. Xato shu yerda, ishga olishning o'zida chiqishi kerak.
+
+    25-§3/§6: bunday model uchun to'g'ri javob `modify` emas — `order`
+    (butun model sifatida buyurtma). Bu funksiya `take_request`da faqat
+    `mode` ANIQ `modify` deb SO'RALGANDA chaqiriladi — avtomatik tanlov
+    `_default_mode` orqali to'g'ridan `order`ga o'tadi (guard shu bilan
+    "o'z-o'zidan yopiladi").
     """
     from rest_framework.exceptions import ValidationError
 
@@ -2125,9 +2160,29 @@ def _validate_modify_ready(base_product, warehouse, *, field='mode'):
     raise ValidationError({
         field: (
             "Bu model omborda ham yo'q, tarkibi ham kiritilmagan — "
-            "o'zgartirish rejimi ishlamaydi. Butlovchilardan yig'ish tanlang."
+            "o'zgartirish rejimi ishlamaydi. Bu yangi model — Butun model "
+            "sifatida buyurtma (order) rejimini tanlang."
         ),
     })
+
+
+def _default_mode(base_product, warehouse):
+    """25-§6: rejim so'ralmasa avtomatik tanlanadi.
+
+    Tarkibi bor  -> build (bugungidek); tarkibi yo'q-u omborda bor ->
+    modify (tayyorini o'zgartiramiz); ikkalasi ham yo'q (yangi model) ->
+    order (butun holda buyurtma qilinadi — 21-§2.5(c) guard'i shu bilan
+    kerak bo'lmay qoladi, chunki bunday modelga endi `modify` taklif
+    qilinmaydi).
+    """
+    from apps.configurator.models import Configuration
+    from apps.inventory.services import available_quantity
+
+    if base_product.specs.exists():
+        return Configuration.Mode.BUILD
+    if available_quantity(base_product, warehouse) > 0:
+        return Configuration.Mode.MODIFY
+    return Configuration.Mode.ORDER
 
 
 def take_request(
@@ -2186,7 +2241,7 @@ def take_request(
 
     line_modes = line_modes or {}
     used_warehouse = warehouse or request_obj.warehouse or main_warehouse()
-    used_mode = mode or Configuration.Mode.BUILD
+    used_mode = mode or _default_mode(base_product, used_warehouse)
     if used_mode == Configuration.Mode.MODIFY:
         _validate_modify_ready(base_product, used_warehouse)
 
@@ -2231,7 +2286,7 @@ def take_request(
                 })
             line_used_mode = (
                 line_modes.get(line.id) or line_modes.get(str(line.id))
-                or mode or Configuration.Mode.BUILD
+                or mode or _default_mode(line.base_product, used_warehouse)
             )
             if line_used_mode == Configuration.Mode.MODIFY:
                 _validate_modify_ready(line.base_product, used_warehouse, field='line_modes')
@@ -2255,6 +2310,23 @@ def take_request(
         log_request_event(request_obj, ConfigurationRequestEvent.Stage.TAKEN, user)
 
     return request_obj
+
+
+def _replenishment_item_note(cfg):
+    """25-§6: `order` rejimida TLD qatori BITTA — model o'zi. Izohiga
+    spetsifikatsiya yoziladi, aks holda buyurtmachi nima so'rashini bilmaydi
+    (mol butlovchilarsiz, faqat model raqami bilan kelmasin)."""
+    from apps.configurator.models import Configuration
+
+    if cfg.mode != Configuration.Mode.ORDER:
+        return f'{cfg.number} konfiguratsiyasi uchun'
+    spec = ', '.join(
+        f'{item.label or item.component.name} x{item.quantity}'
+        for item in cfg.items.select_related('component')
+    )
+    if not spec:
+        return f'{cfg.number}: BUTUN MODEL sifatida buyurtma qilinadi.'
+    return f'{cfg.number}: BUTUN MODEL sifatida buyurtma qilinadi. Tarkib: {spec}'
 
 
 def send_missing_to_procurement(configuration, user):
@@ -2371,7 +2443,7 @@ def send_missing_to_procurement(configuration, user):
                         quantity=row['shortage'],
                         unit_price=row['product'].cost_price or 0,
                         configuration=cfg,
-                        note=f'{cfg.number} konfiguratsiyasi uchun',
+                        note=_replenishment_item_note(cfg),
                     )
                     added_rows.append(row)
             # Hammasi allaqachon shu hisobda bo'lsa ham — bu xato emas,
@@ -2397,7 +2469,7 @@ def send_missing_to_procurement(configuration, user):
                         quantity=row['shortage'],
                         unit_price=row['product'].cost_price or 0,
                         configuration=cfg if is_deal else None,
-                        note=f'{cfg.number} konfiguratsiyasi uchun',
+                        note=_replenishment_item_note(cfg),
                     )
             names = ', '.join(
                 row['product'].name for _cfg, missing in missing_by_model for row in missing

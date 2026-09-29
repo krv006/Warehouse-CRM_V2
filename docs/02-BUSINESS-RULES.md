@@ -247,12 +247,21 @@ ro'yxatlarini ko'mib tashlardi — jonli o'lchov: 51 ta mahsulotning 21 tasi,
   `is_active=False` qilib o'chirilgan va katalog/TLD ro'yxatlarida sukut
   bo'yicha yashiringan (`?include_variants=true` bilan audit uchun ko'rinadi)
 
-### Ikki rejim: yig'ish va tayyor mahsulotni o'zgartirish
+### Uch rejim: yig'ish, tayyor mahsulotni o'zgartirish, butun model buyurtma qilish
 
 | Rejim | Nima bo'ladi |
 |---|---|
 | `build` | Butlovchilardan yangi mahsulot rejalashtiriladi; yetishmagani kirim orqali to'ldiriladi. Yakunlashda ombor harakati bo'lmaydi |
 | `modify` | **Ombordagi butun tayyor mahsulot olinadi** va ichi o'zgartiriladi: qo'shilgan qism ombordan chiqadi, **yechib olingani omborga qaytadi** (narxi bilan, narxni o'zgartirish mumkin), o'zgartirilgan mahsulot tayyor pozitsiya sifatida omborga kiradi. Yechib olinganlar haqida **bugalterga ACT bilan xabar** boradi. **Tayyor model — yaxlit birlik** (3-to'plam §1): ombor bilan aloqa faqat modelning O'ZI × partiya va **qo'shilgan** qatorlar × partiya bo'yicha (`required_from_stock`) — bron, yetishmovchilik va TLD shu ta'rifdan o'qiydi; o'zgarmagan qismlar mashina ichida keladi: band qilinmaydi, yetishmovchilikka tushmaydi; yetishmagan **bazaviy model ham TLD ga tushadi** |
+| `order` | 25-§6: **yangi model** (tarkibi ham, ombor qoldig'i ham yo'q) — engineer yozgan qatorlar buyurtma ro'yxati EMAS, **spetsifikatsiya**: mol shu tarkibda **BUTUN, BITTA mashina** sifatida ta'minotchidan keladi, alohida butlovchi buyurtma qilinmaydi. `required_from_stock` = faqat bazaviy model × partiya; TLD ga **bitta** qator tushadi, izohida spetsifikatsiya matni; qatorlarga narx kerak emas (narx `base_product.cost_price`da — buyurtmachi yoki import varaqasi kiritadi, 24-to'plam); **`assemble` shart emas** — mashina tayyor holda keladi; `finalize`da qatorlar `Product.specs`ga ko'chadi — model endi oddiy katalog modeli (keyingi safar `build`/`modify` ochiladi, zavod tarkibi `copy_factory_spec` bilan yuklanadi) |
+
+`take`da `mode` berilmasa **avtomatik tanlanadi** (25-§6): tarkibi bor →
+`build`; tarkibi yo'q-u omborda bor → `modify`; ikkalasi ham yo'q (yangi
+model) → `order`. Shu tufayli 21-§2.5(c) dagi "yangi modelda `modify` erta
+bloklanadi" qoidasi endi kamdan-kam ko'rinadi — noto'g'ri rejim
+so'ralmaydi, chunki eng boshidanoq to'g'risi taklif qilinadi; aniq
+`mode=modify` so'ralsa (masalan frontdan eski so'rov kelsa), guard
+bugungidek 400 qaytaradi, xabari `order`ni ko'rsatadi.
 
 Configurator **barcha rollarga** ochiq (TZ 6.5).
 

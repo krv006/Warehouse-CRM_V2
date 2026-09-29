@@ -30,7 +30,13 @@ class ImportPriceRequestBranchTests(APITestCase):
             'client': self.mijoz.id, 'quantity': quantity,
         }, format='json').data['id']
         self.client.force_authenticate(self.engineer)
-        response = self.client.post(f'/api/configuration-requests/{request_id}/take/')
+        # 25-§6: `self.base`da na tarkib, na qoldiq bor — `mode` berilmasa
+        # endi avtomatik `order` tanlanardi; bu test import-narx OQIMINI
+        # (mode tanlovini emas) tekshiradi, shuning uchun `build` aniq beriladi.
+        response = self.client.post(
+            f'/api/configuration-requests/{request_id}/take/',
+            {'mode': 'build'}, format='json',
+        )
         return Configuration.objects.get(pk=response.data['configuration'])
 
     def test_already_flagged_imported_component_opens_sheet_not_supplier_note(self):

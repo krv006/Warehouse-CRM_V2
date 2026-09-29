@@ -363,6 +363,15 @@ def create_product_from_order(*, name, sku='', kind=None, cost_price=0, descript
     if not existing and name:
         existing = Product.objects.filter(name__iexact=name).first()
     if existing:
+        # 25-§5: takror nomda mahsulot qayta ishlatiladi (to'g'ri qaror),
+        # lekin yangi tavsif jim yo'qolmasin — eskisi USTIGA qo'shiladi
+        # (o'chirilmaydi), bir xil matn ikkinchi marta qo'shilmaydi.
+        text = (description or '').strip()
+        if text and text not in existing.description:
+            existing.description = (
+                f'{existing.description}\n\n{text}' if existing.description else text
+            )
+            existing.save(update_fields=['description'])
         return existing
 
     return Product.objects.create(

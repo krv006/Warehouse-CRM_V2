@@ -190,7 +190,7 @@ Unique: (`product`, `component`).
 | `act` | FK `configurator.Act` (PROTECT, null) |
 | `purchase` | FK `purchases.Purchase` (SET_NULL, null) |
 | `variant` | FK `inventory.Product` (SET_NULL) — tayyor pozitsiya |
-| `mode` | `build` (yig'ish) / `modify` (tayyor mahsulotni o'zgartirish) |
+| `mode` | `build` (yig'ish) / `modify` (tayyor mahsulotni o'zgartirish) / `order` (25-§6: yangi — tarkibsiz-u qoldiqsiz model BUTUN HOLDA buyurtma qilinadi) |
 | `status` | `draft` / `pending_clarification` (9-§1 — sales javobi kutilmoqda, ish va bron joyida) / `pending_sales` / `approved` / `ready` / `sold` / `cancelled` |
 | `cancel_reason` | Text (8-to'plam §4) — "nega to'xtadi?": engineer qaytarganda (`reject_request` izohi) yoki zanjir bekor qilinganda (`cancel_chain` sababi); bog'lanish uzilsa ham hujjatda qoladi |
 | `note`, `created_by` | |
@@ -199,10 +199,13 @@ Property: `items_total`, `total_price`, `signature`, `matching_variant`,
 `changes` (zavod tarkibiga nisbatan qo'shilgan/yechilganlar),
 `required_from_stock` — **ombordan nimani oladi** degan savolning yagona javobi
 (3-to'plam §1: build — har bir qator × partiya; modify — bazaviy modelning
-o'zi × partiya + faqat qo'shilganlar × partiya), `missing_items` — shu
+o'zi × partiya + faqat qo'shilganlar × partiya; 25-§6: order — FAQAT
+bazaviy modelning o'zi × partiya, qatorlar spetsifikatsiya, ombordan
+alohida hech narsa olinmaydi), `missing_items` — shu
 ro'yxatdan yetishmayotganlari (`{product, needed, available, shortage}`;
 bron sinxroni, TLD va yig'ish qo'riqchisi ham shundan o'qiydi),
-`items_without_price`.
+`items_without_price` (25-§6: `order`da doim bo'sh — narx qatorda emas,
+`base_product.cost_price`da).
 
 ### `ConfigurationRemoval` — yechib olingan butlovchi (modify rejimi)
 `configuration` (CASCADE, `removals`), `component` (PROTECT), `quantity`,

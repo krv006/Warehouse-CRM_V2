@@ -1056,7 +1056,10 @@ def _contract_document_placeholders(contract):
     document = getattr(contract, 'document', None)
     template = document.template if document and document.template_id else None
     language = template.language if template else 'ru'
-    date_source = contract.signed_at or contract.created_at.date()
+    # 23-§1/25-§2: `.date()` UTC kalendar sanasini beradi — Toshkent (UTC+5)
+    # yarim tunga yaqin yaratilgan shartnomada bir kun oldingi sana chiqib
+    # qolardi; `localdate()` avval mahalliy vaqtga o'giradi.
+    date_source = contract.signed_at or localdate(contract.created_at)
     total = contract.items_total_with_vat
 
     values = {
@@ -1066,7 +1069,9 @@ def _contract_document_placeholders(contract):
         'contract.total': str(total),
         'contract.total_words': amount_in_words(total, language=language),
         'contract.prepayment_percent': str(contract.prepayment_percent or ''),
-        'contract.prepayment_days': str(contract.prepayment_days),
+        # 23-§2(a): eski qatorlarda (migratsiyadan oldingi) bo'sh bo'lishi
+        # mumkin — `None` so'z sifatida chiqib qolmasin
+        'contract.prepayment_days': str(contract.prepayment_days or ''),
         'contract.delivery_days': str(contract.delivery_days),
         'company.name': company.name,
         'company.director_name': company.director_name,

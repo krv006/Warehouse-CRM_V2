@@ -24,7 +24,9 @@ def _weasyprint_available():
     yuboriladi (qolgan testlar `render_contract_pdf`ni mock qiladi)."""
     try:
         import weasyprint  # noqa: F401
-    except OSError:
+    except (ImportError, OSError):
+        # 23-§3/25-§2: paket o'zi o'rnatilmagan bo'lsa `ImportError`,
+        # native GTK/Pango yo'q bo'lsa `OSError` — ikkalasi ham "yo'q" degani
         return False
     return True
 
@@ -165,6 +167,19 @@ class ContractDateSourceTests(APITestCase):
         )
         values = _contract_document_placeholders(contract)
         self.assertIn('5 января', values['contract.date'])
+
+    def test_date_uses_local_calendar_day_not_utc(self):
+        """23-§1/25-§2: Toshkent UTC+5 — kechqurun yaratilgan shartnomada
+        UTC sana bir kun ORQADA qoladi, mahalliy sana esa to'g'ri kunni aytadi."""
+        contract = Contract.objects.create(client=self.mijoz, created_by=self.sales)
+        # 20:30 UTC = 01:30 Toshkentda ERTASI kun
+        Contract.objects.filter(pk=contract.pk).update(
+            created_at='2026-09-23 20:30:00+00:00',
+        )
+        contract.refresh_from_db()
+        values = _contract_document_placeholders(contract)
+        self.assertIn('24 сентября', values['contract.date'])
+        self.assertNotIn('23 сентября', values['contract.date'])
 
 
 class SpecificationBlockTests(APITestCase):
@@ -408,6 +423,15 @@ class PrepaymentDaysFieldTests(APITestCase):
             client=self.mijoz, created_by=self.sales, prepayment_days=14,
         )
         self.assertEqual(contract.prepayment_days, 14)
+
+    def test_null_prepayment_days_renders_empty_not_none(self):
+        """23-§2(a): eski (migratsiyadan oldingi) qator `None` bo'lsa,
+        hujjatda so'zma-so'z "None" chiqmasin."""
+        contract = Contract.objects.create(client=self.mijoz, created_by=self.sales)
+        Contract.objects.filter(pk=contract.pk).update(prepayment_days=None)
+        contract.refresh_from_db()
+        values = _contract_document_placeholders(contract)
+        self.assertEqual(values['contract.prepayment_days'], '')
 
     def test_placeholder_uses_contract_field(self):
         contract = Contract.objects.create(

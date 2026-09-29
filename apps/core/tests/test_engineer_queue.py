@@ -59,7 +59,14 @@ class EngineerQueueReasonTests(APITestCase):
         }, format='json')
         request_obj = ConfigurationRequest.objects.get(pk=response.data['id'])
         self.client.force_authenticate(self.engineer)
-        response = self.client.post(f'/api/configuration-requests/{request_obj.id}/take/')
+        # 25-§6: `self.hp`da na tarkib, na qoldiq bor — `mode` berilmasa
+        # endi avtomatik `order` tanlanardi; bu test butlovchi (NVMe)
+        # yetishmovchiligini tekshiradi (mode tanlovini emas), shuning
+        # uchun `build` aniq beriladi.
+        response = self.client.post(
+            f'/api/configuration-requests/{request_obj.id}/take/',
+            {'mode': 'build'}, format='json',
+        )
         self.assertEqual(response.status_code, 200, response.data)
         request_obj.refresh_from_db()
         configuration = request_obj.configuration

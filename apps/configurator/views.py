@@ -806,10 +806,12 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
         """POST /configuration-requests/{id}/take/ — Engineer ishga oladi.
 
         Chernovik konfiguratsiya avtomatik ochiladi va zavod tarkibi yuklanadi.
-        Tana (ixtiyoriy): {"base_product": id, "warehouse": id, "mode": "build|modify"}
-        — berilmasa zayavkadagi qiymatlar olinadi. 12-§2 (B2): bitta amalda
-        qo'shimcha MODEL qatorlariga ham chernovik ochiladi; har biriga
-        alohida rejim — {"line_modes": {"<line_id>": "build|modify"}}.
+        Tana (ixtiyoriy): {"base_product": id, "warehouse": id, "mode": "build|modify|order"}
+        — berilmasa zayavkadagi qiymatlar olinadi (25-§6: tarkibi yo'q-u
+        omborda ham yo'q yangi model uchun avtomatik `order` tanlanadi).
+        12-§2 (B2): bitta amalda qo'shimcha MODEL qatorlariga ham chernovik
+        ochiladi; har biriga alohida rejim —
+        {"line_modes": {"<line_id>": "build|modify|order"}}.
         21-§2.2: `base_product` katalogda yo'q bo'lsa — {"new_base_product_name":
         "...", "new_base_product_sku": "...", "new_base_product_description": "..."}.
         """
@@ -823,12 +825,14 @@ class ConfigurationRequestViewSet(BaseModelViewSet):
         ).first()
         mode = request.data.get('mode')
         if mode and mode not in Configuration.Mode.values:
-            raise ValidationError({'mode': f"Noto'g'ri rejim: {mode}. Ruxsat: build, modify."})
+            raise ValidationError({
+                'mode': f"Noto'g'ri rejim: {mode}. Ruxsat: build, modify, order.",
+            })
         line_modes = request.data.get('line_modes') or {}
         for line_mode in line_modes.values():
             if line_mode not in Configuration.Mode.values:
                 raise ValidationError({
-                    'line_modes': f"Noto'g'ri rejim: {line_mode}. Ruxsat: build, modify.",
+                    'line_modes': f"Noto'g'ri rejim: {line_mode}. Ruxsat: build, modify, order.",
                 })
 
         request_obj = take_request(

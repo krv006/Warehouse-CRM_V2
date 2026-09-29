@@ -24,7 +24,7 @@ Tezroq (parallel):
 .venv/Scripts/python.exe manage.py test apps --parallel
 ```
 
-Hozirgi holat: **701 ta test, hammasi OK** (1 tasi skip — WeasyPrint mahalliy sandbox'da yo'q).
+Hozirgi holat: **724 ta test, hammasi OK** (1 tasi skip — WeasyPrint mahalliy sandbox'da yo'q).
 
 ---
 
@@ -114,6 +114,10 @@ Hozirgi holat: **701 ta test, hammasi OK** (1 tasi skip — WeasyPrint mahalliy 
 | `apps/procurement/tests/test_import_cost_arithmetic.py` | 24-§2.1: BQ = tovar + chegaragacha logistika (TO'LIQ emas), boj foizdan/qo'lda summadan, **QQS bazasi BQ+boj — invoysdan EMAS**, aksiz QQS bazasiga kirishi, `landed_total` TO'LIQ logistika bilan, `unit_cost` 2 xonaga yaxlitlanishi (oraliq qiymatlar yaxlitlanmaydi), nol miqdorda bo'linish xatosi yo'qligi, kurs varaqada qotib qolishi, sozlama yopilgan varaqaga ta'sir qilmasligi, `vat_recoverable` `landed_total`ga kirish/kirmasligi |
 | `apps/procurement/tests/test_import_cost_flow.py` | 24-§9.2: oqim (buyurtmachi→logist→deklarant, qat'iy ketma-ket, deklarant logistdan oldin yozmoqchi bo'lsa 400 aniq matn bilan) va ruxsat (logist bojxonaga yoza olmasligi, engineer varaqani ochamoqchi 403, yopilgan varaqa tahrirlanmasligi, bitta mahsulotga ikkinchi ochiq varaqa yagonaligi, miqdor o'zgarsa `waiting_customs`→`waiting_logistics`ga qaytishi, tovar narxi kiritilmasa bojxona bloklanishi, kurs 0 rad etilishi, ikkinchi importda `tnved_code` oldindan to'lishi, `default_customs_fee` avtomatik va qo'lda ustunligi, `return`/`cancel`) |
 | `apps/configurator/tests/test_import_price_request.py` | 24-§6.2/§8.1: narxsiz IMPORT qator buyurtmachiga oddiy eslatma o'rniga `ImportCostSheet` ochishi (allaqachon belgilangan va birinchi marta belgilangan holatlar), bayroq unutilsa eski yo'l ishlashi (regressiya), mahalliy/import qatorlar aralash bo'lganda ikkalasi ham to'g'ri ishlashi, engineer navbatida summa ko'rinmasligi (faqat fakt) |
+| `apps/sales/tests/test_contract_document.py` (`ContractTemplateTests`, kengaytirilgan) | 25-§1: `?search=` shablon nomining bir qismi bilan topishi, mos kelmasa `count: 0`, bo'sh `search` to'liq ro'yxat qaytarishi |
+| `apps/sales/tests/test_contract_pdf_export.py` (kengaytirilgan) | 23-§1: Toshkent (UTC+5) kechqurun yaratilgan shartnomada sana UTC emas MAHALLIY kalendar kunini ko'rsatishi; 23-§2(a): `prepayment_days` bo'sh (eski qator) bo'lsa hujjatda so'zma-so'z "None" chiqmasligi |
+| `apps/inventory/tests/test_create_product_from_order.py` | 25-§5: takror nomdagi mahsulot qayta ishlatilganda yangi tavsif eskisi USTIGA qo'shilishi (o'chirilmaydi), bo'sh tavsif eskisini o'zgartirmasligi, bir xil tavsif ikkinchi marta qo'shilmasligi, yangi nomda oddiy yaratish |
+| `apps/configurator/tests/test_order_mode.py` | 25-§6: `take`da rejim avtomatik tanlanishi (tarkibi bor→build, tarkibi yo'q-u omborda bor→modify, ikkalasi ham yo'q→order; aniq `mode=order` tarkibi bor modelda ham ruxsat; aniq `mode=modify` yangi modelda hamon 400, xabari `order`ni ko'rsatishi); `order` rejimida `required_from_stock`/`missing_items` FAQAT bazaviy model, qatorlarga narx kerak emasligi, `request-procurement` BITTA qator ochib izohiga spetsifikatsiya yozishi, `finalize` `assemble`siz o'tishi va qatorlarni `Product.specs`ga ko'chirishi, ikkinchi zayavkada shu model `copy_factory_spec` bilan yuklanib `build` ochilishi; eski `build`/`modify` zanjirlar o'zgarmasligi (regressiya) |
 
 ---
 
