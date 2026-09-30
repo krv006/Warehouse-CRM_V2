@@ -623,10 +623,15 @@ rol ketma-ket ishlaydi va **bir-birining raqamini ko'rmaydi**:
    YUBORILADI** — qator to'g'ridan logistdan keyin buyurtmachiga tushadi.
    Buyurtmachi shubhalansa `send-to-customs` bilan qaytadan deklarantga
    yuboradi.
-3. **Buyurtmachi** — tovar narxi, valyuta, kurs va YAKUNIY tannarxni
-   kiritadi (`answer`) — tizim `suggested_cost`ni hisoblab beradi, u
-   tasdiqlaydi yoki ustidan yozadi. **Mahalliy qator** (import emas) — bu
-   yagona qadam, to'g'ridan shu yerga tushadi.
+3. **Buyurtmachi** — endi ikki bosqichli (30-§2, logist/deklarant naqshi
+   bilan bir xil): avval `fill-goods` (tovar narxi — **BITTA DONAGA**,
+   valyuta, kurs, ixtiyoriy qo'shimcha xarajatlar) — qatorni YOPMAYDI,
+   necha marta ham chaqirilishi mumkin (kurs xato terilgan bo'lsa qayta
+   yozadi); tizim shu asosda `suggested_cost`ni ko'rsatadi. Keyin
+   `answer` (ixtiyoriy `cost_price`) — bo'sh qoldirilsa `suggested_cost`
+   qabul qilinadi, aks holda o'z raqami bilan yakunlanadi. `fill-goods`
+   chaqirilmagan import qatorda `answer` — 400. **Mahalliy qator** (import
+   emas) — `fill-goods` shart emas, `answer`da `cost_price` majburiy.
 
 Qator holati (`PriceRequestLine.status`, hisoblanadi):
 `waiting_logistics → waiting_customs → waiting_supplier → answered`.
@@ -635,15 +640,23 @@ ORQADAGI** (eng kam bajarilgan) bosqich; aralash so'rovda (mahalliy +
 import) har qator o'z yo'lidan yuradi, mos rolga alohida bildirishnoma
 boradi.
 
-**Hisob** (24-§2.1 bilan bir xil, faqat manba — `PriceRequestLine`):
+**Hisob (30-§3 — 24-§2.1/28-to'plamdagi invoys-jami formulasini
+almashtiradi)**. Eski formula invoys **jami** summasiga asoslangan edi;
+endi buyurtmachi tovar narxini **bitta donaga** kiritadi, hisob ham
+donaga chiqadi:
 
 ```
-Bojxona qiymati (BQ) = tovar narxi (so'mda) + LOGISTdan CHEGARAGACHA
-Boj                   = BQ × boj foizi  (yoki qo'lda kiritilgan summa)
-QQS                   = (BQ + boj + aksiz) × QQS foizi   ← INVOYSDAN EMAS
-Jami tannarx           = tovar (so'mda) + TO'LIQ logistika + bojxona xarajatlari
-Taklif etilgan tannarx = Jami tannarx / miqdor   (2 xonaga yaxlitlanadi, taklif — yakuniy emas)
+declarant_unit = (tovar_narxi_donaga × kurs + sertifikat + laboratoriya + deklarant xizmati) × (1 + duty_percent/100)
+logistics_unit = logistics_total / miqdor
+extra_unit     = extra_costs / miqdor
+suggested_cost = declarant_unit + logistics_unit + extra_unit   (2 xonaga yaxlitlanadi, taklif — yakuniy emas)
 ```
+
+⚠️ Bu formulada QQS alohida hisoblanmaydi — `duty_percent` yagona
+ustama foizi sifatida ishlatiladi (`excise_amount`/`customs_fee`/
+`duty_amount` maydonlari bazada tarixiy ma'lumot uchun qoladi, lekin
+hisobga kirmaydi). `miqdor=0` bo'lsa `logistics_unit`/`extra_unit` — `0`
+(nolga bo'linish yo'q).
 
 Buyurtmachi `answer`da javob berganda: `Product.cost_price` yangilanadi,
 `price_arrived` zanjirni davom ettiradi (narxsiz qator/`needs_base_price`

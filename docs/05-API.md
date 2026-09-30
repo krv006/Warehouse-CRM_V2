@@ -370,7 +370,14 @@ GET /api/configuration-requests/12/roadmap/
 }
 ```
 `state`: `done` / `current` / `pending` / `blocked` (13–16 to'lovgacha) /
-`skipped` / `cancelled`. **`optional` (6-to'plam §1–2)** — shartli qadamlar
+`skipped` / `cancelled`. **30-§1: `price_request` qadamining `stages`
+maydoni** — import qatorda ichma-ich `[{"key": "logistics", "label": "Logistika narxi", "done": bool, "skipped": bool, "who": actor|null, "at": datetime|null}, {"key": "customs", ..., "auto": bool}]`;
+mahalliy so'rovda yoki qator hali yo'qligida — bo'sh `[]`. Bu 28-to'plamda
+alohida `logistics_quote`/`customs_clearance` QADAMI sifatida chizilar
+edi — endi `price_request`ning tarkibiy qismi, chunki ular alohida
+"bosqich" emas, bitta hujjatning ichki holati; `price_request`ning o'z
+`role`/`label`i ham logist/deklarant/buyurtmachi navbatiga qarab dinamik
+(`"Narx so'rovi — logist kutilmoqda"` va h.k.). **`optional` (6-to'plam §1–2)** — shartli qadamlar
 (`price_request`, `admin_approve`, `procurement_sent`, `procurement_chain`):
 ular `current`ni "birinchi bajarilmagan" qoidasi orqali OLMAYDI — joriy
 bo'lishining yagona yo'li ish haqiqatan boshlangani (narx so'ralgan, TLD
@@ -942,7 +949,7 @@ Javobda hisoblangan maydonlar ham keladi (bazada saqlanmaydi, har o'qishda
 qayta chiqadi): `goods_uzs`, `customs_value`, `duty`, `vat`, `vat_in_cost`,
 `customs_total`, `landed_total`, `unit_cost`.
 
-## Narx so'rovi — bitta hujjat, uch rol (28-to'plam)
+## Narx so'rovi — bitta hujjat, uch rol (28-to'plam, 30-to'plamda tuzatildi)
 
 `POST /configurations/{id}/request-prices/` (engineer) endi bitta
 `PriceRequest` hujjati ochadi/to'ldiradi — javob:
@@ -958,10 +965,11 @@ bir-birining raqamini ko'rmaydi (pastga qarang).
 | POST | `/price-requests/{id}/cancel/` | ochgan odam, admin; `{"reason": "..."}` |
 | GET | `/price-request-lines/{id}/` | yuqoridagi bilan bir xil — javob rolga qarab kesilgan (pastga qarang) |
 | POST | `/price-request-lines/{id}/fill-logistics/` | logist; `{"logistics_total": "1000000", "freight_to_border": "800000", "note": "..."}`; `freight_to_border` berilmasa sukut — jami summaning o'zi |
-| POST | `/price-request-lines/{id}/fill-customs/` | deklarant; `{"tnved_code": "...", "duty_percent"/"duty_amount", "excise_amount", "customs_fee", "certificate_cost", "laboratory_cost", "declarant_fee", "note"}`; logistdan OLDIN — 400 |
+| POST | `/price-request-lines/{id}/fill-customs/` | deklarant; `{"tnved_code": "...", "duty_percent"/"duty_amount", "excise_amount", "customs_fee", "certificate_cost", "laboratory_cost", "declarant_fee", "note"}`; logistdan OLDIN — 400. **30-§3: bu maydonlar endi BIR DONAGA** (jami emas) |
+| POST | `/price-request-lines/{id}/fill-goods/` (**30-§2, yangi**) | buyurtmachi; `{"currency": "USD", "goods_price": "100", "exchange_rate": "12700", "extra_costs": "20000"}` — `goods_price` **BITTA DONANING** narxi (30-§3), `extra_costs` jami (ixtiyoriy). Qatorni **yopmaydi** — necha marta ham chaqiriladi (kurs xato terilishi mumkin) |
 | POST | `/price-request-lines/{id}/send-to-customs/` | buyurtmachi; avtomatik o'tkazilgan qatorni qaytadan deklarant navbatiga qaytaradi |
 | POST | `/price-request-lines/{id}/mark-imported/` | buyurtmachi; qatorni import deb belgilaydi (`Product.is_imported` ham yoziladi) |
-| POST | `/price-request-lines/{id}/answer/` | buyurtmachi; mahalliy qatorda faqat `{"cost_price": "..."}`; import qatorda `{"currency", "goods_price", "exchange_rate"}` + ixtiyoriy `cost_price` (berilmasa tizim hisobi — `suggested_cost` — ishlatiladi) |
+| POST | `/price-request-lines/{id}/answer/` | buyurtmachi; **faqat** `{"cost_price": "..."}` (ixtiyoriy) — mahalliy qatorda majburiy, import qatorda bo'sh qoldirilsa `suggested_cost` olinadi. Import qatorda avval `fill-goods` chaqirilgan bo'lishi shart (aks holda 400) |
 | POST | `/price-request-lines/{id}/return/` | 29-§4(a): logist yoki deklarant — `{"comment": "..."}` majburiy; qator mahalliyga aylanadi (`is_imported=false`), buyurtmachiga "kim qaytardi va nega" eslatmasi ketadi |
 
 **Izolyatsiya** (`PriceRequestLineSerializer`) — qator javobida rolga
@@ -969,9 +977,26 @@ qarab kesiladi:
 
 | Rol | Ko'rmaydigan maydonlar |
 |---|---|
-| Logist | tovar narxi/valyuta/kurs/tannarx, bojxona (TN VED, boj, sertifikat, ...), hisoblangan summalar (`landed_total`, ...) |
-| Deklarant | tovar narxi/valyuta/kurs/tannarx, logistika (`logistics_total`, `freight_to_border`), hisoblangan summalar |
+| Logist | tovar narxi/valyuta/kurs/qo'shimcha xarajat/tannarx, bojxona (TN VED, boj, sertifikat, ...), hisoblangan summalar (`declarant_unit`, `suggested_cost`, ...) |
+| Deklarant | tovar narxi/valyuta/kurs/qo'shimcha xarajat/tannarx, logistika (`logistics_total`, `freight_to_border`), hisoblangan summalar |
 | Buyurtmachi, bugalter, admin | hammasi ko'rinadi |
+
+**30-§3: hisob** (javobda `declarant_unit`/`logistics_unit`/`extra_unit`/
+`suggested_cost` — bittasi DONAGA, hammasi bazada saqlanmaydi):
+
+```
+declarant_unit = (tovar_donaga×kurs + sertifikat + laboratoriya + xizmat) × (1 + duty_percent/100)
+logistics_unit = logistics_total / quantity
+extra_unit     = extra_costs / quantity
+suggested_cost = declarant_unit + logistics_unit + extra_unit
+```
+
+⚠️ Bu formulada **QQS hisoblanmaydi** — `duty_percent` (deklarant kiritadigan
+yagona foiz) umumiy ustama sifatida ishlatiladi. Eski `goods_uzs`/
+`customs_value`/`duty`/`vat`/`customs_total`/`landed_total` maydonlari
+javobdan **olib tashlandi** (invoys-jami taxminiga asoslangan edi, endi
+noto'g'ri bo'lardi); `excise_amount`/`customs_fee`/`duty_amount` maydonlari
+bazada qoladi, lekin yangi hisobda ishlatilmaydi.
 
 **Yetishmayotganlar ro'yxati:**
 ```json

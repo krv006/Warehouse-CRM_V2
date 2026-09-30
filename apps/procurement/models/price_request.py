@@ -14,7 +14,6 @@ from django.db.models import (
 )
 
 from apps.core.models import StatusTrackedModel, TimeStampedModel
-from apps.core.utils import default_vat_percent
 
 MONEY = Decimal('0.01')
 
@@ -115,8 +114,13 @@ class PriceRequestLine(TimeStampedModel):
 
     # --- Buyurtmachi (tovar va yakun) ---
     currency = CharField(max_length=3, default='USD')
+    # 30-§3: MA'NOSI O'ZGARDI — invoys JAMI emas, BITTA DONANING narxi
+    # (asl valyutada, `exchange_rate` bilan so'mga o'giriladi)
     goods_price = DecimalField(max_digits=18, decimal_places=2, default=Decimal('0'))
     exchange_rate = DecimalField(max_digits=18, decimal_places=4, default=Decimal('0'))
+    # 30-§3: buyurtmachining IKKINCHI inputi — skotch/mashina/omborgacha
+    # kabi qo'shimcha xarajatlar, JAMI (logistika kabi miqdorga bo'linadi)
+    extra_costs = DecimalField(max_digits=18, decimal_places=2, default=Decimal('0'))
     cost_price = DecimalField(max_digits=18, decimal_places=2, null=True, blank=True)
     answered_at = DateTimeField(null=True, blank=True)
 
@@ -126,53 +130,54 @@ class PriceRequestLine(TimeStampedModel):
     def __str__(self):
         return f'{self.product} x {self.quantity}'
 
-    # ---- 28-§2: hisob — 24-to'plamdagi bilan bir xil, faqat manba boshqa ----
+    # ---- 30-§3: hisob — foydalanuvchi bergan misolga mos ----
+    #
+    #   1) Deklarant qismi (DONAGA):
+    #      (tovar_donaga + sertifikat + laboratoriya + xizmat) × (1 + foiz/100)
+    #   2) Logistika (DONAGA): logistika_jami / miqdor
+    #   3) Qo'shimcha xarajatlar (DONAGA): qoshimcha_jami / miqdor
+    #   TANNARX (donaga) = 1 + 2 + 3
+    #
+    # Eski `goods_uzs`/`customs_value`/`duty`/`vat`/`customs_total`/
+    # `landed_total` — OLIB TASHLANDI: ular invoys-JAMI taxminiga
+    # asoslangan edi (goods_price endi DONAGA), qolib ketsa boshqa
+    # formulani aks ettirib chalg'itardi. `excise_amount`/`customs_fee`/
+    # `duty_amount`/`vat_recoverable` maydonlari BAZADA qoladi (eski
+    # yozuvlar tarixi buzilmasin), lekin yangi hisobda ishlatilmaydi —
+    # ⚠️ QQS ham shu formulaga umuman kirmaydi (30-§3: mijoz bilan
+    # "foiz" nima anglatishi — boj, QQS yoki ikkalasi — aniqlansin).
 
     @property
-    def goods_uzs(self):
-        return self.goods_price * self.exchange_rate
-
-    @property
-    def customs_value(self):
-        """Bojxona qiymati = tovar + LOGISTdan CHEGARAGACHA (28-§2a)."""
-        return self.goods_uzs + self.freight_to_border
-
-    @property
-    def duty(self):
-        if self.duty_amount:
-            return self.duty_amount
-        return self.customs_value * self.duty_percent / Decimal('100')
-
-    @property
-    def vat(self):
-        return (
-            (self.customs_value + self.duty + self.excise_amount)
-            * default_vat_percent() / Decimal('100')
-        )
-
-    @property
-    def vat_in_cost(self):
-        return not self.vat_recoverable
-
-    @property
-    def customs_total(self):
-        return (
-            self.duty + self.excise_amount
-            + (self.vat if self.vat_in_cost else 0)
-            + self.customs_fee
+    def declarant_unit(self):
+        """Deklarant qismi — DONAGA. Foiz eng oxirida, butun yig'indiga
+        qo'yiladi (tovar + sertifikat + laboratoriya + xizmat);
+        logistika bunga KIRMAYDI — u alohida va donaga bo'linadi."""
+        base = (
+            self.goods_price * self.exchange_rate
             + self.certificate_cost + self.laboratory_cost + self.declarant_fee
         )
+        return base * (Decimal('100') + self.duty_percent) / Decimal('100')
 
     @property
-    def landed_total(self):
-        return self.goods_uzs + self.logistics_total + self.customs_total
+    def logistics_unit(self):
+        """Logistika — jami summa miqdorga bo'linadi."""
+        if not self.quantity:
+            return Decimal('0')
+        return self.logistics_total / self.quantity
+
+    @property
+    def extra_unit(self):
+        """Qo'shimcha xarajatlar — jami summa miqdorga bo'linadi."""
+        if not self.quantity:
+            return Decimal('0')
+        return self.extra_costs / self.quantity
 
     @property
     def suggested_cost(self):
         """Tizim hisoblagan tannarx — buyurtmachiga TAKLIF, yakuniy qaror emas."""
-        if not self.quantity:
-            return Decimal('0')
-        return (self.landed_total / self.quantity).quantize(MONEY, rounding=ROUND_HALF_UP)
+        return (
+            self.declarant_unit + self.logistics_unit + self.extra_unit
+        ).quantize(MONEY, rounding=ROUND_HALF_UP)
 
     @property
     def status(self):

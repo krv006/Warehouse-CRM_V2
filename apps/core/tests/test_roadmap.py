@@ -108,12 +108,12 @@ class RoadmapTests(APITestCase):
             f'/api/configuration-requests/{request_obj.id}/roadmap/',
         )
         steps = {s['key']: s for s in response.data['steps']}
-        # 20-§3.5: `finalize` bilan `ship` orasiga `act_review` qo'shildi;
-        # 24-to'plam: `price_request`dan keyin `logistics_quote` va
-        # `customs_clearance` (import bo'lmasa `skipped`)
-        self.assertEqual(len(response.data['steps']), 22)
-        self.assertEqual(steps['logistics_quote']['state'], 'skipped')
-        self.assertEqual(steps['customs_clearance']['state'], 'skipped')
+        # 20-§3.5: `finalize` bilan `ship` orasiga `act_review` qo'shildi.
+        # 30-§1: `logistics_quote`/`customs_clearance` endi asosiy
+        # chiziqda YO'Q — `price_request`ning ICHKI bosqichlari (`stages`),
+        # mahalliy zanjirda bo'sh ro'yxat
+        self.assertEqual(len(response.data['steps']), 20)
+        self.assertEqual(steps['price_request']['stages'], [])
 
         self.assertEqual(steps['zvk_created']['state'], 'done')
         self.assertEqual(steps['sales_review']['state'], 'done')
@@ -131,8 +131,10 @@ class RoadmapTests(APITestCase):
         )
 
     def test_import_linked_chain_draws_logistics_and_customs_steps(self):
-        """24-§9.2/28-to'plam: import zanjirida `logistics_quote`/
-        `customs_clearance` CHIZILADI (mahalliy zanjirda `skipped`).
+        """24-§9.2/28-to'plam/30-§1: import zanjirida `price_request` qadami
+        LOGIST bosqichida JORIY bo'lib ko'rinadi (mahalliy zanjirda
+        `stages` bo'sh) — `logistics_quote`/`customs_clearance` endi
+        alohida qadam emas, `price_request.stages` ichida.
 
         28-to'plam: buyurtmachi tovar narxini endi OXIRIDA kiritadi
         (§2-jadval) — narx so'ralgan zahoti ish LOGISTda, `fill-goods`
@@ -161,11 +163,16 @@ class RoadmapTests(APITestCase):
 
         self.client.force_authenticate(self.admin)
         response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
+        self.assertNotIn('logistics_quote', [s['key'] for s in response.data['steps']])
+        self.assertNotIn('customs_clearance', [s['key'] for s in response.data['steps']])
         steps = {s['key']: s for s in response.data['steps']}
-        self.assertEqual(steps['logistics_quote']['state'], 'current')
-        self.assertEqual(steps['logistics_quote']['actor']['role'], 'logist')
-        self.assertEqual(steps['customs_clearance']['state'], 'pending')
-        self.assertEqual(response.data['current_key'], 'logistics_quote')
+        self.assertEqual(steps['price_request']['state'], 'current')
+        self.assertEqual(steps['price_request']['actor']['role'], 'logist')
+        self.assertEqual(response.data['current_key'], 'price_request')
+
+        stages = {s['key']: s for s in steps['price_request']['stages']}
+        self.assertFalse(stages['logistics']['done'])
+        self.assertFalse(stages['customs']['done'])
 
         # Rol bo'ylab hovuzda — logist zanjirni ro'yxatida ko'radi (10-§5)
         self.client.force_authenticate(logist)
@@ -648,3 +655,110 @@ class OrderModeRoadmapTests(APITestCase):
         response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
         steps = {s['key']: s for s in response.data['steps']}
         self.assertNotEqual(steps['price_request']['state'], 'skipped')
+
+
+class PriceRequestStagesRoadmapTests(APITestCase):
+    """30-§1: `price_request` — bitta qadam, egasi so'rov holatidan olinadi;
+    `logistics_quote`/`customs_clearance` endi `stages` ichida."""
+
+    def setUp(self):
+        self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
+        self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
+        self.logist = User.objects.create_user('log', password='p', role=User.Role.LOGIST)
+        self.declarant = User.objects.create_user('dek', password='p', role=User.Role.DECLARANT)
+        self.buyurtmachi = User.objects.create_user('buy', password='p', role=User.Role.SUPPLIER)
+        self.admin = User.objects.create_user('adm', password='p', role=User.Role.ADMIN)
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
+        self.base = Product.objects.create(sku='HP-S1', name='HP S1', kind=Product.Kind.MACHINE)
+
+    def _take_and_request(self, component):
+        from apps.configurator.models import ConfigurationItem
+
+        self.client.force_authenticate(self.sales)
+        request_id = self.client.post('/api/configuration-requests/', {
+            'text': '1 ta', 'base_product': self.base.id,
+            'client': self.mijoz.id, 'quantity': 1,
+        }, format='json').data['id']
+        self.client.force_authenticate(self.engineer)
+        take_response = self.client.post(
+            f'/api/configuration-requests/{request_id}/take/', {'mode': 'build'}, format='json',
+        )
+        configuration = Configuration.objects.get(pk=take_response.data['configuration'])
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=component, label='X', quantity=1,
+        )
+        self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
+        return request_id, configuration
+
+    def _roadmap_price_request(self, request_id, user=None):
+        self.client.force_authenticate(user or self.admin)
+        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
+        steps = {s['key']: s for s in response.data['steps']}
+        return response.data, steps['price_request']
+
+    def test_waiting_customs_actor_and_logistics_stage_done(self):
+        from apps.procurement.models import PriceRequestLine
+        from apps.procurement.services import fill_price_request_logistics
+
+        imported_part = Product.objects.create(
+            sku='CHIP-S1', name='ChipS1', kind=Product.Kind.COMPONENT, is_imported=True,
+        )
+        request_id, configuration = self._take_and_request(imported_part)
+        line = PriceRequestLine.objects.get(product=imported_part)
+        fill_price_request_logistics(line, self.logist, logistics_total=Decimal('1000'))
+
+        _, price_request_step = self._roadmap_price_request(request_id)
+        self.assertEqual(price_request_step['actor']['role'], 'deklarant')
+        stages = {s['key']: s for s in price_request_step['stages']}
+        self.assertTrue(stages['logistics']['done'])
+        self.assertFalse(stages['customs']['done'])
+
+    def test_local_request_has_empty_stages_and_supplier_actor(self):
+        local_part = Product.objects.create(sku='LOCAL-S1', name='LocalS1', kind=Product.Kind.COMPONENT)
+        request_id, configuration = self._take_and_request(local_part)
+
+        _, price_request_step = self._roadmap_price_request(request_id)
+        self.assertEqual(price_request_step['stages'], [])
+        self.assertEqual(price_request_step['actor']['role'], 'buyurtmachi')
+        self.assertEqual(price_request_step['state'], 'current')
+
+    def test_price_arrived_marks_step_done(self):
+        from apps.procurement.models import PriceRequest, PriceRequestLine
+        from apps.procurement.services import answer_price_request_line
+
+        local_part = Product.objects.create(sku='LOCAL-S2', name='LocalS2', kind=Product.Kind.COMPONENT)
+        request_id, configuration = self._take_and_request(local_part)
+        line = PriceRequestLine.objects.get(product=local_part)
+        answer_price_request_line(line, self.buyurtmachi, cost_price=Decimal('1000'))
+        line.request.refresh_from_db()
+        self.assertEqual(line.request.status, PriceRequest.Status.ANSWERED)
+
+        _, price_request_step = self._roadmap_price_request(request_id)
+        self.assertEqual(price_request_step['state'], 'done')
+
+    def test_no_current_step_appears_after_a_done_step(self):
+        """⚠️ Umumiy regressiya: joriy qadam bajarilgan qadamdan KEYIN
+        turmasin — bu xato shu to'plamda ikki marta chiqdi."""
+        from apps.procurement.models import PriceRequestLine
+        from apps.procurement.services import fill_price_request_logistics
+
+        imported_part = Product.objects.create(
+            sku='CHIP-S2', name='ChipS2', kind=Product.Kind.COMPONENT, is_imported=True,
+        )
+        request_id, configuration = self._take_and_request(imported_part)
+        line = PriceRequestLine.objects.get(product=imported_part)
+        fill_price_request_logistics(line, self.logist, logistics_total=Decimal('1000'))
+
+        data, _ = self._roadmap_price_request(request_id)
+        steps = data['steps']
+        order = {s['key']: i for i, s in enumerate(steps)}
+        current_index = order[data['current_key']]
+        for step in steps:
+            if step['state'] == 'done':
+                self.assertLess(
+                    order[step['key']], current_index,
+                    f"'{step['key']}' bajarilgan, lekin joriy qadamdan KEYIN turibdi",
+                )

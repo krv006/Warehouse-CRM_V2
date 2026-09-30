@@ -1,6 +1,6 @@
 """Zanjir roadmapi (YANGI-OQIM B8) — jarayonning ko'zgusi.
 
-Bitta zayavka ochilgandan yakungacha 18 qadam: nima bajarildi, hozir kimda,
+Bitta zayavka ochilgandan yakungacha 20 qadam: nima bajarildi, hozir kimda,
 oldinda nima bor. Uch kirish nuqtasi (ZVK/CFG/SHT) bir xil javob qaytaradi.
 
 Ko'rinish qoidasi hujjatlarnikiga BO'YSUNMAYDI: zanjirdagi beshta rol ham
@@ -50,15 +50,15 @@ def _as_datetime(value):
         return value
     return make_aware(datetime.combine(value, time.min))
 
-# Qadam kalitlari va nomlari — §2 jadvali, 20-§3.5 dan keyin 20 qadam
+# Qadam kalitlari va nomlari — §2 jadvali; 30-§1: logistics_quote/
+# customs_clearance asosiy chiziqdan chiqarildi (endi price_request'ning
+# ICHKI bosqichlari, `stages`) — jami 20 qadam
 STEPS = [
     ('zvk_created', 'Zayavka yozildi', 'sales'),
     ('taken', 'Engineer oldi', 'engineer'),
+    # 30-§1: import bo'lsa logist/deklarant bosqichlari bu qadamning
+    # ICHIDA (`stages`) — asosiy chiziqda ALOHIDA qadam sifatida yo'q
     ('price_request', "Narx so'rovi", 'buyurtmachi'),
-    # 24-to'plam §6.6: import bo'lsa ikkita qo'shimcha bosqich — mahalliy
-    # zanjirda `skipped` (chizilmaydi)
-    ('logistics_quote', 'Logistika narxi', 'logist'),
-    ('customs_clearance', 'Bojxona hisobi', 'deklarant'),
     ('submitted', "Ko'rikka yuborildi", 'engineer'),
     ('sales_review', "Sales ko'rigi", 'sales'),
     ('contract_created', 'Shartnoma ochildi', 'sales'),
@@ -102,7 +102,6 @@ PAYMENT_GATED = {'procurement_sent', 'procurement_chain', 'assemble', 'finalize'
 # bo'lmaydigan holatda `skipped` — front chizmaydi.
 OPTIONAL = {
     'price_request', 'admin_approve', 'procurement_sent', 'procurement_chain',
-    'logistics_quote', 'customs_clearance',
 }
 
 
@@ -366,11 +365,20 @@ def _can_open(user, kind, obj, contract=None):
                 obj.requests.filter(created_by=user).exists()
                 or obj.extra_request_lines.filter(request__created_by=user).exists()
             )
+        if kind == 'price_request':
+            # 30-§1: `price_request` qadami endi shu hujjatga ishora qiladi —
+            # sales o'z zayavkasining narx so'rovini ochа olishi kerak,
+            # xuddi konfiguratsiyasini oча olganidek
+            configuration = obj.configuration
+            return (
+                configuration.requests.filter(created_by=user).exists()
+                or configuration.extra_request_lines.filter(request__created_by=user).exists()
+            )
         if kind == 'contract':
             return obj.created_by_id == user.id
         return False
     if user.is_engineer:
-        if kind == 'configuration':
+        if kind in ('configuration', 'price_request'):
             return True
         if kind == 'request':
             return obj.taken_by_id == user.id or obj.status == obj.Status.NEW
@@ -560,35 +568,13 @@ def build_roadmap(document, user):
     has_priceless = bool(configuration and (
         configuration.items_without_price or configuration.needs_base_price
     ))
-    # 28-to'plam (24-§6.6 o'rnini bosadi): narx IMPORT orqali kutilayotgan
-    # bo'lsa (`PriceRequest.status` — eng orqadagi qator — logist/deklarant
-    # bosqichida), ish endi ularda — "joriy" bayrog'i logistics_quote/
-    # customs_clearance'ga o'tishi kerak, aks holda `price_request` STEPS
-    # ro'yxatida ULARDAN OLDIN turgani uchun current_key hech qachon o'sha
-    # bosqichlarga yetib bormas edi.
-    import_only_pending = bool(
-        price_request and price_request.status in (
-            PriceRequest.Status.WAITING_LOGISTICS, PriceRequest.Status.WAITING_CUSTOMS,
-        )
-    )
-    data['price_request'] = dict(
-        done=bool(price_given),
-        at=price_given[-1].created_at if price_given else None,
-        who=price_given[-1].created_by if price_given else None,
-        doc=('configuration', configuration),
-        repeats=max(len(price_asked) - 1, 0),
-        skipped=not price_asked and (
-            price_done
-            or (configuration is not None and not has_priceless)
-        ),
-        current_override=bool(price_asked and not price_given) and not import_only_pending,
-    )
-    # 28-to'plam: ikkita shartli qadam — import bo'lmagan (yoki hali
-    # boshlanmagan) zanjirda `skipped`, boshlangan bo'lsa o'z bosqichini
-    # ko'rsatadi. `import_line` yo'qligi "import emas" yoki "hali
-    # so'ralmagan" degani — ikkalasida ham chizilmaydi.
+    # 30-§1: `logistics_quote`/`customs_clearance` endi ASOSIY chiziqda
+    # YO'Q — ular `price_request`ning ICHKI bosqichlari (`stages`). Bitta
+    # qadam narx kelmaguncha JORIY bo'lib turadi, egasi esa so'rov
+    # holatidan (`PriceRequest.status`) olinadi — 28-§5(c) shuni so'ragan
+    # edi va oldin bajarilmagan qolgan.
     # 29-§5: kod+stavka eslab qolingani uchun avtomatik to'ldirilgan bo'lsa
-    # (`customs_auto_filled`), qadam "bajarilgan" emas — deklarant unga
+    # (`customs_auto_filled`), bosqich "bajarilgan" emas — deklarant unga
     # umuman qaramagan, shuning uchun `done=False`/`skipped=True`
     # ("o'tkazildi"), aks holda kodni tekshirmasdan o'qigan odam deklarant
     # ishlagan deb o'ylab qolardi.
@@ -596,27 +582,51 @@ def build_roadmap(document, user):
     customs_done = bool(
         import_line and import_line.customs_filled_at and not import_line.customs_auto_filled
     )
-    data['logistics_quote'] = dict(
-        done=logistics_done,
-        at=import_line.logistics_filled_at if import_line else None,
-        who=import_line.logistics_filled_by if import_line else None,
-        doc=('price_request', price_request) if import_line else ('configuration', configuration),
-        skipped=import_line is None,
-        current_override=bool(
-            import_line and import_line.status == PriceRequest.Status.WAITING_LOGISTICS,
+    stages = []
+    if import_line is not None:
+        stages = [
+            {
+                'key': 'logistics', 'label': 'Logistika narxi',
+                'done': logistics_done, 'skipped': False,
+                'who': _actor(import_line.logistics_filled_by, 'logist'),
+                'at': import_line.logistics_filled_at,
+            },
+            {
+                'key': 'customs', 'label': 'Bojxona hisobi',
+                'done': customs_done,
+                'skipped': bool(import_line.customs_auto_filled and import_line.customs_filled_at),
+                'who': _actor(import_line.customs_filled_by, 'deklarant'),
+                'at': import_line.customs_filled_at,
+                'auto': import_line.customs_auto_filled,
+            },
+        ]
+    # `PriceRequest.status`dan qadam egasi va nomi — case 2/3/5 (30-§1)
+    price_request_stage_labels = {
+        PriceRequest.Status.WAITING_LOGISTICS: ('logist', "Narx so'rovi — logist kutilmoqda"),
+        PriceRequest.Status.WAITING_CUSTOMS: ('deklarant', "Narx so'rovi — deklarant kutilmoqda"),
+        PriceRequest.Status.WAITING_SUPPLIER: ('buyurtmachi', "Narx so'rovi — buyurtmachi kutilmoqda"),
+    }
+    price_request_role, price_request_label = (None, None)
+    if price_request is not None:
+        price_request_role, price_request_label = price_request_stage_labels.get(
+            price_request.status, (None, None),
+        )
+    data['price_request'] = dict(
+        done=bool(price_given),
+        at=price_given[-1].created_at if price_given else None,
+        who=price_given[-1].created_by if price_given else None,
+        doc=('price_request', price_request) if price_request else ('configuration', configuration),
+        repeats=max(len(price_asked) - 1, 0),
+        skipped=not price_asked and (
+            price_done
+            or (configuration is not None and not has_priceless)
         ),
-        since=None,
-    )
-    data['customs_clearance'] = dict(
-        done=customs_done,
-        at=import_line.customs_filled_at if import_line else None,
-        who=import_line.customs_filled_by if import_line else None,
-        doc=('price_request', price_request) if import_line else ('configuration', configuration),
-        skipped=import_line is None or import_line.customs_auto_filled,
-        current_override=bool(
-            import_line and import_line.status == PriceRequest.Status.WAITING_CUSTOMS,
-        ),
-        since=import_line.logistics_filled_at if import_line else None,
+        # `import_only_pending` sharti OLIB TASHLANDI (30-§1) — endi
+        # so'rov o'zi qaysi bosqichda bo'lishidan qat'i nazar JORIY
+        current_override=bool(price_asked and not price_given),
+        role=price_request_role,
+        label=price_request_label,
+        stages=stages,
     )
     submitted_done = configuration is not None and (
         configuration.status in {'pending_sales'} | cfg_done_states
@@ -1001,6 +1011,9 @@ def build_roadmap(document, user):
             'repeats': row.get('repeats', 0),
             # 14-§8: ko'p modelli savdoda {done, total, pending}; aks holda null
             'models': row.get('models'),
+            # 30-§1: `price_request`ning ICHKI bosqichlari (logist/deklarant) —
+            # faqat import qatorda to'ladi, boshqa qadamlarda doim bo'sh
+            'stages': row.get('stages') or [],
         })
 
     client = None

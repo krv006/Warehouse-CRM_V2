@@ -43,6 +43,7 @@ from apps.procurement.services import (
     fill_goods_section,
     fill_logistics_section,
     fill_price_request_customs,
+    fill_price_request_goods,
     fill_price_request_logistics,
     low_stock_products,
     mark_price_request_line_imported,
@@ -414,8 +415,8 @@ class PriceRequestViewSet(BaseModelViewSet):
 # 28-§2: rolning o'zi servis darajasida tekshiriladi (`_require`) —
 # ViewSet bu amallar uchun faqat autentifikatsiyani talab qiladi.
 PRICE_REQUEST_LINE_SERVICE_ACTIONS = {
-    'fill_logistics', 'fill_customs', 'send_to_customs', 'mark_imported', 'answer',
-    'return_line',
+    'fill_logistics', 'fill_customs', 'fill_goods', 'send_to_customs', 'mark_imported',
+    'answer', 'return_line',
 }
 
 
@@ -475,15 +476,25 @@ class PriceRequestLineViewSet(BaseModelViewSet):
         self.log_action(ActivityLog.Action.UPDATE, line, f'{line.request.number}: import deb belgilandi')
         return Response(self.get_serializer(line).data)
 
+    def fill_goods(self, request, pk=None):
+        """POST /price-request-lines/{id}/fill-goods/ — Buyurtmachi (30-§2)."""
+        data = request.data
+        line = fill_price_request_goods(
+            self.get_object(), request.user,
+            currency=data.get('currency', 'USD'),
+            goods_price=data.get('goods_price'),
+            exchange_rate=data.get('exchange_rate'),
+            extra_costs=data.get('extra_costs', 0),
+        )
+        self.log_action(ActivityLog.Action.UPDATE, line, f'{line.request.number}: tovar ma\'lumoti kiritildi')
+        return Response(self.get_serializer(line).data)
+
     def answer(self, request, pk=None):
         """POST /price-request-lines/{id}/answer/ — Buyurtmachi yakunlaydi."""
         data = request.data
         line = answer_price_request_line(
             self.get_object(), request.user,
             cost_price=data.get('cost_price'),
-            currency=data.get('currency'),
-            goods_price=data.get('goods_price'),
-            exchange_rate=data.get('exchange_rate'),
         )
         self.log_action(ActivityLog.Action.UPDATE, line, f'{line.request.number}: tannarx berildi')
         return Response(self.get_serializer(line).data)

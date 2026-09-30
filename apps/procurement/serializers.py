@@ -21,14 +21,21 @@ from apps.procurement.models import (
 )
 
 # 28-§2: uch rol bir-birining raqamini ko'rmaydi.
-_PRICE_REQUEST_SUPPLIER_FIELDS = ['currency', 'goods_price', 'exchange_rate', 'cost_price']
+_PRICE_REQUEST_SUPPLIER_FIELDS = [
+    'currency', 'goods_price', 'exchange_rate', 'extra_costs', 'cost_price',
+]
 _PRICE_REQUEST_LOGISTICS_FIELDS = ['logistics_total', 'freight_to_border', 'logistics_note']
 _PRICE_REQUEST_CUSTOMS_FIELDS = [
     'tnved_code', 'duty_percent', 'duty_amount', 'excise_amount', 'customs_fee',
     'certificate_cost', 'laboratory_cost', 'declarant_fee', 'customs_note',
 ]
+# 30-§3: eski goods_uzs/customs_value/duty/vat/customs_total/landed_total
+# o'rnini bosdi — declarant_unit tovar narxini o'zida oshkor qiladi,
+# logistics_unit/extra_unit esa quantity bilan birga jami summani orqaga
+# hisoblashga imkon beradi, shuning uchun barchasi xuddi eskisidek
+# logist/deklarantdan yashiriladi
 _PRICE_REQUEST_MONEY_TOTALS = [
-    'goods_uzs', 'customs_value', 'duty', 'vat', 'customs_total', 'landed_total', 'suggested_cost',
+    'declarant_unit', 'logistics_unit', 'extra_unit', 'suggested_cost',
 ]
 
 
@@ -278,12 +285,11 @@ class PriceRequestLineSerializer(ModelSerializer):
     # uchun uch rol izolyatsiyasiga kirmaydi
     logistics_filled_by_name = ReadOnlyField(source='logistics_filled_by.display_name')
     customs_filled_by_name = ReadOnlyField(source='customs_filled_by.display_name')
-    goods_uzs = ReadOnlyField()
-    customs_value = ReadOnlyField()
-    duty = ReadOnlyField()
-    vat = ReadOnlyField()
-    customs_total = ReadOnlyField()
-    landed_total = ReadOnlyField()
+    # 30-§3: yangi hisob — eski goods_uzs/customs_value/duty/vat/
+    # customs_total/landed_total o'rniga
+    declarant_unit = ReadOnlyField()
+    logistics_unit = ReadOnlyField()
+    extra_unit = ReadOnlyField()
     suggested_cost = ReadOnlyField()
 
     class Meta:
@@ -296,9 +302,8 @@ class PriceRequestLineSerializer(ModelSerializer):
             'tnved_code', 'duty_percent', 'duty_amount', 'excise_amount', 'customs_fee',
             'certificate_cost', 'laboratory_cost', 'declarant_fee', 'customs_note',
             'customs_filled_at', 'customs_auto_filled', 'customs_filled_by', 'customs_filled_by_name',
-            'currency', 'goods_price', 'exchange_rate', 'cost_price', 'answered_at',
-            'goods_uzs', 'customs_value', 'duty', 'vat', 'customs_total', 'landed_total',
-            'suggested_cost', 'created_at',
+            'currency', 'goods_price', 'exchange_rate', 'extra_costs', 'cost_price', 'answered_at',
+            'declarant_unit', 'logistics_unit', 'extra_unit', 'suggested_cost', 'created_at',
         ]
         read_only_fields = fields
 

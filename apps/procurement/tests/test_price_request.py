@@ -12,6 +12,7 @@ from apps.procurement.models import PriceRequest, PriceRequestLine
 from apps.procurement.services import (
     answer_price_request_line,
     fill_price_request_customs,
+    fill_price_request_goods,
     fill_price_request_logistics,
     mark_price_request_line_imported,
     open_price_request,
@@ -104,10 +105,12 @@ class PriceRequestFlowTests(APITestCase):
         self.assertEqual(line.status, PriceRequest.Status.WAITING_SUPPLIER)
         self.assertFalse(line.customs_auto_filled)
 
-        answer_price_request_line(
+        fill_price_request_goods(
             line, self.buyurtmachi, currency='USD',
             goods_price=Decimal('100'), exchange_rate=Decimal('12700'),
         )
+        line.refresh_from_db()
+        answer_price_request_line(line, self.buyurtmachi)
         line.refresh_from_db()
         self.assertIsNotNone(line.answered_at)
         self.assertIsNotNone(line.cost_price)
@@ -240,25 +243,25 @@ class PriceRequestIsolationTests(APITestCase):
 
     def test_logist_does_not_see_goods_or_customs_or_totals(self):
         data = self._line_data(self.logist)
-        for field in ('goods_price', 'exchange_rate', 'cost_price', 'tnved_code', 'duty_percent', 'landed_total'):
+        for field in ('goods_price', 'exchange_rate', 'cost_price', 'tnved_code', 'duty_percent', 'suggested_cost'):
             self.assertNotIn(field, data)
         self.assertIn('logistics_total', data)
 
     def test_declarant_does_not_see_goods_or_logistics_or_totals(self):
         data = self._line_data(self.declarant)
-        for field in ('goods_price', 'exchange_rate', 'cost_price', 'logistics_total', 'freight_to_border', 'landed_total'):
+        for field in ('goods_price', 'exchange_rate', 'cost_price', 'logistics_total', 'freight_to_border', 'suggested_cost'):
             self.assertNotIn(field, data)
         self.assertIn('tnved_code', data)
 
     def test_supplier_sees_everything(self):
         data = self._line_data(self.buyurtmachi)
-        for field in ('logistics_total', 'tnved_code', 'goods_price', 'landed_total'):
+        for field in ('logistics_total', 'tnved_code', 'goods_price', 'suggested_cost'):
             self.assertIn(field, data)
 
     def test_bugalter_and_admin_see_everything(self):
         for user in (self.bugalter, self.admin):
             data = self._line_data(user)
-            for field in ('logistics_total', 'tnved_code', 'goods_price', 'landed_total'):
+            for field in ('logistics_total', 'tnved_code', 'goods_price', 'suggested_cost'):
                 self.assertIn(field, data)
 
     def test_logist_cannot_fill_customs(self):
@@ -278,8 +281,118 @@ class PriceRequestIsolationTests(APITestCase):
         self.assertEqual(response.status_code, 403)
 
 
+class PriceRequestFillGoodsTests(APITestCase):
+    """30-§2: buyurtmachining qismi ham ikki bosqichli — `fill-goods`
+    ma'lumotni yozadi (qatorni yopmaydi), `answer` yakunlaydi."""
+
+    def setUp(self):
+        self.logist = User.objects.create_user('log', password='p', role=User.Role.LOGIST)
+        self.declarant = User.objects.create_user('dek', password='p', role=User.Role.DECLARANT)
+        self.buyurtmachi = User.objects.create_user('buy', password='p', role=User.Role.SUPPLIER)
+        self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
+        product = Product.objects.create(
+            sku='CHIP-FG1', name='ChipFG1', kind=Product.Kind.COMPONENT, is_imported=True,
+        )
+        base = Product.objects.create(sku='HP-FG1', name='HP FG1', kind=Product.Kind.MACHINE)
+        configuration = Configuration.objects.create(
+            base_product=base, created_by=self.engineer, mode=Configuration.Mode.BUILD,
+        )
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=product, label='Chip', quantity=1,
+        )
+        price_request = open_price_request(
+            configuration, self.engineer, lines=[(product, Decimal('1'))],
+        )
+        self.line = price_request.lines.get()
+        fill_price_request_logistics(self.line, self.logist, logistics_total=Decimal('10000'))
+        fill_price_request_customs(self.line, self.declarant, tnved_code='1', duty_percent=0)
+        self.line.refresh_from_db()
+
+    def test_fill_goods_keeps_line_open(self):
+        """Case 1: tovar narxi yozildi, hali tasdiqlanmagan — waiting_supplier
+        da qoladi, `answered_at` bo'sh."""
+        line = fill_price_request_goods(
+            self.line, self.buyurtmachi, currency='USD',
+            goods_price=Decimal('100'), exchange_rate=Decimal('12000'),
+        )
+        self.assertIsNone(line.answered_at)
+        self.assertEqual(line.status, PriceRequest.Status.WAITING_SUPPLIER)
+        self.assertGreater(line.suggested_cost, 0)
+
+    def test_fill_goods_called_twice_overwrites(self):
+        """Case 2: kurs xato terildi — qayta chaqirilsa hisob yangilanadi."""
+        fill_price_request_goods(
+            self.line, self.buyurtmachi, currency='USD',
+            goods_price=Decimal('100'), exchange_rate=Decimal('12000'),
+        )
+        line = fill_price_request_goods(
+            self.line, self.buyurtmachi, currency='USD',
+            goods_price=Decimal('100'), exchange_rate=Decimal('12700'),
+        )
+        self.assertEqual(line.exchange_rate, Decimal('12700'))
+
+    def test_answer_without_cost_price_uses_suggested_cost(self):
+        """Case 3: buyurtmachi tizim hisobiga rozi — bo'sh cost_price."""
+        fill_price_request_goods(
+            self.line, self.buyurtmachi, currency='USD',
+            goods_price=Decimal('100'), exchange_rate=Decimal('12000'),
+        )
+        self.line.refresh_from_db()
+        suggested = self.line.suggested_cost
+        line = answer_price_request_line(self.line, self.buyurtmachi)
+        self.assertEqual(line.cost_price, suggested)
+
+    def test_answer_with_own_number_overrides_suggestion(self):
+        """Case 4: rozi emas — o'z raqami bilan yakunlaydi."""
+        fill_price_request_goods(
+            self.line, self.buyurtmachi, currency='USD',
+            goods_price=Decimal('100'), exchange_rate=Decimal('12000'),
+        )
+        self.line.refresh_from_db()
+        line = answer_price_request_line(self.line, self.buyurtmachi, cost_price=Decimal('999999'))
+        self.assertEqual(line.cost_price, Decimal('999999'))
+
+    def test_answer_without_goods_price_is_rejected(self):
+        """Case 5: tovar narxisiz `answer` — 400."""
+        with self.assertRaises(ValidationError):
+            answer_price_request_line(self.line, self.buyurtmachi)
+
+    def test_logist_cannot_fill_goods(self):
+        with self.assertRaises(PermissionDenied):
+            fill_price_request_goods(
+                self.line, self.logist, currency='USD',
+                goods_price=Decimal('100'), exchange_rate=Decimal('12000'),
+            )
+
+    def test_local_line_does_not_need_fill_goods(self):
+        """Case 6: mahalliy qator — o'zgarmaydi, `answer` to'g'ridan tannarxni oladi."""
+        local_product = Product.objects.create(
+            sku='LOCAL-FG1', name='LocalFG1', kind=Product.Kind.COMPONENT,
+        )
+        configuration = Configuration.objects.create(
+            base_product=Product.objects.create(sku='HP-FG2', name='HP FG2', kind=Product.Kind.MACHINE),
+            created_by=self.engineer, mode=Configuration.Mode.BUILD,
+        )
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=local_product, label='Local', quantity=1,
+        )
+        price_request = open_price_request(
+            configuration, self.engineer, lines=[(local_product, Decimal('1'))],
+        )
+        line = price_request.lines.get()
+        self.assertFalse(line.is_imported)
+        answered = answer_price_request_line(line, self.buyurtmachi, cost_price=Decimal('5000'))
+        self.assertEqual(answered.cost_price, Decimal('5000'))
+
+
 class PriceRequestCalculationTests(APITestCase):
-    """28-§2: hisob — QQS bojxona qiymatidan, invoysdan emas."""
+    """30-§3: tannarx hisobi — foydalanuvchining o'z misoliga mos.
+
+    declarant_unit = (tovar_donaga*kurs + sertifikat + lab + xizmat) × (1+foiz/100)
+    logistics_unit = logistika_jami / miqdor
+    extra_unit     = qoshimcha_jami / miqdor
+    suggested_cost = declarant_unit + logistics_unit + extra_unit
+    """
 
     def setUp(self):
         self.logist = User.objects.create_user('log', password='p', role=User.Role.LOGIST)
@@ -297,7 +410,7 @@ class PriceRequestCalculationTests(APITestCase):
             configuration=configuration, component=self.product, label='Chip', quantity=1,
         )
         self.price_request = open_price_request(
-            configuration, self.engineer, lines=[(self.product, Decimal('1'))],
+            configuration, self.engineer, lines=[(self.product, Decimal('10'))],
         )
         self.line = self.price_request.lines.get()
 
@@ -305,42 +418,122 @@ class PriceRequestCalculationTests(APITestCase):
         fill_price_request_logistics(self.line, self.logist, logistics_total=Decimal('0'))
         fill_price_request_customs(self.line, self.declarant, tnved_code='1', duty_percent=0)
         self.line.refresh_from_db()
-        answer_price_request_line(
+        fill_price_request_goods(
             self.line, self.buyurtmachi, currency='UZS', goods_price=Decimal('500000'),
         )
         self.line.refresh_from_db()
         self.assertEqual(self.line.exchange_rate, Decimal('1'))
 
-    def test_duty_amount_overrides_percent(self):
-        fill_price_request_logistics(self.line, self.logist, logistics_total=Decimal('0'))
+    def test_users_worked_example_gives_exactly_45000(self):
+        """30-§3: aynan foydalanuvchining misoli — bu test birinchi bo'lib
+        yiqilsin, agar formula yana o'zgarsa."""
+        line = self.price_request.lines.get()
+        line.quantity = Decimal('10')
+        line.save()
+        fill_price_request_logistics(line, self.logist, logistics_total=Decimal('100000'))
         fill_price_request_customs(
-            self.line, self.declarant, tnved_code='1', duty_percent=50, duty_amount=Decimal('1000'),
+            line, self.declarant, tnved_code='1', duty_percent=Decimal('10'),
+            certificate_cost=Decimal('10000'), laboratory_cost=Decimal('5000'),
+            declarant_fee=Decimal('5000'),
         )
-        self.line.refresh_from_db()
-        self.assertEqual(self.line.duty, Decimal('1000'))
+        line.refresh_from_db()
+        fill_price_request_goods(
+            line, self.buyurtmachi, currency='UZS', goods_price=Decimal('10000'),
+            extra_costs=Decimal('20000'),
+        )
+        line.refresh_from_db()
 
-    def test_suggested_cost_matches_formula(self):
-        fill_price_request_logistics(
-            self.line, self.logist, logistics_total=Decimal('100000'), freight_to_border=Decimal('80000'),
-        )
+        self.assertEqual(line.declarant_unit, Decimal('33000.00'))
+        self.assertEqual(line.logistics_unit, Decimal('10000'))
+        self.assertEqual(line.extra_unit, Decimal('2000'))
+        self.assertEqual(line.suggested_cost, Decimal('45000.00'))
+
+    def test_without_logistics(self):
+        line = self.price_request.lines.get()
+        line.quantity = Decimal('10')
+        line.save()
+        fill_price_request_logistics(line, self.logist, logistics_total=Decimal('0'))
         fill_price_request_customs(
-            self.line, self.declarant, tnved_code='1', duty_percent=Decimal('10'),
-            customs_fee=Decimal('5000'),
+            line, self.declarant, tnved_code='1', duty_percent=Decimal('10'),
+            certificate_cost=Decimal('10000'), laboratory_cost=Decimal('5000'),
+            declarant_fee=Decimal('5000'),
         )
-        self.line.refresh_from_db()
-        self.line.goods_price = Decimal('100')
-        self.line.exchange_rate = Decimal('12000')
-        self.line.save()
+        line.refresh_from_db()
+        fill_price_request_goods(line, self.buyurtmachi, currency='UZS', goods_price=Decimal('10000'))
+        line.refresh_from_db()
+        self.assertEqual(line.suggested_cost, Decimal('33000.00'))
 
-        customs_value = Decimal('100') * Decimal('12000') + Decimal('80000')  # 1 280 000
-        duty = customs_value * Decimal('10') / Decimal('100')  # 128 000
-        vat = (customs_value + duty) * Decimal('12') / Decimal('100')  # 168 960
-        expected_landed = (
-            Decimal('100') * Decimal('12000') + Decimal('100000')
-            + duty + vat + Decimal('5000')
+    def test_without_extra_costs(self):
+        line = self.price_request.lines.get()
+        line.quantity = Decimal('10')
+        line.save()
+        fill_price_request_logistics(line, self.logist, logistics_total=Decimal('100000'))
+        fill_price_request_customs(
+            line, self.declarant, tnved_code='1', duty_percent=Decimal('10'),
+            certificate_cost=Decimal('10000'), laboratory_cost=Decimal('5000'),
+            declarant_fee=Decimal('5000'),
         )
-        self.assertEqual(self.line.landed_total, expected_landed)
-        self.assertEqual(self.line.suggested_cost, expected_landed.quantize(Decimal('0.01')))
+        line.refresh_from_db()
+        fill_price_request_goods(line, self.buyurtmachi, currency='UZS', goods_price=Decimal('10000'))
+        line.refresh_from_db()
+        self.assertEqual(line.suggested_cost, Decimal('43000.00'))
+
+    def test_zero_percent_no_markup(self):
+        line = self.price_request.lines.get()
+        line.quantity = Decimal('10')
+        line.save()
+        fill_price_request_logistics(line, self.logist, logistics_total=Decimal('100000'))
+        fill_price_request_customs(
+            line, self.declarant, tnved_code='1', duty_percent=0,
+            certificate_cost=Decimal('10000'), laboratory_cost=Decimal('5000'),
+            declarant_fee=Decimal('5000'),
+        )
+        line.refresh_from_db()
+        fill_price_request_goods(
+            line, self.buyurtmachi, currency='UZS', goods_price=Decimal('10000'),
+            extra_costs=Decimal('20000'),
+        )
+        line.refresh_from_db()
+        # 30 000 (ustamasiz) + 10 000 (logistika) + 2 000 (qo'shimcha)
+        self.assertEqual(line.suggested_cost, Decimal('42000.00'))
+
+    def test_declarant_unit_independent_of_quantity(self):
+        """Miqdor 1 va 10 — deklarant qismi BIR XIL, logistika/qo'shimcha o'zgaradi."""
+        line1 = self.price_request.lines.get()
+        line1.quantity = Decimal('1')
+        line1.save()
+        fill_price_request_logistics(line1, self.logist, logistics_total=Decimal('100000'))
+        fill_price_request_customs(
+            line1, self.declarant, tnved_code='1', duty_percent=Decimal('10'),
+            certificate_cost=Decimal('10000'), laboratory_cost=Decimal('5000'),
+            declarant_fee=Decimal('5000'),
+        )
+        line1.refresh_from_db()
+        fill_price_request_goods(
+            line1, self.buyurtmachi, currency='UZS', goods_price=Decimal('10000'),
+            extra_costs=Decimal('20000'),
+        )
+        line1.refresh_from_db()
+
+        self.assertEqual(line1.declarant_unit, Decimal('33000.00'))
+        self.assertEqual(line1.logistics_unit, Decimal('100000'))
+        self.assertEqual(line1.extra_unit, Decimal('20000'))
+
+    def test_zero_quantity_does_not_divide_by_zero(self):
+        line = self.price_request.lines.get()
+        line.quantity = Decimal('0')
+        line.save()
+        self.assertEqual(line.logistics_unit, Decimal('0'))
+        self.assertEqual(line.extra_unit, Decimal('0'))
+        self.assertEqual(line.suggested_cost, line.declarant_unit.quantize(Decimal('0.01')))
+
+    def test_old_fields_not_in_response(self):
+        line = self.price_request.lines.get()
+        self.client.force_authenticate(self.buyurtmachi)
+        response = self.client.get(f'/api/price-request-lines/{line.id}/')
+        self.assertEqual(response.status_code, 200, response.data)
+        for field in ('vat', 'customs_value', 'goods_uzs', 'customs_total', 'landed_total'):
+            self.assertNotIn(field, response.data)
 
 
 class PriceRequestOrderModeTests(APITestCase):
@@ -615,7 +808,17 @@ class PriceRequestRoadmapAutoFillTests(APITestCase):
         self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
         return request_id, configuration
 
+    def _price_request_stages(self, request_id):
+        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertNotIn('logistics_quote', steps)
+        self.assertNotIn('customs_clearance', steps)
+        price_request_step = steps['price_request']
+        return price_request_step, {s['key']: s for s in price_request_step['stages']}
+
     def test_auto_filled_customs_step_is_skipped_not_done(self):
+        """29-§5/30-§1: kod eslab qolingani uchun avtomatik to'ldirilgan
+        bosqich — `stages['customs']` `skipped`, `done` emas."""
         imported_part = Product.objects.create(
             sku='CHIP-A1', name='ChipA1', kind=Product.Kind.COMPONENT, is_imported=True,
             tnved_code='8471.30', duty_percent=Decimal('10'),
@@ -626,9 +829,10 @@ class PriceRequestRoadmapAutoFillTests(APITestCase):
         fill_price_request_logistics(line, self.logist, logistics_total=Decimal('50000'))
 
         self.client.force_authenticate(self.admin)
-        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
-        steps = {s['key']: s for s in response.data['steps']}
-        self.assertEqual(steps['customs_clearance']['state'], 'skipped')
+        _, stages = self._price_request_stages(request_id)
+        self.assertTrue(stages['customs']['skipped'])
+        self.assertFalse(stages['customs']['done'])
+        self.assertTrue(stages['customs']['auto'])
 
     def test_manually_filled_customs_step_is_done_with_actor(self):
         imported_part = Product.objects.create(
@@ -641,11 +845,13 @@ class PriceRequestRoadmapAutoFillTests(APITestCase):
         fill_price_request_customs(line, self.declarant, tnved_code='1', duty_percent=0)
 
         self.client.force_authenticate(self.admin)
-        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
-        steps = {s['key']: s for s in response.data['steps']}
-        self.assertEqual(steps['customs_clearance']['state'], 'done')
-        self.assertEqual(steps['customs_clearance']['actor']['full_name'], self.declarant.display_name)
-        self.assertEqual(steps['logistics_quote']['actor']['full_name'], self.logist.display_name)
+        price_request_step, stages = self._price_request_stages(request_id)
+        self.assertTrue(stages['customs']['done'])
+        self.assertFalse(stages['customs']['skipped'])
+        self.assertEqual(stages['customs']['who']['full_name'], self.declarant.display_name)
+        self.assertEqual(stages['logistics']['who']['full_name'], self.logist.display_name)
+        # Ikkalasi ham bajarilgan — so'rov buyurtmachi navbatida
+        self.assertEqual(price_request_step['actor']['role'], 'buyurtmachi')
 
     def test_send_to_customs_reopens_the_step(self):
         imported_part = Product.objects.create(
@@ -661,6 +867,7 @@ class PriceRequestRoadmapAutoFillTests(APITestCase):
         send_price_request_line_to_customs(line, buyurtmachi)
 
         self.client.force_authenticate(self.admin)
-        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
-        steps = {s['key']: s for s in response.data['steps']}
-        self.assertEqual(steps['customs_clearance']['state'], 'current')
+        price_request_step, stages = self._price_request_stages(request_id)
+        self.assertFalse(stages['customs']['done'])
+        self.assertFalse(stages['customs']['skipped'])
+        self.assertEqual(price_request_step['actor']['role'], 'deklarant')

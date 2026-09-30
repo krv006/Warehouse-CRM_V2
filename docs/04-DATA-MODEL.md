@@ -487,14 +487,27 @@ import bo'lsa `logistics_filled_at` yo'q → `waiting_logistics`,
 | `vat_recoverable` | Bool — ochilganda `CompanyProfile.vat_recoverable`dan nusxalanadi |
 | **Logist** | `logistics_total`, `freight_to_border` (28-§2a: ENDI shu yerda — deklarant logistika raqamini ko'rmaydi), `logistics_note`, `logistics_filled_at`, `logistics_filled_by` (29-§5: kim to'ldirgani — yo'l xaritasida ko'rinadi) |
 | **Deklarant** | `tnved_code`, `duty_percent`/`duty_amount` (STAVKA — summa emas, 28-§2b), `excise_amount`, `customs_fee`, `certificate_cost`, `laboratory_cost`, `declarant_fee`, `customs_note`, `customs_filled_at`, `customs_auto_filled` (28-§3: kod+stavka Product'dan avtomatik ko'chirilgan — deklarant o'tkazib yuborilgan; 29-§5: yo'l xaritasida bu holat "bajarilgan" emas, "o'tkazildi" deb chiziladi), `customs_filled_by` |
-| **Buyurtmachi** | `currency`, `goods_price`, `exchange_rate`, `cost_price` (yakuniy — taklifni tasdiqlash yoki ustidan yozish), `answered_at` |
+| **Buyurtmachi** | `currency`, `goods_price` (30-§3: **BITTA DONAGA**, invoys jami emas), `exchange_rate`, `extra_costs` (30-§2: qo'shimcha xarajatlar, jami), `cost_price` (yakuniy — taklifni tasdiqlash yoki ustidan yozish), `answered_at` |
 
-Hisoblangan property'lar (`ImportCostSheet` bilan bir xil formula, manba
-boshqa): `goods_uzs`, `customs_value`, `duty`, `vat`, `vat_in_cost`,
-`customs_total`, `landed_total`, `suggested_cost` (taklif — yakuniy
-`cost_price` emas).
+Hisoblangan property'lar — **30-§3da almashtirildi** (eski invoys-jami
+formulasi — `goods_uzs`/`customs_value`/`duty`/`vat`/`vat_in_cost`/
+`customs_total`/`landed_total` — OLIB TASHLANDI, `ImportCostSheet`
+formulasidan endi farqlanadi):
 
-`answer` (buyurtmachi yakunlaganda): `Product.cost_price` yangilanadi,
+| Property | Formula |
+|---|---|
+| `declarant_unit` | `(goods_price × exchange_rate + certificate_cost + laboratory_cost + declarant_fee) × (1 + duty_percent/100)` — miqdordan MUSTAQIL |
+| `logistics_unit` | `logistics_total / quantity` (`quantity=0` → `0`) |
+| `extra_unit` | `extra_costs / quantity` (`quantity=0` → `0`) |
+| `suggested_cost` | `declarant_unit + logistics_unit + extra_unit`, 2 xonaga yaxlitlangan (`ROUND_HALF_UP`) — taklif, yakuniy `cost_price` emas |
+
+`excise_amount`/`customs_fee`/`duty_amount` maydonlari bazada qoladi
+(tarixiy), lekin yangi hisobda ishlatilmaydi.
+
+Buyurtmachining qadami endi ikki bosqichli (30-§2, logist/deklarant
+naqshi bilan bir xil): `fill-goods` ma'lumotni yozadi (qatorni
+yopmaydi, necha marta ham chaqiriladi), `answer` (ixtiyoriy
+`cost_price`) yakunlaydi — `Product.cost_price` yangilanadi,
 `price_arrived()` chaqiriladi. `fill-customs`da `Product.tnved_code`/
 `duty_percent`/`certificate_cost`/`laboratory_cost` ham yangilanadi —
 keyingi import uchun eslab qolinadi (28-§3).

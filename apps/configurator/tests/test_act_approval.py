@@ -227,7 +227,7 @@ class ActApprovalTests(APITestCase):
         self.client.force_authenticate(self.bugalter)
         response = self.client.get(f'/api/contracts/{contract.id}/roadmap/')
         self.assertEqual(response.status_code, 200, response.data)
-        self.assertEqual(len(response.data['steps']), 22)
+        self.assertEqual(len(response.data['steps']), 20)
         self.assertEqual(response.data['current_key'], 'act_review')
         step = {s['key']: s for s in response.data['steps']}['act_review']
         self.assertEqual(step['actor']['role'], 'bugalter')

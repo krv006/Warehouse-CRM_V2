@@ -1370,15 +1370,50 @@ def return_price_request_line(line, user, comment):
 
 
 @atomic
-def answer_price_request_line(
-    line, user, *, cost_price=None, currency=None, goods_price=None, exchange_rate=None,
+def fill_price_request_goods(
+    line, user, *, currency, goods_price, exchange_rate=None, extra_costs=0,
 ):
-    """28-§1/§2: Buyurtmachi yakunlaydi.
+    """30-§2: Buyurtmachi — tovar narxi (BITTA DONAGA, 30-§3) + qo'shimcha
+    xarajatlar; qatorni YOPMAYDI. Logist/deklarant naqshi bilan bir xil:
+    ikki bosqichli — avval ma'lumot, keyin alohida `answer` bilan yakun.
+    Shu tufayli buyurtmachi `suggested_cost`ni KO'RIB, keyin tasdiqlaydi
+    yoki ustidan yozadi — avval bu qadam yo'q edi, ko'r-ko'rona imzolanardi.
+
+    Necha marta ham chaqirilishi mumkin (case 2: kurs xato terilgan
+    bo'lishi mumkin) — `answer` esa bir marta."""
+    from apps.core.utils import parse_amount
+
+    _require(user, supplier=True)
+    if line.answered_at:
+        raise ValidationError({'detail': "Bu qator allaqachon javob olgan."})
+
+    currency = currency or line.currency or 'USD'
+    parsed_goods = parse_amount(goods_price, 'goods_price')
+    parsed_rate = parse_amount(exchange_rate, 'exchange_rate')
+    if currency == 'UZS':
+        parsed_rate = Decimal('1')  # §7 case 16
+    if not parsed_goods or parsed_goods <= 0:
+        raise ValidationError({'goods_price': "Tovar narxi 0 dan katta bo'lishi kerak."})
+    if not parsed_rate or parsed_rate <= 0:
+        raise ValidationError({'exchange_rate': "Kurs 0 dan katta bo'lishi kerak."})
+
+    line.currency = currency
+    line.goods_price = parsed_goods
+    line.exchange_rate = parsed_rate
+    line.extra_costs = parse_amount(extra_costs, 'extra_costs') or Decimal('0')
+    line.save()
+    return line
+
+
+@atomic
+def answer_price_request_line(line, user, *, cost_price=None):
+    """28-§1/§2/30-§2: Buyurtmachi yakunlaydi.
 
     Mahalliy qator (case 1): faqat `cost_price` katakka yoziladi. Import
-    qator: tovar narxi + valyuta + kurs beriladi, tizim `suggested_cost`ni
-    hisoblab beradi — buyurtmachi tasdiqlaydi yoki ustidan yozadi (case 11).
-    """
+    qator: tovar narxi `fill_price_request_goods` orqali OLDINDAN
+    kiritilgan bo'lishi shart (30-§2 case 5) — tizim `suggested_cost`ni
+    hisoblab beradi, buyurtmachi bo'sh `cost_price` bilan tasdiqlaydi
+    yoki o'z raqamini yozadi (case 11)."""
     from apps.core.utils import parse_amount
 
     _require(user, supplier=True)
@@ -1390,18 +1425,10 @@ def answer_price_request_line(
         raise ValidationError({'detail': "Bojxona hisobi hali kiritilmagan."})
 
     if line.is_imported:
-        currency = currency or line.currency or 'USD'
-        parsed_goods = parse_amount(goods_price, 'goods_price')
-        parsed_rate = parse_amount(exchange_rate, 'exchange_rate')
-        if currency == 'UZS':
-            parsed_rate = Decimal('1')  # §7 case 16
-        if not parsed_goods or parsed_goods <= 0:
-            raise ValidationError({'goods_price': "Tovar narxi 0 dan katta bo'lishi kerak."})
-        if not parsed_rate or parsed_rate <= 0:
-            raise ValidationError({'exchange_rate': "Kurs 0 dan katta bo'lishi kerak."})
-        line.currency = currency
-        line.goods_price = parsed_goods
-        line.exchange_rate = parsed_rate
+        if not line.goods_price:
+            raise ValidationError({
+                'detail': "Tovar narxi hali kiritilmagan — avval fill-goods chaqiring.",
+            })
         final_cost = parse_amount(cost_price, 'cost_price')
         if final_cost is None:
             final_cost = line.suggested_cost

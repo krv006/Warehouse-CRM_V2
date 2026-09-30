@@ -91,6 +91,9 @@ urlpatterns = [
     path('price-request-lines/<int:pk>/fill-customs/', PriceRequestLineViewSet.as_view({
         'post': 'fill_customs',
     }), name='pricerequestline-fill-customs'),
+    path('price-request-lines/<int:pk>/fill-goods/', PriceRequestLineViewSet.as_view({
+        'post': 'fill_goods',
+    }), name='pricerequestline-fill-goods'),
     path('price-request-lines/<int:pk>/send-to-customs/', PriceRequestLineViewSet.as_view({
         'post': 'send_to_customs',
     }), name='pricerequestline-send-to-customs'),
