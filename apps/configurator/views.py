@@ -347,23 +347,29 @@ class ConfigurationViewSet(BaseModelViewSet):
         return Response(self.get_serializer(configuration).data)
 
     def request_prices(self, request, pk=None):
-        """POST /configurations/{id}/request-prices/ — narx so'rovi (YANGI-OQIM B2).
+        """POST /configurations/{id}/request-prices/ — narx so'rovi (28-§1).
 
-        TLD emas: buyurtmachi shunchaki tannarxni mahsulot kartasida kiritadi.
-        Takrorida eski eslatma yangilanadi. Narx kelgach sales xabar oladi.
-        24-§8.1: tanadagi `imported_products` (id ro'yxati) — bu safar
-        IMPORT deb belgilanadigan narxsiz butlovchilar (`ImportCostSheet`
-        ochiladi, bayroq mahsulotga yoziladi — keyingi safar shart emas).
+        TLD emas: buyurtmachi (import bo'lsa logist/deklarant ham) bitta
+        `PriceRequest` hujjati ustida ishlaydi — javob `price_request` id
+        bilan qaytadi, front to'g'ridan shu hujjatga yo'naltiradi (28-§5).
+        Tanadagi `imported_products` (id ro'yxati) — bu safar IMPORT deb
+        belgilanadigan narxsiz narsalar (mahsulotga bayroq bir marta yoziladi
+        — keyingi safar shart emas).
         """
+        configuration = self.get_object()
         products = request_prices(
-            self.get_object(), request.user,
+            configuration, request.user,
             imported_products=request.data.get('imported_products'),
         )
         self.log_action(
-            ActivityLog.Action.UPDATE, self.get_object(),
+            ActivityLog.Action.UPDATE, configuration,
             f"Narx so'raldi: {', '.join(products)}",
         )
-        return Response({'requested': products})
+        price_request = configuration.price_requests.order_by('-id').first()
+        return Response({
+            'requested': products,
+            'price_request': price_request.id if price_request else None,
+        })
 
     def change_quantity(self, request, pk=None):
         """POST /configurations/{id}/change-quantity/ — partiya soni (4-to'plam §2).

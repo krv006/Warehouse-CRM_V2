@@ -166,6 +166,7 @@ class ConfigurationSerializer(ModelSerializer):
     act_status = SerializerMethodField()
     total_price = ReadOnlyField()
     items_total = ReadOnlyField()
+    needs_base_price = ReadOnlyField()
     variant_sku = ReadOnlyField(source='variant.sku')
     missing = SerializerMethodField()
     missing_count = SerializerMethodField()
@@ -182,7 +183,7 @@ class ConfigurationSerializer(ModelSerializer):
             'id', 'number', 'client', 'client_name', 'base_product', 'base_product_name',
             'warehouse', 'act', 'act_number', 'act_status', 'mode', 'mode_display',
             'quantity', 'status', 'status_display',
-            'note', 'items', 'items_total', 'total_price', 'variant', 'variant_sku',
+            'note', 'items', 'items_total', 'total_price', 'needs_base_price', 'variant', 'variant_sku',
             'ready_variant', 'missing', 'missing_count', 'contract', 'deal',
             'procurement', 'sent_to_procurement', 'price_requested_at', 'cancel_reason',
             'assembled_at', 'removals', 'approvals',

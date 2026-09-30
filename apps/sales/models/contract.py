@@ -153,3 +153,21 @@ class Contract(StatusTrackedModel):
     @property
     def color(self):
         return self.progress['color']
+
+    _MARGIN_SEVERITY = {'ok': 0, 'below_min': 1, 'below_cost': 2}
+
+    @property
+    def margin_state(self):
+        """27-§3: shartnoma darajasidagi jamlanma — ENG YOMON qator bo'yicha.
+
+        O'rtacha emas: o'nta sog'lom qator ichida bitta zarariga sotilayotgani
+        o'rtachada yo'qolib ketardi. `unknown` eng yomon SANALMAYDI (27-§6
+        case: bitta qator unknown, qolgani ok -> jamlanma `ok`).
+        """
+        known = [
+            state for state in (item.margin_state for item in self.items.all())
+            if state != 'unknown'
+        ]
+        if not known:
+            return 'unknown'
+        return max(known, key=lambda state: self._MARGIN_SEVERITY[state])

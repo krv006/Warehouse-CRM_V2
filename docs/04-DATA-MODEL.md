@@ -43,6 +43,9 @@ erDiagram
     Purchase ||--o{ CashTransaction : ""
     Product ||--o{ ImportCostSheet : ""
     Configuration ||--o{ ImportCostSheet : ""
+    Configuration ||--o{ PriceRequest : ""
+    PriceRequest ||--o{ PriceRequestLine : "lines"
+    Product ||--o{ PriceRequestLine : ""
 ```
 
 ---
@@ -141,7 +144,8 @@ Property: `display_name` (yuridik → `company_name`, jismoniy → `full_name`).
 | `base_model` | FK `inventory.Product` (SET_NULL) — variant uchun bazaviy model |
 | `signature` | Char(64), unique — konfiguratsiya tarkibi imzosi |
 | `tnved_code` | Char(20), blank — 24-to'plam: TN VED (bojxona) kodi, ikkinchi importda oldindan to'ladi |
-| `is_imported` | Bool, default `False` — 24-to'plam: `True` bo'lsa narx so'ralganda `ImportCostSheet` ochiladi, oddiy buyurtmachi eslatmasi o'rniga |
+| `is_imported` | Bool, default `False` — 24-to'plam: `True` bo'lsa narx so'ralganda import qatori ochiladi (logist/deklarant, 28-to'plam) |
+| `duty_percent`, `certificate_cost`, `laboratory_cost` | Decimal — 28-§3: oxirgi importdan ESLAB QOLINADI (`tnved_code` bilan birga); kod BOR bo'lsa keyingi importda deklarant bosqichi o'tkazib yuboriladi |
 
 Property: `total_stock`, `is_low_stock`, `stock_price` (sotuv narxi, bo'lmasa tannarx), `is_variant`.
 
@@ -195,7 +199,11 @@ Unique: (`product`, `component`).
 | `cancel_reason` | Text (8-to'plam §4) — "nega to'xtadi?": engineer qaytarganda (`reject_request` izohi) yoki zanjir bekor qilinganda (`cancel_chain` sababi); bog'lanish uzilsa ham hujjatda qoladi |
 | `note`, `created_by` | |
 
-Property: `items_total`, `total_price`, `signature`, `matching_variant`,
+Property: `items_total`, `total_price` (26-§1: `order`da
+`base_product.stock_price` — qatorlar yig'indisi EMAS, spetsifikatsiya;
+qolgan rejimlarda `items_total`), `needs_base_price` (26-§1: `order` +
+modelning o'z narxi yo'q — `submit`/`finalize` shuni tekshirib to'sadi),
+`signature`, `matching_variant`,
 `changes` (zavod tarkibiga nisbatan qo'shilgan/yechilganlar),
 `required_from_stock` — **ombordan nimani oladi** degan savolning yagona javobi
 (3-to'plam §1: build — har bir qator × partiya; modify — bazaviy modelning
@@ -205,7 +213,9 @@ alohida hech narsa olinmaydi), `missing_items` — shu
 ro'yxatdan yetishmayotganlari (`{product, needed, available, shortage}`;
 bron sinxroni, TLD va yig'ish qo'riqchisi ham shundan o'qiydi),
 `items_without_price` (25-§6: `order`da doim bo'sh — narx qatorda emas,
-`base_product.cost_price`da).
+`base_product.cost_price`da), `cost_total`/`cost_known` (27-§2: TANNARX —
+`items_total`dan farqli, sotuv narxi emas; qator turiga qarab hisoblanadi,
+`ContractItem.cost` shundan o'qiydi).
 
 ### `ConfigurationRemoval` — yechib olingan butlovchi (modify rejimi)
 `configuration` (CASCADE, `removals`), `component` (PROTECT), `quantity`,
@@ -309,14 +319,19 @@ Property: `items_total`, `total_amount`, `progress`, `days_left`, `color`.
 | `start_date` | Date — pul tasdiqlangan kun, sanoq shundan boshlanadi |
 | `note`, `created_by` | |
 
-Property: `items_total`, `prepayment_amount`, `paid`, `balance`, `progress`, `days_left`, `color`.
+Property: `items_total`, `prepayment_amount`, `paid`, `balance`, `progress`, `days_left`, `color`,
+`margin_state` (27-§3: ENG YOMON qator bo'yicha — `unknown` eng yomon sanalmaydi).
 
 ### `ContractItem`
 `contract` (CASCADE, `items`), `product` (PROTECT), `quantity`, `unit_price`
 (QQS'siz), `vat_percent` (default 12). `configuration` (SET_NULL, null,
 `contract_items`) — 12-§2 (C): bitta shartnomada bir nechta model bo'lishi
 mumkin, qator aynan qaysi konfiguratsiyadan kelganini biladi. Property:
-`subtotal`, `vat_amount`, `total_with_vat`.
+`subtotal`, `vat_amount`, `total_with_vat`, `cost`/`cost_known`/`min_price`/
+`margin_state` (27-§2/§3: `unknown`/`below_cost`/`below_min`/`ok` —
+konfiguratsiyali qatorda `Configuration.cost_total`dan, oddiysida
+`Product.cost_price`dan; UZS bo'lmagan valyutada tekshiruv o'tkazib
+yuboriladi).
 
 ### `ContractTemplate`
 21-§3.1: sotuv shabloni — 1-9 bo'lim matni. `name`, `language` (default
@@ -435,6 +450,55 @@ Hisoblangan property'lar (§5.3 — bazada saqlanmaydi):
 `fill-customs` yopilganda `Product.tnved_code`/`cost_price` yangilanadi va
 `price_arrived()` chaqiriladi — narxsiz qatorlar avtomatik yopiladi (B2.3 bilan bir xil yo'l).
 
+> **28-to'plam:** `configurator.request_prices` bu modelni endi OCHMAYDI —
+> yangi importlar `PriceRequest`/`PriceRequestLine` orqali yuradi (pastga
+> qarang). Model, hisob-kitob va `/api/import-cost-sheets/...` endpointlari
+> o'zgarishsiz qoladi — mustaqil (qo'lda ochiladigan) hujjat sifatida.
+
+### `PriceRequest` — narx so'rovi hujjati (28-to'plam, 24-§ni almashtiradi)
+
+Buyurtmachining (import bo'lsa logist/deklarantning ham) ish joyi —
+`configurator.request_prices` shuni ochadi. `status` QATORLARDAN
+hisoblanadi (`_sync_price_request_status`) — qo'lda qo'yiladigan yagona
+qiymat `cancelled`.
+
+| Maydon | Tur |
+|---|---|
+| `status` | `waiting_logistics` / `waiting_customs` / `waiting_supplier` / `answered` / `cancelled` — eng ORQADAGI qator bosqichi |
+| `number` | `NRX-00001` (avtomatik) |
+| `configuration` | FK Configuration (CASCADE, `price_requests`) |
+| `created_by` | FK User (SET_NULL) |
+
+### `PriceRequestLine` — bitta mahsulot
+
+Uch rol bir-birining raqamini ko'rmaydi (28-§2 — izolyatsiya
+`PriceRequestLineSerializer.to_representation`da). `status` — Python
+xossa, timestamplardan hisoblanadi: `answered_at` bo'lsa `answered`;
+mahalliy (`is_imported=False`) bo'lsa to'g'ridan `waiting_supplier`;
+import bo'lsa `logistics_filled_at` yo'q → `waiting_logistics`,
+`customs_filled_at` yo'q → `waiting_customs`, aks holda `waiting_supplier`.
+
+| Maydon | Tur |
+|---|---|
+| `request` | FK PriceRequest (CASCADE, `lines`) |
+| `product` | FK Product (PROTECT) |
+| `quantity` | Decimal(18,2) |
+| `is_imported` | Bool — buyurtmachi belgilaydi (yoki `Product.is_imported`dan meros); QARORNING NATIJASI |
+| `vat_recoverable` | Bool — ochilganda `CompanyProfile.vat_recoverable`dan nusxalanadi |
+| **Logist** | `logistics_total`, `freight_to_border` (28-§2a: ENDI shu yerda — deklarant logistika raqamini ko'rmaydi), `logistics_note`, `logistics_filled_at` |
+| **Deklarant** | `tnved_code`, `duty_percent`/`duty_amount` (STAVKA — summa emas, 28-§2b), `excise_amount`, `customs_fee`, `certificate_cost`, `laboratory_cost`, `declarant_fee`, `customs_note`, `customs_filled_at`, `customs_auto_filled` (28-§3: kod+stavka Product'dan avtomatik ko'chirilgan — deklarant o'tkazib yuborilgan) |
+| **Buyurtmachi** | `currency`, `goods_price`, `exchange_rate`, `cost_price` (yakuniy — taklifni tasdiqlash yoki ustidan yozish), `answered_at` |
+
+Hisoblangan property'lar (`ImportCostSheet` bilan bir xil formula, manba
+boshqa): `goods_uzs`, `customs_value`, `duty`, `vat`, `vat_in_cost`,
+`customs_total`, `landed_total`, `suggested_cost` (taklif — yakuniy
+`cost_price` emas).
+
+`answer` (buyurtmachi yakunlaganda): `Product.cost_price` yangilanadi,
+`price_arrived()` chaqiriladi. `fill-customs`da `Product.tnved_code`/
+`duty_percent`/`certificate_cost`/`laboratory_cost` ham yangilanadi —
+keyingi import uchun eslab qolinadi (28-§3).
+
 ---
 
 ## finance
@@ -483,6 +547,8 @@ Property: `term_days`, `days_left`, `color`, `repaid`, `balance`.
 | contract_terms | Text | shartnoma chop etishda chiqadigan standart shartlar |
 | vat_recoverable | Bool, default `False` | 24-to'plam: import tannarx varaqasi ochilganda shu qiymat NUSXALANADI (`ImportCostSheet.vat_recoverable`) |
 | default_customs_fee | Decimal(18,2), default 0 | 24-to'plam: deklarant `customs_fee`ni bo'sh qoldirsa shu qiymat ishlatiladi |
+| markup_percent | Decimal(5,2), default 0 | §6-B: sotuv narxi yo'q mahsulotda tannarx ustiga avtomatik ustama — narxni **YASAYDI** |
+| min_margin_percent | Decimal(5,2), default 0 | 27-§3: shartnomada tannarx ustiga eng kam ustama — qo'yilgan narxni **TEKSHIRADI** (`ContractItem.margin_state`). `markup_percent`dan boshqa narsa — ikkalasi bir vaqtda sozlanishi kerak (27-§5 case 16) |
 
 Singleton: ikkinchi yozuv `save()` da bloklanadi; `CompanyProfile.load()`
 yagona yozuvni qaytaradi (bo'lmasa bo'sh ochadi). Yozish faqat adminda.

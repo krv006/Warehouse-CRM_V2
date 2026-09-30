@@ -99,6 +99,16 @@ class CompanyProfile(TimeStampedModel):
         max_digits=18, decimal_places=2, default=0,
         help_text="Bojxona yig'imi uchun taklif qilinadigan summa (deklarant o'zgartira oladi)",
     )
+    # 27-§3: `markup_percent` narxni YASAYDI (tannarxsiz mahsulotga qo'yiladi),
+    # bu esa qo'yilgan narxni TEKSHIRADI — ikkalasi boshqa-boshqa narsa.
+    min_margin_percent = DecimalField(
+        max_digits=5, decimal_places=2, default=0,
+        help_text=(
+            'Shartnomada tannarx ustiga eng kam ustama (%). Bundan past narx '
+            'sariq, tannarxdan past yoki teng narx qizil ogohlantirish beradi. '
+            '0 — faqat tannarxdan past holat tekshiriladi'
+        ),
+    )
 
     def __str__(self):
         return self.name or 'Bajaruvchi rekvizitlari'

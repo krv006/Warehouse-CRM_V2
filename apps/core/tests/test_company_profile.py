@@ -63,3 +63,17 @@ class CompanyProfileTests(APITestCase):
         profile = CompanyProfile.load()
         self.assertEqual(profile.name, 'Swiftcore MCHJ')
         self.assertEqual(profile.phone, '+998911198877')
+
+    def test_markup_and_min_margin_percent_are_patchable(self):
+        """28-§8/27-§3: `markup_percent` bu serializerda umuman yo'q edi —
+        admin uni hech qachon qo'ya olmagan (frontend forma bo'lsa ham PATCH
+        jimgina tashlab ketardi). Endi ikkalasi ham (`min_margin_percent`
+        bilan birga, 27-to'plam) tahrirlanadi."""
+        self.client.force_authenticate(self.admin)
+        response = self.client.patch('/api/company/', {
+            'markup_percent': '5', 'min_margin_percent': '10',
+        })
+        self.assertEqual(response.status_code, 200, response.data)
+        profile = CompanyProfile.load()
+        self.assertEqual(str(profile.markup_percent), '5.00')
+        self.assertEqual(str(profile.min_margin_percent), '10.00')

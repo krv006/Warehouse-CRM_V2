@@ -222,6 +222,19 @@ class ImportCostAccess(RoleAccess):
     message = 'Import tannarx varaqasi logist, deklarant va buyurtmachi uchun.'
 
 
+class PriceRequestAccess(RoleAccess):
+    """28-§1/§2: narx so'rovi — logist, deklarant, bugalter, buyurtmachi
+    o'qiydi (engineer ro'yxatda yo'q — u so'rovni ochgach ishi tugadi).
+    Har rol qaysi maydonni yoza olishi servis darajasida tekshiriladi
+    (`fill_price_request_*`/`answer_price_request_line`/...) — shuning
+    uchun bu amallar uchun ViewSet `get_permissions()`da `IsAuthenticated`
+    qaytaradi, xuddi `ImportCostAccess` kabi."""
+
+    read_roles = (LOGIST, DECLARANT, BUGALTER, SUPPLIER)
+    write_roles = (LOGIST, DECLARANT, SUPPLIER)
+    message = 'Narx so\'rovi logist, deklarant va buyurtmachi uchun.'
+
+
 class ProcurementApprovalAccess(ProcurementAccess):
     """Hisob tasdig'i: sales (mijoz roziligi) -> bugalter -> admin.
 

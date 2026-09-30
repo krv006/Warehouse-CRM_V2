@@ -5,13 +5,15 @@ from rest_framework.test import APITestCase
 from apps.accounts.models import User
 from apps.clients.models import Client
 from apps.configurator.models import Configuration, ConfigurationItem, ConfigurationRequest
+from apps.core.models import Notification
 from apps.inventory.models import Product
-from apps.procurement.models import ImportCostSheet
+from apps.procurement.models import ImportCostSheet, PriceRequest, PriceRequestLine
 
 
 class ImportPriceRequestBranchTests(APITestCase):
-    """24-§6.2/§8.1: narxsiz IMPORT qator — buyurtmachiga oddiy eslatma
-    o'rniga `ImportCostSheet` ochiladi."""
+    """28-§1/§4: narxsiz IMPORT qator endi alohida `ImportCostSheet` emas —
+    bitta `PriceRequest` hujjatining bir QATORI bo'lib ochiladi (24-§6.2/
+    §8.1'ning o'rnini bosadi)."""
 
     def setUp(self):
         self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
@@ -39,9 +41,7 @@ class ImportPriceRequestBranchTests(APITestCase):
         )
         return Configuration.objects.get(pk=response.data['configuration'])
 
-    def test_already_flagged_imported_component_opens_sheet_not_supplier_note(self):
-        from apps.core.models import Notification
-
+    def test_already_flagged_imported_component_becomes_an_imported_line(self):
         imported_part = Product.objects.create(
             sku='CHIP-1', name='Chip', kind=Product.Kind.COMPONENT, is_imported=True,
         )
@@ -53,16 +53,16 @@ class ImportPriceRequestBranchTests(APITestCase):
         response = self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
         self.assertEqual(response.status_code, 200, response.data)
 
-        sheet = ImportCostSheet.objects.get(product=imported_part)
-        self.assertEqual(sheet.configuration_id, configuration.id)
+        line = PriceRequestLine.objects.get(product=imported_part)
+        self.assertEqual(line.request.configuration_id, configuration.id)
+        self.assertTrue(line.is_imported)
         # 2 dona/qatordan x 3 partiya = 6
-        self.assertEqual(sheet.quantity, 6)
-        self.assertFalse(
-            Notification.objects.filter(entity='Product', object_id=str(imported_part.pk)).exists(),
-        )
+        self.assertEqual(line.quantity, Decimal('6'))
+        # 28-§4: `ImportCostSheet` endi mustaqil ochilmaydi
+        self.assertFalse(ImportCostSheet.objects.filter(product=imported_part).exists())
 
     def test_first_time_marks_product_as_imported_via_flag(self):
-        """§8.1: bayroq birinchi marta shu chaqiruvda beriladi."""
+        """§1: bayroq birinchi marta shu chaqiruvda beriladi."""
         local_part = Product.objects.create(
             sku='LOCAL-1', name='Kabel', kind=Product.Kind.COMPONENT,
         )
@@ -79,12 +79,12 @@ class ImportPriceRequestBranchTests(APITestCase):
 
         local_part.refresh_from_db()
         self.assertTrue(local_part.is_imported)
-        self.assertTrue(ImportCostSheet.objects.filter(product=local_part).exists())
+        line = PriceRequestLine.objects.get(product=local_part)
+        self.assertTrue(line.is_imported)
 
-    def test_forgotten_flag_still_uses_old_supplier_path(self):
-        """§7 case 20: bayroq unutildi — eski yo'l ishlaydi, regressiya yo'q."""
-        from apps.core.models import Notification
-
+    def test_forgotten_flag_still_treated_as_local_line(self):
+        """§7 case 20/case 1: bayroq unutildi — mahalliy qator sifatida
+        ochiladi, deklarant/logist bosqichlari yo'q."""
         local_part = Product.objects.create(
             sku='LOCAL-2', name='Vint', kind=Product.Kind.COMPONENT,
         )
@@ -96,10 +96,13 @@ class ImportPriceRequestBranchTests(APITestCase):
         response = self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
         self.assertEqual(response.status_code, 200, response.data)
 
-        self.assertFalse(ImportCostSheet.objects.filter(product=local_part).exists())
+        line = PriceRequestLine.objects.get(product=local_part)
+        self.assertFalse(line.is_imported)
+        self.assertEqual(line.status, PriceRequest.Status.WAITING_SUPPLIER)
+
         self.assertTrue(
             Notification.objects.filter(
-                user=self.supplier, entity='Product', object_id=str(local_part.pk),
+                user=self.supplier, entity='PriceRequest', object_id=str(line.request_id),
             ).exists(),
         )
 
@@ -119,8 +122,10 @@ class ImportPriceRequestBranchTests(APITestCase):
         response = self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(set(response.data['requested']), {'Kartuş', 'Chip2'})
-        self.assertTrue(ImportCostSheet.objects.filter(product=imported_part).exists())
-        self.assertFalse(ImportCostSheet.objects.filter(product=local_part).exists())
+
+        price_request = PriceRequest.objects.get(pk=response.data['price_request'])
+        self.assertFalse(price_request.lines.get(product=local_part).is_imported)
+        self.assertTrue(price_request.lines.get(product=imported_part).is_imported)
 
     def test_engineer_queue_shows_only_price_asked_fact_not_amount(self):
         """§4.1: engineer navbatida summa ko'rinmaydi, faqat fakt."""

@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db.models import (
     PROTECT,
     SET_NULL,
@@ -124,7 +126,21 @@ class Configuration(StatusTrackedModel):
 
     @property
     def total_price(self):
+        """Bitta donaning narxi.
+
+        26-§1(a): `order` rejimida mashina butun holda sotib olinadi — narx
+        MODELning o'zida (`Product.stock_price`), qatorlar esa spetsifikatsiya
+        va ularning summasi yetkazib beruvchining narxiga aloqasi yo'q.
+        Qolgan rejimlarda — qatorlar yig'indisi (bugungidek).
+        """
+        if self.mode == self.Mode.ORDER:
+            return self.base_product.stock_price
         return self.items_total
+
+    @property
+    def needs_base_price(self):
+        """26-§1(b): `order` — modelning o'z narxi yo'q, buyurtmachidan so'ralishi kerak."""
+        return self.mode == self.Mode.ORDER and not self.base_product.stock_price
 
     @property
     def changes(self):
@@ -282,3 +298,57 @@ class Configuration(StatusTrackedModel):
         if self.mode == self.Mode.ORDER:
             return []
         return [item for item in self.items.all() if item.needs_price]
+
+    @property
+    def cost_total(self):
+        """Bitta donaning TANNARXI — sotuv narxi emas (27-§2).
+
+        `items_total` bunga yaramaydi: u `ConfigurationItem.unit_price`
+        larning yig'indisi, ular esa `stock_price` (sotuv) dan to'ladi.
+        Qator turiga qarab to'rt xil hisob (27-§2 jadvali):
+          order  : bazaviy modelning o'z tannarxi — mashina butun holda olinadi;
+          modify : bazaviy model + qo'shilganlar − yechilganlar tannarxi;
+          build  : butlovchilar tannarxining yig'indisi.
+        """
+        if self.mode == self.Mode.ORDER:
+            return self.base_product.cost_price
+        if self.mode == self.Mode.MODIFY:
+            changes = self.changes
+            added = sum(
+                (c['component'].cost_price * c['quantity'] for c in changes['added']),
+                Decimal('0'),
+            )
+            removed = sum(
+                (c['component'].cost_price * c['quantity'] for c in changes['removed']),
+                Decimal('0'),
+            )
+            return self.base_product.cost_price + added - removed
+        return sum(
+            (item.component.cost_price * item.quantity for item in self.items.all()),
+            Decimal('0'),
+        )
+
+    @property
+    def cost_known(self):
+        """27-§2: tannarx TO'LIQ hisoblangan-hisoblanmaganini bildiradi.
+
+        `cost_total == 0` ikki xil holatni anglatishi mumkin: haqiqatan bepul
+        (bo'lmaydi) yoki hali kiritilmagan (yangi model/narxsiz butlovchi).
+        Shuning uchun alohida bayroq: bitta butlovchining tannarxi yo'q
+        bo'lsa ham butun qator "unknown" bo'ladi — yarim hisoblangan
+        tannarx bilan taqqoslash yolg'on natija berardi (27-§5 case 10).
+        """
+        if self.mode == self.Mode.ORDER:
+            return bool(self.base_product.cost_price)
+        if self.mode == self.Mode.MODIFY:
+            if not self.base_product.cost_price:
+                return False
+            changes = self.changes
+            return all(
+                c['component'].cost_price
+                for c in changes['added'] + changes['removed']
+            )
+        items = list(self.items.all())
+        if not items:
+            return False
+        return all(item.component.cost_price for item in items)

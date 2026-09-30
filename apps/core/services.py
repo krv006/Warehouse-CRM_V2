@@ -373,6 +373,44 @@ def _import_sheet_source(user):
     }
 
 
+def _price_request_source(user):
+    """28-to'plam: narx so'rovi qatori — `ImportCostSheet`ning o'rnini
+    bosgan navbat manbai (`_import_sheet_source` bilan bir xil invariant:
+    rol bo'ylab ish, egasi bo'yicha emas). `PriceRequestLine.status` Python
+    xossasi — DB darajasida ekvivalent filtr yozib beriladi.
+
+    28-§2: buyurtmachining o'z qismi endi OXIRIDA (tovar narxi + yakuniy
+    tannarx) — eski `fill_goods` (birinchi qadam) o'rniga `answer`.
+    """
+    from django.db.models import Q
+
+    from apps.procurement.models import PriceRequestLine
+
+    base = PriceRequestLine.objects.filter(answered_at__isnull=True)
+    if user.is_supplier:
+        queryset = base.filter(
+            Q(is_imported=False)
+            | Q(is_imported=True, logistics_filled_at__isnull=False, customs_filled_at__isnull=False)
+        )
+        reason = ('answer', 'warning')
+    elif user.is_logist:
+        queryset = base.filter(is_imported=True, logistics_filled_at__isnull=True)
+        reason = ('fill_logistics', 'warning')
+    elif user.is_declarant:
+        queryset = base.filter(
+            is_imported=True, logistics_filled_at__isnull=False, customs_filled_at__isnull=True,
+        )
+        reason = ('fill_customs', 'warning')
+    else:
+        return None
+    return {
+        'section': 'import_sheets',
+        'entity': 'PriceRequestLine',
+        'queryset': queryset.select_related('request', 'product'),
+        'row': lambda obj: ('NRX', obj.request.number, reason, None, None),
+    }
+
+
 def _needs_price_count(user):
     """QOLGAN-ISHLAR-2 §6: "Narx kutilmoqda" — buyurtmachining doimiy ro'yxati
     (`?needs_price=true`) endi yon panelda ham — front alohida so'rov
@@ -544,6 +582,7 @@ def collect_work(user, include_items=True):
             _loan_source(user),
             _act_source(user),
             _import_sheet_source(user),
+            _price_request_source(user),
         )
         if source is not None
     ]

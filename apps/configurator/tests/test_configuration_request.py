@@ -49,7 +49,14 @@ class ConfigurationRequestFlowTests(APITestCase):
         request_id = self._request()
 
         self.client.force_authenticate(self.engineer)
-        response = self.client.post(f'/api/configuration-requests/{request_id}/take/')
+        # 26-§1(b): `self.base`da na tarkib, na qoldiq, na narx bor — `mode`
+        # berilmasa endi avtomatik `order` tanlanardi va narxsiz `submit`da
+        # to'sib qolardi; bu test qator narxi oqimini tekshiradi (mode
+        # tanlovini emas), shuning uchun `build` aniq beriladi.
+        response = self.client.post(
+            f'/api/configuration-requests/{request_id}/take/',
+            {'mode': 'build'}, format='json',
+        )
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['status'], ConfigurationRequest.Status.IN_PROGRESS)
         self.assertEqual(response.data['taken_by'], self.engineer.id)
@@ -106,7 +113,11 @@ class ConfigurationRequestFlowTests(APITestCase):
 
         request_id = self._request()
         self.client.force_authenticate(self.engineer)
-        take = self.client.post(f'/api/configuration-requests/{request_id}/take/')
+        # 26-§1(b): `build` aniq beriladi — izohi yuqoridagi testda.
+        take = self.client.post(
+            f'/api/configuration-requests/{request_id}/take/',
+            {'mode': 'build'}, format='json',
+        )
         configuration_id = take.data['configuration']
         from decimal import Decimal
 

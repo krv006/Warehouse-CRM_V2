@@ -12,6 +12,8 @@ from apps.inventory.services import apply_movement
 from apps.procurement.models import (
     DEBT_TERM_DAYS,
     ImportCostSheet,
+    PriceRequest,
+    PriceRequestLine,
     Replenishment,
     ReplenishmentApproval,
     ReplenishmentEvent,
@@ -992,3 +994,361 @@ def change_import_sheet_quantity(sheet, user, quantity):
             entity='ImportCostSheet', object_id=sheet.pk,
         )
     return sheet
+
+
+# ---------------------------------------------------------------------------
+# 28-to'plam: narx so'rovi — BITTA hujjat, uch rol, bir-birini ko'rmaydi.
+#
+# `ImportCostSheet` (24-to'plam, yuqorida) TEGILMAYDI — model, arifmetika va
+# uning 38 testi saqlanadi, lekin endi `configurator.request_prices` uni
+# ochmaydi (28-§4). Yangi oqim mustaqil: bitta `PriceRequest` konfiguratsiya
+# uchun narxsiz NARSALARNI (butlovchi YOKI `order` rejimidagi bazaviy model,
+# 26-§1(c)) bitta hujjatga yig'adi, import bo'lsa qatorning ICHIDA logist va
+# deklarant bosqichlaridan o'tadi.
+# ---------------------------------------------------------------------------
+
+_PRICE_REQUEST_STATUS_SEVERITY = {
+    PriceRequest.Status.WAITING_LOGISTICS: 0,
+    PriceRequest.Status.WAITING_CUSTOMS: 1,
+    PriceRequest.Status.WAITING_SUPPLIER: 2,
+    PriceRequest.Status.ANSWERED: 3,
+}
+
+_PRICE_REQUEST_OPEN_STATUSES = (
+    PriceRequest.Status.WAITING_LOGISTICS,
+    PriceRequest.Status.WAITING_CUSTOMS,
+    PriceRequest.Status.WAITING_SUPPLIER,
+)
+
+
+def _sync_price_request_notifications(price_request):
+    """28-§2/§5(c): har rol FAQAT o'zining navbati kelganda xabar oladi —
+    bitta so'rovda mahalliy va import qatorlar aralash bo'lsa (case 5),
+    ikkala rol bir vaqtda ham band bo'lishi mumkin."""
+    from apps.accounts.models import User
+    from apps.core.services import resolve_notifications
+
+    lines = list(price_request.lines.all())
+    stage_info = {
+        User.Role.LOGIST: (
+            any(line.status == PriceRequest.Status.WAITING_LOGISTICS for line in lines),
+            'Logistika narxi kerak', "yetkazish narxini kiriting.",
+        ),
+        User.Role.DECLARANT: (
+            any(line.status == PriceRequest.Status.WAITING_CUSTOMS for line in lines),
+            'Bojxona hisobi kerak', "TN VED, boj stavkasi va xarajatlarni kiriting.",
+        ),
+        User.Role.SUPPLIER: (
+            any(line.status == PriceRequest.Status.WAITING_SUPPLIER for line in lines),
+            'Tannarx kerak', "tovar narxi va yakuniy tannarxni kiriting.",
+        ),
+    }
+    for role, (is_pending, title_suffix, message) in stage_info.items():
+        if is_pending:
+            for recipient in User.objects.filter(role=role, is_active=True):
+                Notification.objects.update_or_create(
+                    user=recipient, entity='PriceRequest',
+                    object_id=str(price_request.pk), is_read=False,
+                    defaults={
+                        'title': f'{price_request.number}: {title_suffix}',
+                        'message': f'{price_request.configuration.number} — {message}',
+                        'level': Notification.Level.WARNING,
+                    },
+                )
+        else:
+            for recipient in User.objects.filter(role=role, is_active=True):
+                resolve_notifications('PriceRequest', price_request.pk, user=recipient)
+
+
+def _sync_price_request_status(price_request):
+    """28-§1: `status` QATORLARDAN hisoblanadi — ENG ORQADAGI (eng kam
+    bajarilgan) qator bosqichi. `cancelled` bu yerda hech qachon qo'yilmaydi."""
+    if price_request.status == PriceRequest.Status.CANCELLED:
+        return
+    lines = list(price_request.lines.all())
+    if lines:
+        new_status = min(
+            lines, key=lambda line: _PRICE_REQUEST_STATUS_SEVERITY[line.status],
+        ).status
+        if price_request.status != new_status:
+            price_request.status = new_status
+            price_request.save()
+    _sync_price_request_notifications(price_request)
+
+
+def open_price_request(configuration, user, *, lines, imported_products=None):
+    """28-§1: engineer so'ragan narxlarni BITTA hujjatga yig'adi.
+
+    `lines` — [(product, quantity), ...]: chaqiruvchi (`configurator.
+    services.request_prices`) build/modify uchun narxsiz butlovchilarni,
+    `order` uchun bazaviy modelning o'zini (26-§1(c)) tayyorlaydi.
+
+    Necha marta ham chaqirilishi mumkin (eski `request_prices` xulqi) —
+    ochiq hujjat bo'lsa, unda yo'q mahsulotlar UNGA qo'shiladi, ikkinchi
+    hujjat ochilmaydi.
+    """
+    _require(user, engineer=True)
+
+    price_request = PriceRequest.objects.filter(
+        configuration=configuration, status__in=_PRICE_REQUEST_OPEN_STATUSES,
+    ).first()
+    if price_request is None:
+        price_request = PriceRequest.objects.create(configuration=configuration, created_by=user)
+
+    from apps.core.models import CompanyProfile
+
+    existing_product_ids = set(price_request.lines.values_list('product_id', flat=True))
+    vat_recoverable = CompanyProfile.load().vat_recoverable
+    for product, quantity in lines:
+        if product.id in existing_product_ids:
+            continue
+        is_imported = product.is_imported or bool(
+            imported_products and product.id in imported_products
+        )
+        line = PriceRequestLine(
+            request=price_request, product=product, quantity=quantity,
+            is_imported=is_imported, vat_recoverable=vat_recoverable,
+        )
+        if is_imported and not product.is_imported:
+            Product.objects.filter(pk=product.id).update(is_imported=True)
+        if is_imported and product.tnved_code:
+            # 28-§3: kod va stavka oxirgi importdan eslab qolingan —
+            # deklarant bosqichi o'tkazib yuboriladi
+            line.tnved_code = product.tnved_code
+            line.duty_percent = product.duty_percent
+            line.certificate_cost = product.certificate_cost
+            line.laboratory_cost = product.laboratory_cost
+            line.customs_filled_at = now()
+            line.customs_auto_filled = True
+        line.save()
+
+    _sync_price_request_status(price_request)
+    return price_request
+
+
+@atomic
+def close_local_price_request_lines_for_product(product, user):
+    """28-§1 case 1: mahalliy qator narxi `PriceRequestLine.answer` orqali
+    emas, to'g'ridan `PATCH /products/{id}/` orqali ham kelishi mumkin
+    (buyurtmachi mahsulot kartasida tannarx kiritishi — bugungi B2 yo'li).
+    Bunday holda tegishli ochiq qatorlar/hujjatlar o'zi yopilsin — aks
+    holda eslatma abadiy ochiq qolib, `answered_at`/`cost_price` hech
+    qachon to'lmas edi. Import qatorga tegilmaydi — u logist/deklarant
+    bosqichlaridan o'tishi shart, mahsulot narxi ular hali ishlamasdan
+    o'zi yopilib ketmasin."""
+    lines = PriceRequestLine.objects.filter(
+        product=product, is_imported=False, answered_at__isnull=True,
+    ).exclude(request__status=PriceRequest.Status.CANCELLED).select_related('request')
+    for line in lines:
+        line.cost_price = product.cost_price
+        line.answered_at = now()
+        line.save()
+        _sync_price_request_status(line.request)
+
+
+@atomic
+def fill_price_request_logistics(line, user, *, logistics_total, freight_to_border=None, note=''):
+    """28-§2: Logist — jami yetkazish narxi + shundan CHEGARAGACHA qismi.
+
+    §5 case 9: chegaragacha yozilmasa sukut — JAMI summaning o'zi (24-§8.2
+    dagi qaror bilan bir xil: hisob oshib chiqadi, kamaymaydi)."""
+    from apps.core.utils import parse_amount
+
+    _require(user, logist=True)
+    if not line.is_imported:
+        raise ValidationError({'detail': "Bu qator import emas — logistika kerak emas."})
+    if line.answered_at:
+        raise ValidationError({'detail': "Bu qator allaqachon javob olgan."})
+
+    logistics_total = parse_amount(logistics_total, 'logistics_total') or Decimal('0')
+    if logistics_total < 0:
+        raise ValidationError({'logistics_total': "Logistika narxi manfiy bo'lmasligi kerak."})
+    parsed_border = parse_amount(freight_to_border, 'freight_to_border')
+
+    line.logistics_total = logistics_total
+    line.freight_to_border = parsed_border if parsed_border is not None else logistics_total
+    line.logistics_note = note
+    line.logistics_filled_at = now()
+    line.save()
+    _sync_price_request_status(line.request)
+    return line
+
+
+@atomic
+def fill_price_request_customs(
+    line, user, *, tnved_code, duty_percent=0, duty_amount=0, excise_amount=0,
+    customs_fee=None, certificate_cost=0, laboratory_cost=0, declarant_fee=0, note='',
+):
+    """28-§2(b): Deklarant — summa emas, STAVKA (`duty_percent`) yozadi;
+    tovar narxi va logistika unga ko'rinmaydi (izolyatsiya — serializerda)."""
+    from apps.core.utils import parse_amount
+
+    _require(user, declarant=True)
+    if not line.is_imported:
+        raise ValidationError({'detail': 'Bu qator import emas.'})
+    if line.answered_at:
+        raise ValidationError({'detail': "Bu qator allaqachon javob olgan."})
+    if not line.logistics_filled_at:
+        raise ValidationError({
+            'detail': "Avval logist logistika narxini yozishi kerak — bojxona qiymati unga bog'liq.",
+        })
+
+    line.tnved_code = tnved_code
+    line.duty_percent = parse_amount(duty_percent, 'duty_percent') or Decimal('0')
+    line.duty_amount = parse_amount(duty_amount, 'duty_amount') or Decimal('0')
+    line.excise_amount = parse_amount(excise_amount, 'excise_amount') or Decimal('0')
+    parsed_fee = parse_amount(customs_fee, 'customs_fee')
+    if parsed_fee is None:
+        from apps.core.models import CompanyProfile
+
+        parsed_fee = CompanyProfile.load().default_customs_fee
+    line.customs_fee = parsed_fee or Decimal('0')
+    line.certificate_cost = parse_amount(certificate_cost, 'certificate_cost') or Decimal('0')
+    line.laboratory_cost = parse_amount(laboratory_cost, 'laboratory_cost') or Decimal('0')
+    line.declarant_fee = parse_amount(declarant_fee, 'declarant_fee') or Decimal('0')
+    line.customs_note = note
+    line.customs_filled_at = now()
+    line.customs_auto_filled = False
+    line.save()
+
+    # 28-§3: keyingi importda eslab qolinsin — deklarant o'tkazib yuboriladi
+    product = line.product
+    product.tnved_code = tnved_code
+    product.duty_percent = line.duty_percent
+    product.certificate_cost = line.certificate_cost
+    product.laboratory_cost = line.laboratory_cost
+    product.save(update_fields=['tnved_code', 'duty_percent', 'certificate_cost', 'laboratory_cost'])
+
+    _sync_price_request_status(line.request)
+    return line
+
+
+@atomic
+def send_price_request_line_to_customs(line, user):
+    """28-§3 case 4: "Deklarantga yuborish" — avtomatik o'tkazilgan qatorga
+    buyurtmachi shubhalanadi, qator qayta deklarant navbatiga qaytadi."""
+    _require(user, supplier=True)
+    if not line.is_imported:
+        raise ValidationError({'detail': 'Bu qator import emas.'})
+    if line.answered_at:
+        raise ValidationError({'detail': "Bu qator allaqachon javob olgan."})
+    if not line.customs_filled_at:
+        raise ValidationError({'detail': "Bu qator hali deklarant navbatida."})
+
+    line.customs_filled_at = None
+    line.customs_auto_filled = False
+    line.save()
+    _sync_price_request_status(line.request)
+    return line
+
+
+@atomic
+def mark_price_request_line_imported(line, user):
+    """28-§1: qatorni import deb FAQAT buyurtmachi belgilaydi — mol qayerdan
+    kelishini bilgan yagona odam u. Bayroq Product'ga ham yoziladi (natija,
+    shart emas) — keyingi safar qator o'zi import bo'lib ochiladi."""
+    _require(user, supplier=True)
+    if line.answered_at:
+        raise ValidationError({'detail': "Bu qator allaqachon javob olgan."})
+    if line.is_imported:
+        return line
+
+    line.is_imported = True
+    product = line.product
+    if not product.is_imported:
+        product.is_imported = True
+        product.save(update_fields=['is_imported'])
+    if product.tnved_code:
+        line.tnved_code = product.tnved_code
+        line.duty_percent = product.duty_percent
+        line.certificate_cost = product.certificate_cost
+        line.laboratory_cost = product.laboratory_cost
+        line.customs_filled_at = now()
+        line.customs_auto_filled = True
+    line.save()
+    _sync_price_request_status(line.request)
+    return line
+
+
+@atomic
+def answer_price_request_line(
+    line, user, *, cost_price=None, currency=None, goods_price=None, exchange_rate=None,
+):
+    """28-§1/§2: Buyurtmachi yakunlaydi.
+
+    Mahalliy qator (case 1): faqat `cost_price` katakka yoziladi. Import
+    qator: tovar narxi + valyuta + kurs beriladi, tizim `suggested_cost`ni
+    hisoblab beradi — buyurtmachi tasdiqlaydi yoki ustidan yozadi (case 11).
+    """
+    from apps.core.utils import parse_amount
+
+    _require(user, supplier=True)
+    if line.answered_at:
+        raise ValidationError({'detail': "Bu qator allaqachon javob olgan."})
+    if line.is_imported and not line.logistics_filled_at:
+        raise ValidationError({'detail': "Logistika narxi hali kiritilmagan."})
+    if line.is_imported and not line.customs_filled_at:
+        raise ValidationError({'detail': "Bojxona hisobi hali kiritilmagan."})
+
+    if line.is_imported:
+        currency = currency or line.currency or 'USD'
+        parsed_goods = parse_amount(goods_price, 'goods_price')
+        parsed_rate = parse_amount(exchange_rate, 'exchange_rate')
+        if currency == 'UZS':
+            parsed_rate = Decimal('1')  # §7 case 16
+        if not parsed_goods or parsed_goods <= 0:
+            raise ValidationError({'goods_price': "Tovar narxi 0 dan katta bo'lishi kerak."})
+        if not parsed_rate or parsed_rate <= 0:
+            raise ValidationError({'exchange_rate': "Kurs 0 dan katta bo'lishi kerak."})
+        line.currency = currency
+        line.goods_price = parsed_goods
+        line.exchange_rate = parsed_rate
+        final_cost = parse_amount(cost_price, 'cost_price')
+        if final_cost is None:
+            final_cost = line.suggested_cost
+    else:
+        final_cost = parse_amount(cost_price, 'cost_price')
+        if not final_cost or final_cost <= 0:
+            raise ValidationError({'cost_price': "Tannarx 0 dan katta bo'lishi kerak."})
+
+    line.cost_price = final_cost
+    line.answered_at = now()
+    line.save()
+
+    product = line.product
+    product.cost_price = final_cost
+    product.save(update_fields=['cost_price'])
+
+    _sync_price_request_status(line.request)
+
+    from apps.configurator.services import price_arrived
+
+    price_arrived(product, user)
+    return line
+
+
+@atomic
+def cancel_price_request(price_request, user, reason=''):
+    """Admin yoki ochgan odam — ochiq so'rovni bekor qiladi (§6 case 12)."""
+    if not (user.is_admin or user.id == price_request.created_by_id):
+        raise PermissionDenied("Bu so'rovni faqat admin yoki ochgan odam bekor qiladi.")
+    if price_request.status in (PriceRequest.Status.ANSWERED, PriceRequest.Status.CANCELLED):
+        raise ValidationError({'detail': "Bu so'rov allaqachon yakunlangan yoki bekor qilingan."})
+
+    price_request.status = PriceRequest.Status.CANCELLED
+    price_request.save()
+
+    from apps.accounts.models import User
+    from apps.core.services import resolve_notifications
+
+    for role in (User.Role.LOGIST, User.Role.DECLARANT, User.Role.SUPPLIER):
+        for recipient in User.objects.filter(role=role, is_active=True):
+            resolve_notifications('PriceRequest', price_request.pk, user=recipient)
+
+    from apps.core.models import ActivityLog
+
+    ActivityLog.objects.create(
+        user=user, action=ActivityLog.Action.UPDATE, entity='PriceRequest',
+        object_id=str(price_request.pk), description=reason or f'{price_request.number} bekor qilindi',
+    )
+    return price_request

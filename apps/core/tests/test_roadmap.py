@@ -131,10 +131,14 @@ class RoadmapTests(APITestCase):
         )
 
     def test_import_linked_chain_draws_logistics_and_customs_steps(self):
-        """24-§9.2: import zanjirida `logistics_quote`/`customs_clearance`
-        CHIZILADI (mahalliy zanjirda `skipped`, §9.2 jadval)."""
+        """24-§9.2/28-to'plam: import zanjirida `logistics_quote`/
+        `customs_clearance` CHIZILADI (mahalliy zanjirda `skipped`).
+
+        28-to'plam: buyurtmachi tovar narxini endi OXIRIDA kiritadi
+        (§2-jadval) — narx so'ralgan zahoti ish LOGISTda, `fill-goods`
+        qadami yo'q."""
         from apps.configurator.models import ConfigurationItem
-        from apps.procurement.models import ImportCostSheet
+        from apps.procurement.models import PriceRequestLine
 
         logist = User.objects.create_user('log', password='p', role=User.Role.LOGIST)
         imported_part = Product.objects.create(
@@ -152,12 +156,8 @@ class RoadmapTests(APITestCase):
             configuration=configuration, component=imported_part, label='Chip', quantity=1,
         )
         self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
-        sheet = ImportCostSheet.objects.get(product=imported_part)
-
-        self.client.force_authenticate(self.supplier)
-        self.client.post(f'/api/import-cost-sheets/{sheet.id}/fill-goods/', {
-            'currency': 'USD', 'goods_price': '1000', 'exchange_rate': '12500',
-        }, format='json')
+        line = PriceRequestLine.objects.get(product=imported_part)
+        self.assertIsNone(line.logistics_filled_at)
 
         self.client.force_authenticate(self.admin)
         response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')

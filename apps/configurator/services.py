@@ -638,6 +638,15 @@ def submit_configuration(configuration, user):
             ),
             'items': [item.component.name for item in no_price],
         })
+    # 26-§1(b): `order` — model narxi yo'q bo'lsa ko'rikka yubormaydi,
+    # aks holda shartnoma so'ralmagan narx bilan tuzilib ketardi.
+    if configuration.needs_base_price:
+        raise ValidationError({
+            'detail': (
+                f'{configuration.base_product.name}: model narxi kiritilmagan — '
+                'avval buyurtmachidan so\'rang (request-prices).'
+            ),
+        })
 
     configuration.status = Configuration.Status.PENDING_SALES
     configuration.save()
@@ -662,26 +671,21 @@ def submit_configuration(configuration, user):
 
 
 def request_prices(configuration, user, *, imported_products=None):
-    """Narxsiz qatorlar uchun buyurtmachidan narx so'raydi (YANGI-OQIM B2).
+    """Narxsiz narsalar uchun buyurtmachidan narx so'raydi (28-§1).
 
-    Bu TLD EMAS: hech narsa buyurtma qilinmaydi, pul to'lanmaydi — buyurtmachi
-    shunchaki tannarxni mahsulot kartasida kiritib beradi (§6-B ustamasi bilan
-    sotuv narxiga aylanadi). §2.1 aylanmasi bir necha bor aylanishi mumkin,
-    shuning uchun bu amal necha marta ham chaqiriladi; takrorida buyurtmachining
-    eski o'qilmagan eslatmasi yangilanadi — yangisi qo'shilmaydi.
+    Bu TLD EMAS: hech narsa buyurtma qilinmaydi, pul to'lanmaydi. 28-to'plam:
+    so'rov endi BITTA hujjat (`PriceRequest`) — buyurtmachining (import bo'lsa
+    logist va deklarantning ham) ish joyi, mahsulot kartasidagi tarqoq
+    eslatmalar o'rniga. §2.1 aylanmasi bir necha bor aylanishi mumkin, shuning
+    uchun bu amal necha marta ham chaqiriladi — ochiq hujjatga yangi
+    narxsizlar qo'shiladi, ikkinchisi ochilmaydi (`open_price_request`).
 
-    24-§6.2/§8.1: narxsiz qator IMPORT bo'lsa (`Product.is_imported` yoki
-    shu chaqiruvda `imported_products` orqali birinchi marta belgilansa),
-    buyurtmachiga oddiy eslatma o'rniga `ImportCostSheet` ochiladi —
-    logist va deklarant orqali o'tib tannarxni to'ldiradi. Bayroq mahsulotga
-    bir marta yoziladi va keyingi importlarda o'zi ishlaydi (§8.1).
+    26-§1(c): `order` rejimida qatorlar spetsifikatsiya — narx so'raladigan
+    narsa MODELNING O'ZI (`base_product`), qatorlar emas.
     """
     from rest_framework.exceptions import PermissionDenied, ValidationError
 
-    from apps.accounts.models import User
-    from apps.configurator.models import Configuration
-    from apps.core.models import Notification
-    from apps.inventory.models import Product
+    from apps.configurator.models import Configuration, ConfigurationRequestEvent
 
     if not (user.is_admin or user.is_engineer):
         raise PermissionDenied('Narx so\'rovini Engineer yuboradi.')
@@ -698,62 +702,37 @@ def request_prices(configuration, user, *, imported_products=None):
             ),
         })
 
-    # Buyurtmachi allaqachon kiritgan narxlar nol qatorlarga tushsin
-    for item in configuration.items.filter(unit_price=0):
-        item.save()
-    no_price = configuration.items_without_price
-    if not no_price:
-        raise ValidationError({
-            'detail': 'Barcha qatorlarda narx bor — so\'rov shart emas.',
-        })
+    if configuration.mode == Configuration.Mode.ORDER:
+        if not configuration.needs_base_price:
+            raise ValidationError({
+                'detail': 'Model narxi kiritilgan — so\'rov shart emas.',
+            })
+        lines_spec = [(configuration.base_product, configuration.quantity)]
+    else:
+        # Buyurtmachi allaqachon kiritgan narxlar nol qatorlarga tushsin
+        for item in configuration.items.filter(unit_price=0):
+            item.save()
+        no_price = configuration.items_without_price
+        if not no_price:
+            raise ValidationError({
+                'detail': 'Barcha qatorlarda narx bor — so\'rov shart emas.',
+            })
+        lines_spec = [
+            (item.component, item.quantity * configuration.quantity) for item in no_price
+        ]
 
-    # 10-to'plam §1: eslatma MAHSULOTGA ishora qiladi — buyurtmachi
-    # konfiguratsiyani ko'ra olmaydi (404 edi), mahsulot kartasi esa ochiq
-    # va tannarx maydoni unda. Har bir narxsiz mahsulotga alohida eslatma:
-    # vazifa ham alohida (beshta narx — beshta ish), yopilishi ham aniq
-    # (price_arrived o'sha mahsulotnikini yopadi). Takror bosishda o'qilmagan
-    # eslatma yangilanadi — kalit (user, Product, component).
-    suppliers = list(
-        User.objects.filter(role=User.Role.SUPPLIER, is_active=True)
+    from apps.procurement.services import open_price_request
+
+    price_request = open_price_request(
+        configuration, user, lines=lines_spec, imported_products=imported_products,
     )
-    for item in no_price:
-        is_imported = item.component.is_imported or bool(
-            imported_products and item.component_id in imported_products
-        )
-        if is_imported:
-            from apps.procurement.services import open_import_sheet
 
-            open_import_sheet(
-                item.component, user,
-                quantity=item.quantity * configuration.quantity,
-                configuration=configuration,
-            )
-            if not item.component.is_imported:
-                # §8.1: tanlov mahsulotga yoziladi — keyingi safar o'zi biladi
-                Product.objects.filter(pk=item.component_id).update(is_imported=True)
-            continue
-        for supplier in suppliers:
-            Notification.objects.update_or_create(
-                user=supplier, entity='Product',
-                object_id=str(item.component_id), is_read=False,
-                defaults={
-                    'title': f'{item.component.name}: tannarx kerak',
-                    'message': (
-                        f'{configuration.number} uchun so\'raldi. Bu buyurtma '
-                        'emas — faqat tannarxni mahsulot kartasida kiriting.'
-                    ),
-                    'level': Notification.Level.WARNING,
-                },
-            )
-    # B15: aylanma qadam tarixga tushadi
-    from apps.configurator.models import ConfigurationRequestEvent
-
-    names = ', '.join(item.component.name for item in no_price)
+    names = [product.name for product, _ in lines_spec]
     log_request_event(
         _owning_request(configuration),
-        ConfigurationRequestEvent.Stage.PRICE_ASKED, user, names,
+        ConfigurationRequestEvent.Stage.PRICE_ASKED, user, ', '.join(names),
     )
-    return [item.component.name for item in no_price]
+    return names
 
 
 def price_arrived(product, user):
@@ -775,6 +754,16 @@ def price_arrived(product, user):
     # 10-to'plam §1: mahsulotga bog'langan "tannarx kerak" eslatmalari yopiladi
     for supplier in suppliers:
         resolve_notifications('Product', product.pk, user=supplier)
+
+    # 28-to'plam: narx buyurtmachi tomonidan `PriceRequestLine.answer`dan
+    # o'tmasdan, to'g'ridan `PATCH /products/{id}/` orqali kelishi ham
+    # mumkin (mahalliy qator uchun bu ham to'g'ri yo'l — §6 case 1). Bunday
+    # holda tegishli ochiq qatorlar/hujjatlar qo'lda yopilmagani uchun
+    # o'zi yopilsin — aks holda buyurtmachining eslatmasi abadiy ochiq qolib,
+    # `PriceRequestLine.answered_at`/`cost_price` hech qachon to'lmas edi.
+    from apps.procurement.services import close_local_price_request_lines_for_product
+
+    close_local_price_request_lines_for_product(product, user)
 
     waiting = (
         Configuration.objects
@@ -808,6 +797,38 @@ def price_arrived(product, user):
                 message=(
                     'Buyurtmachi narxni kiritdi — mijoz bilan kelishing. '
                     'Ma\'qul bo\'lsa engineer ko\'rikka yuboradi.'
+                ),
+                level=Notification.Level.INFO,
+                entity='Configuration',
+                object_id=str(configuration.pk),
+            )
+        from apps.configurator.models import ConfigurationRequestEvent
+
+        log_request_event(
+            _owning_request(configuration),
+            ConfigurationRequestEvent.Stage.PRICE_GIVEN, user, product.name,
+        )
+
+    # 26-§1(b): `order` rejimidagi modellar — narx bazaviy mahsulotning
+    # o'zida, qatorda emas; yuqoridagi tsikl bularga tegmaydi.
+    order_waiting = Configuration.objects.filter(
+        status__in=[
+            Configuration.Status.DRAFT,
+            Configuration.Status.PENDING_CLARIFICATION,
+            Configuration.Status.PENDING_SALES,
+        ],
+        mode=Configuration.Mode.ORDER,
+        base_product=product,
+    )
+    for configuration in order_waiting:
+        owner = _configuration_owner_sales(configuration)
+        if owner:
+            Notification.objects.create(
+                user=owner,
+                title=f'{configuration.number}: narx keldi',
+                message=(
+                    "Buyurtmachi model narxini kiritdi — mijoz bilan kelishing. "
+                    "Ma'qul bo'lsa engineer ko'rikka yuboradi."
                 ),
                 level=Notification.Level.INFO,
                 entity='Configuration',
@@ -1474,6 +1495,13 @@ def deal_submit(request_obj, user):
                 'id': cfg.id, 'number': cfg.number, 'reason': 'needs_price',
                 'message': 'Narxsiz qator bor',
             })
+            continue
+        # 26-§1(b): `order` — model narxi yo'q bo'lsa ko'rikka yubormaydi
+        if cfg.needs_base_price:
+            blocked.append({
+                'id': cfg.id, 'number': cfg.number, 'reason': 'needs_price',
+                'message': f'{cfg.base_product.name}: model narxi kiritilmagan',
+            })
     if blocked:
         raise ValidationError({
             'detail': f'{len(active)} ta modeldan {len(blocked)} tasi yuborishga tayyor emas.',
@@ -1541,6 +1569,16 @@ def deal_request_prices(request_obj, user):
     by_product = {}
     for cfg in _deal_models_for_request(request_obj):
         if cfg.status not in eligible_statuses:
+            continue
+        # 26-§1(c): `order` — narx qatorda emas, modelning o'zida so'raladi
+        if cfg.mode == Configuration.Mode.ORDER:
+            if not cfg.needs_base_price:
+                continue
+            request_prices(cfg, user)
+            row = by_product.setdefault(
+                cfg.base_product_id, {'product': cfg.base_product, 'configurations': []},
+            )
+            row['configurations'].append(cfg.number)
             continue
         for item in cfg.items.filter(unit_price=0):
             item.save()
@@ -1870,6 +1908,10 @@ def finalize_configuration(configuration, user, *, act=None, client=None):
                 configuration.act = sibling_act
     if not configuration.act:
         raise ValidationError({'detail': 'Yakunlash uchun ACT biriktirilishi shart.'})
+
+    # 26-§1(b): `order` — model narxi yo'q bo'lsa yakunlanmaydi
+    if configuration.needs_base_price:
+        raise ValidationError({'detail': 'Model narxi kiritilmagan.'})
 
     no_price = configuration.items_without_price
     if no_price:

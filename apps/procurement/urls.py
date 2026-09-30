@@ -5,6 +5,8 @@ from django.urls import path
 from apps.core.routing import DETAIL, LIST, READ_DETAIL, READ_LIST
 from apps.procurement.views import (
     ImportCostSheetViewSet,
+    PriceRequestLineViewSet,
+    PriceRequestViewSet,
     ReplenishmentViewSet,
     ReplenishmentItemViewSet,
     ReplenishmentApprovalViewSet,
@@ -76,4 +78,28 @@ urlpatterns = [
     path('import-cost-sheets/<int:pk>/change-quantity/', ImportCostSheetViewSet.as_view({
         'post': 'change_quantity',
     }), name='importcostsheet-change-quantity'),
+
+    # 28-to'plam: narx so'rovi — bitta hujjat, uch rol, bir-birini ko'rmaydi
+    path('price-requests/', PriceRequestViewSet.as_view(READ_LIST), name='pricerequest-list'),
+    path('price-requests/<int:pk>/', PriceRequestViewSet.as_view(READ_DETAIL), name='pricerequest-detail'),
+    path('price-requests/<int:pk>/cancel/', PriceRequestViewSet.as_view({
+        'post': 'cancel',
+    }), name='pricerequest-cancel'),
+
+    path('price-request-lines/<int:pk>/', PriceRequestLineViewSet.as_view(READ_DETAIL), name='pricerequestline-detail'),
+    path('price-request-lines/<int:pk>/fill-logistics/', PriceRequestLineViewSet.as_view({
+        'post': 'fill_logistics',
+    }), name='pricerequestline-fill-logistics'),
+    path('price-request-lines/<int:pk>/fill-customs/', PriceRequestLineViewSet.as_view({
+        'post': 'fill_customs',
+    }), name='pricerequestline-fill-customs'),
+    path('price-request-lines/<int:pk>/send-to-customs/', PriceRequestLineViewSet.as_view({
+        'post': 'send_to_customs',
+    }), name='pricerequestline-send-to-customs'),
+    path('price-request-lines/<int:pk>/mark-imported/', PriceRequestLineViewSet.as_view({
+        'post': 'mark_imported',
+    }), name='pricerequestline-mark-imported'),
+    path('price-request-lines/<int:pk>/answer/', PriceRequestLineViewSet.as_view({
+        'post': 'answer',
+    }), name='pricerequestline-answer'),
 ]

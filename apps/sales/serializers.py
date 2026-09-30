@@ -32,6 +32,10 @@ class ContractItemSerializer(ModelSerializer):
     # shartnomada qatorlarni ajratish uchun har konfiguratsiyaga alohida
     # so'rov yuborishga majbur bo'lardi
     configuration_number = ReadOnlyField(source='configuration.number')
+    # 27-§2/§3: marja nazorati — kim nimani ko'radi (§4) `to_representation`da
+    cost = ReadOnlyField()
+    margin_state = ReadOnlyField()
+    min_price = ReadOnlyField()
 
     contract = PrimaryKeyRelatedField(
         queryset=Contract.objects.all(), required=False,
@@ -42,6 +46,7 @@ class ContractItemSerializer(ModelSerializer):
         fields = [
             'id', 'contract', 'product', 'product_name', 'quantity', 'unit_price',
             'subtotal', 'vat_percent', 'vat_amount', 'total_with_vat',
+            'cost', 'margin_state', 'min_price',
             # 12-§2 (C): qator qaysi modeldan kelgani — bitta shartnomada
             # bir nechta model bo'lsa front shu bilan ajratadi
             'configuration', 'configuration_number',
@@ -56,13 +61,26 @@ class ContractItemSerializer(ModelSerializer):
         return attrs
 
     def to_representation(self, instance):
-        """TZ: qator bo'yicha sotuv narxi faqat sales va adminga ko'rinadi."""
+        """TZ: qator bo'yicha sotuv narxi faqat sales va adminga ko'rinadi.
+
+        27-§4: marja maydonlari alohida bosqichma-bosqich — `cost` (haqiqiy
+        tannarx) faqat adminga, `min_price` admin+sales, `margin_state`
+        (bu narx emas — bayroq) admin+sales+bugalterga ko'rinadi.
+        """
         data = super().to_representation(instance)
         request = self.context.get('request')
         user = getattr(request, 'user', None)
-        if user and user.is_authenticated and not (user.is_admin or user.is_sales):
+        if not (user and user.is_authenticated):
+            return data
+        if not (user.is_admin or user.is_sales):
             for field in PRICE_FIELDS:
                 data.pop(field, None)
+        if not user.is_admin:
+            data.pop('cost', None)
+        if not (user.is_admin or user.is_sales):
+            data.pop('min_price', None)
+        if not (user.is_admin or user.is_sales or user.is_bugalter):
+            data.pop('margin_state', None)
         return data
 
 
@@ -113,6 +131,8 @@ class ContractSerializer(ModelSerializer):
     days_left = ReadOnlyField()
     color = ReadOnlyField()
     acts_approved = SerializerMethodField()
+    # 27-§3: eng yomon qator bo'yicha jamlanma — kim ko'rishi §4 bilan bir xil
+    margin_state = ReadOnlyField()
 
     class Meta:
         model = Contract
@@ -124,7 +144,7 @@ class ContractSerializer(ModelSerializer):
             'delivered_at', 'delivered_by',
             'didox_number', 'didox_sent_at', 'didox_accepted_at', 'note',
             'items', 'approvals', 'payments', 'paid', 'balance', 'days_left', 'color',
-            'acts_approved', 'created_by', 'created_at',
+            'margin_state', 'acts_approved', 'created_by', 'created_at',
         ]
         # Didox maydonlari faqat bugalter bosqichlarida yoziladi (§11.2/B3)
         read_only_fields = [

@@ -5,6 +5,7 @@ from rest_framework.response import Response
 from apps.accounts.permissions import (
     FinanceAccess,
     ImportCostAccess,
+    PriceRequestAccess,
     ProcurementAccess,
     ProcurementApprovalAccess,
     ProcurementSharedAccess,
@@ -14,6 +15,8 @@ from apps.core.models import ActivityLog
 from apps.inventory.models import Product, Warehouse
 from apps.procurement.models import (
     ImportCostSheet,
+    PriceRequest,
+    PriceRequestLine,
     Replenishment,
     ReplenishmentApproval,
     ReplenishmentEvent,
@@ -21,6 +24,8 @@ from apps.procurement.models import (
 )
 from apps.procurement.serializers import (
     ImportCostSheetSerializer,
+    PriceRequestLineSerializer,
+    PriceRequestSerializer,
     ReplenishmentApprovalSerializer,
     ReplenishmentEventSerializer,
     ReplenishmentItemSerializer,
@@ -28,19 +33,25 @@ from apps.procurement.serializers import (
 )
 from apps.procurement.services import (
     add_event,
+    answer_price_request_line,
     approve,
     build_from_low_stock,
     cancel_import_sheet,
+    cancel_price_request,
     change_import_sheet_quantity,
     fill_customs_section,
     fill_goods_section,
     fill_logistics_section,
+    fill_price_request_customs,
+    fill_price_request_logistics,
     low_stock_products,
+    mark_price_request_line_imported,
     open_import_sheet,
     pay,
     receive,
     reject,
     return_import_sheet,
+    send_price_request_line_to_customs,
     submit,
 )
 
@@ -395,3 +406,99 @@ class ImportCostSheetViewSet(BaseModelViewSet):
         )
         self.log_action(ActivityLog.Action.UPDATE, sheet, f'{sheet.number}: miqdor o\'zgartirildi')
         return Response(self.get_serializer(sheet).data)
+
+
+class PriceRequestViewSet(BaseModelViewSet):
+    """28-§1: narx so'rovi — hujjatning o'zi faqat o'qish + bekor qilish
+    uchun; bo'limlarni to'ldirish `PriceRequestLineViewSet` orqali."""
+
+    queryset = PriceRequest.objects.select_related(
+        'configuration', 'created_by',
+    ).prefetch_related('lines__product').all()
+    serializer_class = PriceRequestSerializer
+    permission_classes = [PriceRequestAccess]
+    filterset_fields = ['status', 'configuration']
+    ordering_fields = ['created_at', 'number']
+
+    def cancel(self, request, pk=None):
+        """POST /price-requests/{id}/cancel/ — admin yoki ochgan odam."""
+        price_request = cancel_price_request(
+            self.get_object(), request.user, request.data.get('reason', ''),
+        )
+        self.log_action(ActivityLog.Action.UPDATE, price_request, f'{price_request.number} bekor qilindi')
+        return Response(self.get_serializer(price_request).data)
+
+
+# 28-§2: rolning o'zi servis darajasida tekshiriladi (`_require`) —
+# ViewSet bu amallar uchun faqat autentifikatsiyani talab qiladi.
+PRICE_REQUEST_LINE_SERVICE_ACTIONS = {
+    'fill_logistics', 'fill_customs', 'send_to_customs', 'mark_imported', 'answer',
+}
+
+
+class PriceRequestLineViewSet(BaseModelViewSet):
+    """28-§1/§2: bitta mahsulot — logist/deklarant/buyurtmachi shu yerda
+    o'z qismini bajaradi, bir-birining raqamini ko'rmaydi (serializer)."""
+
+    queryset = PriceRequestLine.objects.select_related('request', 'product').all()
+    serializer_class = PriceRequestLineSerializer
+    permission_classes = [PriceRequestAccess]
+
+    def get_permissions(self):
+        if self.action in PRICE_REQUEST_LINE_SERVICE_ACTIONS:
+            return [IsAuthenticated()]
+        return super().get_permissions()
+
+    def fill_logistics(self, request, pk=None):
+        """POST /price-request-lines/{id}/fill-logistics/ — Logist."""
+        line = fill_price_request_logistics(
+            self.get_object(), request.user,
+            logistics_total=request.data.get('logistics_total'),
+            freight_to_border=request.data.get('freight_to_border'),
+            note=request.data.get('note', ''),
+        )
+        self.log_action(ActivityLog.Action.UPDATE, line, f'{line.request.number}: logistika narxi kiritildi')
+        return Response(self.get_serializer(line).data)
+
+    def fill_customs(self, request, pk=None):
+        """POST /price-request-lines/{id}/fill-customs/ — Deklarant."""
+        data = request.data
+        line = fill_price_request_customs(
+            self.get_object(), request.user,
+            tnved_code=data.get('tnved_code', ''),
+            duty_percent=data.get('duty_percent', 0),
+            duty_amount=data.get('duty_amount', 0),
+            excise_amount=data.get('excise_amount', 0),
+            customs_fee=data.get('customs_fee'),
+            certificate_cost=data.get('certificate_cost', 0),
+            laboratory_cost=data.get('laboratory_cost', 0),
+            declarant_fee=data.get('declarant_fee', 0),
+            note=data.get('note', ''),
+        )
+        self.log_action(ActivityLog.Action.UPDATE, line, f'{line.request.number}: bojxona hisobi kiritildi')
+        return Response(self.get_serializer(line).data)
+
+    def send_to_customs(self, request, pk=None):
+        """POST /price-request-lines/{id}/send-to-customs/ — §3 case 4."""
+        line = send_price_request_line_to_customs(self.get_object(), request.user)
+        self.log_action(ActivityLog.Action.UPDATE, line, f'{line.request.number}: deklarantga yuborildi')
+        return Response(self.get_serializer(line).data)
+
+    def mark_imported(self, request, pk=None):
+        """POST /price-request-lines/{id}/mark-imported/ — buyurtmachi belgilaydi."""
+        line = mark_price_request_line_imported(self.get_object(), request.user)
+        self.log_action(ActivityLog.Action.UPDATE, line, f'{line.request.number}: import deb belgilandi')
+        return Response(self.get_serializer(line).data)
+
+    def answer(self, request, pk=None):
+        """POST /price-request-lines/{id}/answer/ — Buyurtmachi yakunlaydi."""
+        data = request.data
+        line = answer_price_request_line(
+            self.get_object(), request.user,
+            cost_price=data.get('cost_price'),
+            currency=data.get('currency'),
+            goods_price=data.get('goods_price'),
+            exchange_rate=data.get('exchange_rate'),
+        )
+        self.log_action(ActivityLog.Action.UPDATE, line, f'{line.request.number}: tannarx berildi')
+        return Response(self.get_serializer(line).data)

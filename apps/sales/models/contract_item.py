@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.db.models import (
     CASCADE,
     PROTECT,
@@ -51,3 +53,52 @@ class ContractItem(TimeStampedModel):
     def total_with_vat(self):
         """Qator jami — QQS bilan (chop etishdagi "Jami" ustuni)."""
         return self.subtotal + self.vat_amount
+
+    @property
+    def cost(self):
+        """Qator TANNARXI (27-§2) — `subtotal` bilan solishtirish uchun.
+
+        Konfiguratsiyali qator `Configuration.cost_total`dan (donaga), oddiy
+        qator `Product.cost_price`dan — ikkalasi ham shu qatorning
+        `quantity`siga ko'payadi.
+        """
+        if self.configuration_id:
+            return self.configuration.cost_total * self.quantity
+        return self.product.cost_price * self.quantity
+
+    @property
+    def cost_known(self):
+        """27-§2: tannarx kiritilganmi — `cost_price=0` "hali kiritilmagan" degani."""
+        if self.configuration_id:
+            return self.configuration.cost_known
+        return bool(self.product.cost_price)
+
+    @property
+    def min_price(self):
+        """Eng kam ruxsat etilgan SUBTOTAL: tannarx × (1 + eng kam ustama%) (27-§3)."""
+        from apps.core.models import CompanyProfile
+
+        percent = CompanyProfile.load().min_margin_percent
+        return (self.cost * (Decimal('100') + percent) / Decimal('100')).quantize(Decimal('0.01'))
+
+    @property
+    def margin_state(self):
+        """27-§2/§3: 'unknown' | 'below_cost' | 'below_min' | 'ok'.
+
+        QQS'siz `subtotal` bilan solishtiriladi — QQS marja emas, davlatga
+        o'tadi. Narx tannarxga TENG bo'lsa ham qizil (`<=`, talab shunday).
+        """
+        from apps.core.choices import Currency
+
+        # 27-§5 case 12: shartnoma UZS bo'lmasa tekshiruv o'tkazib yuboriladi
+        # — tannarx so'mda, kurs esa shartnomada yo'q, taxminiy solishtirish
+        # yolg'on ogohlantirish berardi.
+        if self.contract_id and self.contract.currency != Currency.UZS:
+            return 'unknown'
+        if not self.cost_known:
+            return 'unknown'
+        if self.subtotal <= self.cost:
+            return 'below_cost'
+        if self.subtotal < self.min_price:
+            return 'below_min'
+        return 'ok'

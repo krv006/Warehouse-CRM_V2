@@ -143,12 +143,13 @@ class ContractFirstTests(APITestCase):
         self.assertEqual(response.status_code, 400)
         self.assertIn('Kabel X', str(response.data['items']))
 
-        # Narx so'rovi — eslatma MAHSULOTGA ishora qiladi (10-to'plam §1:
-        # buyurtmachi konfiguratsiyani ko'ra olmaydi, mahsulot kartasi ochiq);
-        # takrorida dublikat yo'q
+        # 28-to'plam: narx so'rovi endi BITTA hujjat (`PriceRequest`) —
+        # eslatma shu hujjatga ishora qiladi (mahsulotga emas); takrorida
+        # dublikat yo'q
         response = self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
         self.assertEqual(response.status_code, 200, response.data)
         self.assertEqual(response.data['requested'], ['Kabel X'])
+        price_request_id = response.data['price_request']
 
         # QOLGAN-ISHLAR-2 §7: hujjatning o'zi "so'ralganmi?" bilsin — tugma
         # ikkinchi marta bosilmasin (zararsiz, lekin chalkash)
@@ -159,9 +160,9 @@ class ContractFirstTests(APITestCase):
         notes = Notification.objects.filter(user=self.supplier, is_read=False)
         self.assertEqual(notes.count(), 1)
         note = notes.get()
-        self.assertIn('tannarx kerak', note.title)
-        self.assertEqual(note.entity, 'Product')
-        self.assertEqual(int(note.object_id), no_price.pk)
+        self.assertIn('Tannarx kerak', note.title)
+        self.assertEqual(note.entity, 'PriceRequest')
+        self.assertEqual(int(note.object_id), price_request_id)
 
         # 10-§1: buyurtmachining doimiy ro'yxati — narxi kutilayotganlar
         self.client.force_authenticate(self.supplier)

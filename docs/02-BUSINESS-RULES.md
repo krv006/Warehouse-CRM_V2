@@ -198,6 +198,56 @@ bugalter javobida bu maydonlar chiqarilmaydi (shartnomaning umumiy summasi esa k
 Bosqichlar: `new → negotiation → verbal → contract`, yoki `lost`.
 Shartnoma tuzilganda `Lead.contract` ga bog'lanadi.
 
+### Marja nazorati — tannarxdan past sotuvga ogohlantirish (27-to'plam)
+
+Sales tannarxdan past yoki teng narxda sotmasligi kerak; admin eng kam
+ustamani belgilaydi. Bu **qat'iy taqiq emas** — shartnoma baribir
+tuziladi, faqat ogohlantirish rangi turadi. `CompanyProfile.
+min_margin_percent` (default 0) — `markup_percent` bilan **chalkashtirilmasin**:
+u narxsiz mahsulotga avtomatik ustama qo'yadi (narxni **yasaydi**), bu esa
+qo'yilgan narxni **tekshiradi**.
+
+```
+subtotal  = quantity × unit_price                    # QQS'siz
+cost      = ContractItem.cost (qator turiga qarab, pastga qarang)
+min_price = cost × (1 + min_margin_percent / 100)
+
+cost yo'q (0)            → margin_state = 'unknown'   (rang yo'q)
+subtotal <= cost          → 'below_cost'   🔴 (teng bo'lsa ham qizil)
+cost < subtotal < min_price → 'below_min'  🟡
+subtotal >= min_price     → 'ok'
+```
+
+`ContractItem.cost` qator turiga qarab to'rt xil (`Configuration.
+cost_total`ga tayanadi):
+
+| Qator turi | Tannarx |
+|---|---|
+| Oddiy (konfiguratsiyasiz) | `product.cost_price × quantity` |
+| `build` | `Σ(component.cost_price × item.quantity) × quantity` |
+| `order` | `base_product.cost_price × quantity` (25-§6) |
+| `modify` | `(base_product.cost_price + qo'shilgan − yechilgan) × quantity` |
+
+`Configuration.cost_known` — tannarx TO'LIQ hisoblanganini bildiradi;
+`build`da bitta butlovchining tannarxi yo'q bo'lsa ham butun qator
+`unknown` (yarim hisoblangan tannarx bilan solishtirish yolg'on natija
+berardi). Shartnoma valyutasi UZS bo'lmasa tekshiruv o'tkazib yuboriladi
+(`unknown`) — tannarx so'mda, kursni solishtirish yolg'on ogohlantirish
+berardi.
+
+`Contract.margin_state` — ENG YOMON qator bo'yicha jamlanma (`unknown`
+eng yomon SANALMAYDI: bitta qator `unknown`, qolgani `ok` bo'lsa
+jamlanma `ok`).
+
+**Kim nimani ko'radi** (`ContractItemSerializer`/`ContractSerializer`):
+
+| Rol | `margin_state` | `min_price` | `cost` |
+|---|---|---|---|
+| Admin | ✅ | ✅ | ✅ |
+| Sales | ✅ | ✅ | ❌ (tannarxni hech qachon ko'rmaydi) |
+| Bugalter | ✅ | ❌ | ❌ |
+| Boshqalar | ❌ | ❌ | ❌ |
+
 ---
 
 ## 5. Configurator
@@ -262,6 +312,24 @@ bloklanadi" qoidasi endi kamdan-kam ko'rinadi — noto'g'ri rejim
 so'ralmaydi, chunki eng boshidanoq to'g'risi taklif qilinadi; aniq
 `mode=modify` so'ralsa (masalan frontdan eski so'rov kelsa), guard
 bugungidek 400 qaytaradi, xabari `order`ni ko'rsatadi.
+
+**26-to'plam — `order` rejimida narx nazorati.** `order`da qatorlar
+spetsifikatsiya, ularning yig'indisi mashinaning narxi EMAS — yetkazib
+beruvchi mashinani butun holda, boshqa pulga beradi. Shuning uchun:
+
+- `Configuration.total_price` `order`da `base_product.stock_price`dan
+  olinadi (qatorlar yig'indisidan emas); qolgan rejimlarda bugungidek.
+- `Configuration.needs_base_price` — modelning o'z narxi yo'qligini
+  bildiradi (`order` + `stock_price=0`). Bu `True` bo'lsa: `submit`
+  (`ConfigurationViewSet` ham, `deal_submit` ham) 400 bilan to'sadi,
+  `finalize` ham 400 qaytaradi — shartnoma **so'ralmagan narx bilan
+  ochilmaydi** (sales tasdiqlashidan OLDIN narx joyida bo'lishi shart).
+- `request_prices` `order`da MODELNING O'ZINI so'raydi (qatorlarni emas) —
+  28-to'plamdagi `PriceRequest` hujjatining bir qatori bo'lib ochiladi.
+- Buyurtmachi narx kiritgach (`PriceRequestLine.answer`) `price_arrived`
+  zanjirni davom ettiradi — xuddi oddiy butlovchi narxi kelganidek.
+- Import model bo'lsa (24-to'plam) `ImportCostSheet` o'rniga endi shu
+  yo'lning o'zi ishlaydi — alohida so'rov shart emas.
 
 Configurator **barcha rollarga** ochiq (TZ 6.5).
 
@@ -518,46 +586,64 @@ Bosqichlar: `ordered` → `shipped` → `customs` → `cleared` → `arrived`.
 Har bir bosqich `ReplenishmentEvent` sifatida vaqti va izohi bilan saqlanadi,
 `GET /{id}/timeline/` da qarz muddati bilan birga qaytariladi.
 
-### Import tannarxi — Logist/Deklarant (24-to'plam)
+### Narx so'rovi — bitta hujjat, uch rol (28-to'plam, 24-§ o'rnini bosadi)
 
-`Product.is_imported=True` bo'lgan (yoki narx so'rovida `imported_products`
-bilan birinchi marta shu deb belgilangan) mahsulotga narx so'ralganda,
-buyurtmachiga oddiy "tannarx kiriting" eslatmasi o'rniga `ImportCostSheet`
-ochiladi — uchta odam ketma-ket to'ldiradi:
+`request_prices` (engineer, `POST /configurations/{id}/request-prices/`)
+narxsiz narsalar (butlovchilar, yoki `order` rejimida bazaviy modelning
+o'zi — 26-to'plam) uchun endi **bitta hujjat** — `PriceRequest` —
+ochadi; qator (`PriceRequestLine`) — bitta mahsulot. Buyurtmachining (va
+import bo'lsa logist/deklarantning) ISH JOYI shu hujjat, mahsulot
+kartasidagi tarqoq eslatmalar emas.
 
-1. **Buyurtmachi (A)** — tovar narxi, valyuta, kurs, chiqarilgan davlat.
-2. **Logist (B)** — bitta umumiy yetkazish summasi (`logistics_total`).
-3. **Deklarant (C)** — TN VED kodi, boj (foiz yoki qo'lda summa — summa
-   USTUN turadi), aksiz, QQS foizi, bojxona/sertifikat/laboratoriya/
-   xizmat yig'imlari — hisobni **yopadi**.
+**Qator import bo'lsa** (`Product.is_imported=True` yoki so'rovda
+`imported_products` bilan shu chaqiruvda birinchi marta belgilansa) — uch
+rol ketma-ket ishlaydi va **bir-birining raqamini ko'rmaydi**:
 
-Ketma-ketlik qat'iy: deklarant logistdan OLDIN yozmoqchi bo'lsa `400`
-("Avval logist logistika narxini yozishi kerak").
+1. **Logist** — jami yetkazish narxi + shundan CHEGARAGACHA qismi
+   (`fill-logistics`); tovar narxi, bojxona, tannarx unga ko'rinmaydi.
+2. **Deklarant** — TN VED kodi + STAVKA (`duty_percent`, summa emas —
+   bojxona qiymatini u ko'rmaydi), aksiz, sertifikat, laboratoriya,
+   yig'im, o'z xizmati (`fill-customs`); tovar narxi, logistika, tannarx
+   ko'rinmaydi. **Kod mahsulotda BOR va stavka eslab qolingan bo'lsa
+   (oxirgi importdan `Product.tnved_code`/`duty_percent`/
+   `certificate_cost`/`laboratory_cost` orqali) bu bosqich O'TKAZIB
+   YUBORILADI** — qator to'g'ridan logistdan keyin buyurtmachiga tushadi.
+   Buyurtmachi shubhalansa `send-to-customs` bilan qaytadan deklarantga
+   yuboradi.
+3. **Buyurtmachi** — tovar narxi, valyuta, kurs va YAKUNIY tannarxni
+   kiritadi (`answer`) — tizim `suggested_cost`ni hisoblab beradi, u
+   tasdiqlaydi yoki ustidan yozadi. **Mahalliy qator** (import emas) — bu
+   yagona qadam, to'g'ridan shu yerga tushadi.
 
-**Eng muhim qoida — QQS bazasi (§2.1 4-qadam):**
+Qator holati (`PriceRequestLine.status`, hisoblanadi):
+`waiting_logistics → waiting_customs → waiting_supplier → answered`.
+So'rov holati (`PriceRequest.status`) — qatorlar orasidan **eng
+ORQADAGI** (eng kam bajarilgan) bosqich; aralash so'rovda (mahalliy +
+import) har qator o'z yo'lidan yuradi, mos rolga alohida bildirishnoma
+boradi.
+
+**Hisob** (24-§2.1 bilan bir xil, faqat manba — `PriceRequestLine`):
 
 ```
-Bojxona qiymati (BQ) = tovar narxi (so'mda) + CHEGARAGACHA yetkazish
-                        (TO'LIQ logistika emas — deklarant belgilaydi)
+Bojxona qiymati (BQ) = tovar narxi (so'mda) + LOGISTdan CHEGARAGACHA
 Boj                   = BQ × boj foizi  (yoki qo'lda kiritilgan summa)
 QQS                   = (BQ + boj + aksiz) × QQS foizi   ← INVOYSDAN EMAS
 Jami tannarx           = tovar (so'mda) + TO'LIQ logistika + bojxona xarajatlari
-Dona tannarx           = Jami tannarx / miqdor   (2 xonaga yaxlitlanadi)
+Taklif etilgan tannarx = Jami tannarx / miqdor   (2 xonaga yaxlitlanadi, taklif — yakuniy emas)
 ```
 
-QQS invoys (tovar) narxidan emas, bojxona qiymati + bojdan hisoblanadi — bu
-eng ko'p xato qiladigan joy. `CompanyProfile.vat_recoverable` bo'lsa (QQS
-qaytariladigan), QQS hisoblanadi va ko'rsatiladi, lekin jami tannarxga
-QO'SHILMAYDI (varaqa ochilgan paytda sozlamadan nusxalanadi — keyin
-o'zgarsa yopiq varaqa hisobi o'zgarmaydi).
+Buyurtmachi `answer`da javob berganda: `Product.cost_price` yangilanadi,
+`price_arrived` zanjirni davom ettiradi (narxsiz qator/`needs_base_price`
+o'chsa CFG sales'ga qaytadi) — bir xil yo'l import va mahalliy uchun.
+Deklarant kod/stavka kiritganda `Product.tnved_code`/`duty_percent`/
+`certificate_cost`/`laboratory_cost` ham yangilanadi — keyingi import
+uchun eslab qolinadi.
 
-Hisob **yopilganda** (`fill-customs`): `Product.tnved_code`/`cost_price`
-yangilanadi, ikkinchi importda TN VED oldindan to'ladi; narxsiz qatorlar
-mahalliy oqim bilan bir xil yo'l (`price_arrived`) orqali avtomatik yopiladi.
-Miqdor keyin o'zgarsa — `waiting_customs` bosqichi `waiting_logistics`ga
-qaytadi (logistika raqami eskirgan bo'lishi mumkin), logistga eslatma ketadi.
-Yopilgan (`done`/`cancelled`) varaqa tahrirlanmaydi — keyingi import uchun
-yangisi ochiladi (varaqa — surat, tarix o'zgarmaydi).
+> **`ImportCostSheet` (24-to'plam) o'zi saqlanadi** — modeli, hisob-kitobi
+> va o'z testlari qoladi, lekin `request_prices` endi uni ochmaydi.
+> `/api/import-cost-sheets/...` mustaqil endpoint sifatida ishlayveradi
+> (masalan qo'lda ochish uchun), yangi importlar esa `PriceRequest`
+> orqali yuradi.
 
 ## 8. Audit
 

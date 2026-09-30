@@ -12,11 +12,24 @@ from apps.inventory.models import Product, Warehouse
 from apps.inventory.services import create_product_from_order, main_warehouse
 from apps.procurement.models import (
     ImportCostSheet,
+    PriceRequest,
+    PriceRequestLine,
     Replenishment,
     ReplenishmentApproval,
     ReplenishmentEvent,
     ReplenishmentItem,
 )
+
+# 28-§2: uch rol bir-birining raqamini ko'rmaydi.
+_PRICE_REQUEST_SUPPLIER_FIELDS = ['currency', 'goods_price', 'exchange_rate', 'cost_price']
+_PRICE_REQUEST_LOGISTICS_FIELDS = ['logistics_total', 'freight_to_border', 'logistics_note']
+_PRICE_REQUEST_CUSTOMS_FIELDS = [
+    'tnved_code', 'duty_percent', 'duty_amount', 'excise_amount', 'customs_fee',
+    'certificate_cost', 'laboratory_cost', 'declarant_fee', 'customs_note',
+]
+_PRICE_REQUEST_MONEY_TOTALS = [
+    'goods_uzs', 'customs_value', 'duty', 'vat', 'customs_total', 'landed_total', 'suggested_cost',
+]
 
 
 class ReplenishmentItemSerializer(ModelSerializer):
@@ -247,3 +260,89 @@ class ImportCostSheetSerializer(ModelSerializer):
             'customs_filled_by', 'customs_filled_by_name', 'customs_filled_at',
             'created_by', 'created_by_name', 'created_at',
         ]
+
+
+class PriceRequestLineSerializer(ModelSerializer):
+    """28-§1/§2: bitta mahsulot. Yozish faqat servis amallari orqali
+    (`fill-logistics`/`fill-customs`/`answer`/...) — bu serializer KO'RSATISH
+    uchun, shuning uchun barcha maydon `read_only`.
+
+    28-§2: uch rol bir-birining raqamini ko'rmaydi — `to_representation`
+    joriy foydalanuvchi roliga qarab tegishli maydonlarni kesib tashlaydi.
+    """
+
+    product_name = ReadOnlyField(source='product.name')
+    status = ReadOnlyField()
+    status_display = SerializerMethodField()
+    goods_uzs = ReadOnlyField()
+    customs_value = ReadOnlyField()
+    duty = ReadOnlyField()
+    vat = ReadOnlyField()
+    customs_total = ReadOnlyField()
+    landed_total = ReadOnlyField()
+    suggested_cost = ReadOnlyField()
+
+    class Meta:
+        model = PriceRequestLine
+        fields = [
+            'id', 'request', 'product', 'product_name', 'quantity',
+            'is_imported', 'status', 'status_display',
+            'logistics_total', 'freight_to_border', 'logistics_note', 'logistics_filled_at',
+            'tnved_code', 'duty_percent', 'duty_amount', 'excise_amount', 'customs_fee',
+            'certificate_cost', 'laboratory_cost', 'declarant_fee', 'customs_note',
+            'customs_filled_at', 'customs_auto_filled',
+            'currency', 'goods_price', 'exchange_rate', 'cost_price', 'answered_at',
+            'goods_uzs', 'customs_value', 'duty', 'vat', 'customs_total', 'landed_total',
+            'suggested_cost', 'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_status_display(self, obj):
+        return PriceRequest.Status(obj.status).label
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not (user and user.is_authenticated) or user.is_admin:
+            return data
+        if user.is_bugalter or user.is_supplier:
+            return data
+        hidden = []
+        if user.is_logist:
+            hidden = (
+                _PRICE_REQUEST_SUPPLIER_FIELDS + _PRICE_REQUEST_CUSTOMS_FIELDS
+                + _PRICE_REQUEST_MONEY_TOTALS
+            )
+        elif user.is_declarant:
+            hidden = (
+                _PRICE_REQUEST_SUPPLIER_FIELDS + _PRICE_REQUEST_LOGISTICS_FIELDS
+                + _PRICE_REQUEST_MONEY_TOTALS
+            )
+        else:
+            hidden = (
+                _PRICE_REQUEST_SUPPLIER_FIELDS + _PRICE_REQUEST_LOGISTICS_FIELDS
+                + _PRICE_REQUEST_CUSTOMS_FIELDS + _PRICE_REQUEST_MONEY_TOTALS
+            )
+        for field in hidden:
+            data.pop(field, None)
+        return data
+
+
+class PriceRequestSerializer(ModelSerializer):
+    """28-§1: narx so'rovi hujjati — buyurtmachining (va import bo'lsa
+    logist/deklarantning) ish joyi."""
+
+    number = ReadOnlyField()
+    status_display = ReadOnlyField(source='get_status_display')
+    configuration_number = ReadOnlyField(source='configuration.number')
+    created_by_name = ReadOnlyField(source='created_by.display_name')
+    lines = PriceRequestLineSerializer(many=True, read_only=True)
+
+    class Meta:
+        model = PriceRequest
+        fields = [
+            'id', 'number', 'status', 'status_display', 'configuration',
+            'configuration_number', 'lines', 'created_by', 'created_by_name', 'created_at',
+        ]
+        read_only_fields = ['number', 'status', 'configuration', 'created_by']

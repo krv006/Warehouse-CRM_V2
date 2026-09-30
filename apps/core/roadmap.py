@@ -164,6 +164,13 @@ def _import_sheet_actor_ids(import_sheet):
     }
 
 
+def _price_request_actor_ids(price_request):
+    """28-to'plam: `ImportCostSheet`ning o'rnini bosgan hujjat — logist va
+    deklarant endi qatorning ICHIDA ishlaydi, alohida `filled_by` maydoni
+    yo'q, shuning uchun bu yerda faqat ochgan odam aniq."""
+    return {price_request.created_by_id}
+
+
 def chain_actor_ids(request_obj, configuration, contract):
     """Zanjirga QO'L TEKKIZGAN har bir odam (10-to'plam §5).
 
@@ -180,8 +187,12 @@ def chain_actor_ids(request_obj, configuration, contract):
         ids |= set(configuration.approvals.values_list('decided_by_id', flat=True))
         for replenishment in configuration.replenishments.all():
             ids |= _replenishment_actor_ids(replenishment)
+        # `import_sheets` — eski (24-to'plam) yozuvlar uchun saqlanadi;
+        # 28-to'plamdan keyin yangi importlar `price_requests`ga tushadi
         for import_sheet in configuration.import_sheets.all():
             ids |= _import_sheet_actor_ids(import_sheet)
+        for price_request in configuration.price_requests.all():
+            ids |= _price_request_actor_ids(price_request)
     if contract is not None:
         ids |= {contract.created_by_id, getattr(contract, 'delivered_by_id', None)}
         ids |= set(contract.approvals.values_list('decided_by_id', flat=True))
@@ -364,14 +375,14 @@ def _can_open(user, kind, obj, contract=None):
     if user.is_bugalter:
         return kind in ('contract', 'replenishment')
     if user.is_supplier:
-        if kind in ('replenishment', 'import_sheet'):
+        if kind in ('replenishment', 'import_sheet', 'price_request'):
             return True
         if kind == 'contract':
             return obj.status == 'active' and obj.delivered_at is None
         return False
     if user.is_logist or user.is_declarant:
-        # 24-§7 case 17: rol bo'ylab ish — egasi bo'yicha emas
-        return kind == 'import_sheet'
+        # 24-§7 case 17 / 28-§2: rol bo'ylab ish — egasi bo'yicha emas
+        return kind in ('import_sheet', 'price_request')
     return False
 
 
@@ -383,7 +394,7 @@ def build_roadmap(document, user):
         ConfigurationRequestEvent,
     )
     from apps.core.models import CompanyProfile
-    from apps.procurement.models import ImportCostSheet, Replenishment
+    from apps.procurement.models import PriceRequest, Replenishment
     from apps.sales.models import Contract, ContractApproval
 
     request_obj, configuration, contract = resolve_chain(document)
@@ -396,7 +407,8 @@ def build_roadmap(document, user):
         contract.approvals.select_related('decided_by')
     ) if contract else []
     replenishment = None
-    import_sheet = None
+    import_line = None
+    price_request = None
     if configuration is not None:
         replenishment = (
             configuration.replenishments
@@ -404,13 +416,19 @@ def build_roadmap(document, user):
             .order_by('-id')
             .first()
         )
-        # 24-to'plam §6.6: import bo'lsa shu yerdan ikkita bosqich chiziladi
-        import_sheet = (
-            configuration.import_sheets
-            .exclude(status=ImportCostSheet.Status.CANCELLED)
+        # 28-to'plam: `logistics_quote`/`customs_clearance` endi
+        # `PriceRequestLine`dan chiziladi (24-§6.6 §ImportCostSheet o'rnini
+        # bosdi) — eng oxirgi ochilgan so'rovning import qatori vakil bo'ladi.
+        price_request = (
+            configuration.price_requests
+            .exclude(status=PriceRequest.Status.CANCELLED)
             .order_by('-id')
             .first()
         )
+        if price_request is not None:
+            import_line = (
+                price_request.lines.filter(is_imported=True).order_by('-id').first()
+            )
 
     def ev(stage):
         return [e for e in events if e.stage == stage]
@@ -533,17 +551,15 @@ def build_roadmap(document, user):
     # §1: so'ralmagan va narxsiz qator ham yo'q — bu qadam bu zanjirda
     # ANIQ bo'lmaydi; so'ralmasdan o'tib ketilgan bo'lsa ham skipped
     has_priceless = bool(configuration and configuration.items_without_price)
-    # 24-§6.6: narx IMPORT orqali kutilayotgan bo'lsa (boshqa mahalliy
-    # qator qolmagan), ish endi logist/deklarantda — "joriy" bayrog'i
-    # ularning bosqichiga (`logistics_quote`/`customs_clearance`)
-    # o'tishi kerak, aks holda `price_request` STEPS ro'yxatida ULARDAN
-    # OLDIN turgani uchun current_key hech qachon o'sha bosqichlarga
-    # yetib bormas edi.
+    # 28-to'plam (24-§6.6 o'rnini bosadi): narx IMPORT orqali kutilayotgan
+    # bo'lsa (`PriceRequest.status` — eng orqadagi qator — logist/deklarant
+    # bosqichida), ish endi ularda — "joriy" bayrog'i logistics_quote/
+    # customs_clearance'ga o'tishi kerak, aks holda `price_request` STEPS
+    # ro'yxatida ULARDAN OLDIN turgani uchun current_key hech qachon o'sha
+    # bosqichlarga yetib bormas edi.
     import_only_pending = bool(
-        import_sheet and import_sheet.status != ImportCostSheet.Status.DONE
-        and configuration is not None
-        and not any(
-            not item.component.is_imported for item in configuration.items_without_price
+        price_request and price_request.status in (
+            PriceRequest.Status.WAITING_LOGISTICS, PriceRequest.Status.WAITING_CUSTOMS,
         )
     )
     data['price_request'] = dict(
@@ -558,35 +574,34 @@ def build_roadmap(document, user):
         ),
         current_override=bool(price_asked and not price_given) and not import_only_pending,
     )
-    # 24-§6.6: ikkita shartli qadam — import bo'lmagan (yoki hali
+    # 28-to'plam: ikkita shartli qadam — import bo'lmagan (yoki hali
     # boshlanmagan) zanjirda `skipped`, boshlangan bo'lsa o'z bosqichini
-    # ko'rsatadi. `import_sheet` yo'qligi "import emas" yoki "hali
-    # so'ralmagan" degani — ikkalasida ham chizilmaydi.
-    logistics_done = bool(import_sheet and import_sheet.logistics_filled_at)
-    customs_done = bool(
-        import_sheet and import_sheet.status == ImportCostSheet.Status.DONE,
-    )
+    # ko'rsatadi. `import_line` yo'qligi "import emas" yoki "hali
+    # so'ralmagan" degani — ikkalasida ham chizilmaydi. §3: kod eslab
+    # qolingan bo'lsa `customs_auto_filled` — qadam "o'tkazildi" holida.
+    logistics_done = bool(import_line and import_line.logistics_filled_at)
+    customs_done = bool(import_line and import_line.customs_filled_at)
     data['logistics_quote'] = dict(
         done=logistics_done,
-        at=import_sheet.logistics_filled_at if import_sheet else None,
-        who=import_sheet.logistics_filled_by if import_sheet else None,
-        doc=('import_sheet', import_sheet) if import_sheet else ('configuration', configuration),
-        skipped=import_sheet is None,
+        at=import_line.logistics_filled_at if import_line else None,
+        who=None,
+        doc=('price_request', price_request) if import_line else ('configuration', configuration),
+        skipped=import_line is None,
         current_override=bool(
-            import_sheet and import_sheet.status == ImportCostSheet.Status.WAITING_LOGISTICS,
+            import_line and import_line.status == PriceRequest.Status.WAITING_LOGISTICS,
         ),
-        since=import_sheet.goods_filled_at if import_sheet else None,
+        since=None,
     )
     data['customs_clearance'] = dict(
         done=customs_done,
-        at=import_sheet.customs_filled_at if import_sheet else None,
-        who=import_sheet.customs_filled_by if import_sheet else None,
-        doc=('import_sheet', import_sheet) if import_sheet else ('configuration', configuration),
-        skipped=import_sheet is None,
+        at=import_line.customs_filled_at if import_line else None,
+        who=None,
+        doc=('price_request', price_request) if import_line else ('configuration', configuration),
+        skipped=import_line is None,
         current_override=bool(
-            import_sheet and import_sheet.status == ImportCostSheet.Status.WAITING_CUSTOMS,
+            import_line and import_line.status == PriceRequest.Status.WAITING_CUSTOMS,
         ),
-        since=import_sheet.logistics_filled_at if import_sheet else None,
+        since=import_line.logistics_filled_at if import_line else None,
     )
     submitted_done = configuration is not None and (
         configuration.status in {'pending_sales'} | cfg_done_states

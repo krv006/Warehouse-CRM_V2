@@ -99,6 +99,9 @@ class OrderModeFlowTests(APITestCase):
         self.warehouse = Warehouse.objects.create(name='Asosiy ombor')
         self.base = Product.objects.create(
             sku='DELL-3680', name='Dell Precision 3680', kind=Product.Kind.MACHINE,
+            # 26-§1(b): `order` rejimida narx modelning o'zida kerak —
+            # aks holda finalize "Model narxi kiritilmagan" bilan to'sar edi.
+            sale_price=Decimal('20000000'),
         )
         self.ram = Product.objects.create(sku='RAM-32', name='RAM 32 GB', kind=Product.Kind.COMPONENT)
         self.ssd = Product.objects.create(sku='SSD-1TB', name='SSD 1 TB', kind=Product.Kind.COMPONENT)

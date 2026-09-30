@@ -3,6 +3,7 @@ from apps.procurement.models.replenishment_item import ReplenishmentItem
 from apps.procurement.models.approval import ReplenishmentApproval
 from apps.procurement.models.event import ReplenishmentEvent
 from apps.procurement.models.import_cost_sheet import ImportCostSheet
+from apps.procurement.models.price_request import PriceRequest, PriceRequestLine
 
 __all__ = [
     'Replenishment',
@@ -10,5 +11,7 @@ __all__ = [
     'ReplenishmentApproval',
     'ReplenishmentEvent',
     'ImportCostSheet',
+    'PriceRequest',
+    'PriceRequestLine',
     'DEBT_TERM_DAYS',
 ]

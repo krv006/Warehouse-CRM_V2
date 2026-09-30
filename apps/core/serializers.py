@@ -17,6 +17,12 @@ class CompanyProfileSerializer(ModelSerializer):
             'sla_cutoff_hour', 'sla_working_days',
             'contract_reservation_days', 'configuration_reservation_days',
             'vat_recoverable', 'default_customs_fee',
+            # 28-§8/27-§3: `markup_percent` (narxni YASAYDI) shu paytgacha bu
+            # serializerda umuman yo'q edi — admin uni hech qachon qo'ya
+            # olmagan (frontend forma bo'lsa ham PATCH jimgina tashlab
+            # ketardi). `min_margin_percent` (narxni TEKSHIRADI, 27-§3) —
+            # ikkalasi bir vaqtda sozlanishi kerak (27-§5 case 16).
+            'markup_percent', 'min_margin_percent',
             'updated_at',
         ]
         read_only_fields = ['id', 'updated_at']

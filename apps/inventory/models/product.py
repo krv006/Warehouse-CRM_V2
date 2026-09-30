@@ -49,8 +49,15 @@ class Product(TimeStampedModel):
     # taklif qilinadi (deklarant qo'yadi, tizim taxmin qilmaydi)
     tnved_code = CharField('TN VED', max_length=20, blank=True)
     # 24-§8.1: shu mahsulot importdanmi — request_prices shu bayroqqa qarab
-    # narxni buyurtmachidan (mahalliy) yoki ImportCostSheet orqali (import) so'raydi
+    # narxni buyurtmachidan (mahalliy) yoki import yo'li orqali so'raydi
     is_imported = BooleanField(default=False)
+    # 28-§3: oxirgi importdan ESLAB QOLINADI — kod BOR va stavka BELGILANGAN
+    # bo'lsa keyingi importda deklarant bosqichi o'tkazib yuboriladi
+    # (`tnved_code` mavjudligi "stavka ham eslab qolingan" degani, chunki
+    # ikkalasi bitta chaqiruvda birga yoziladi — `fill_customs`ga qarang).
+    duty_percent = DecimalField(max_digits=6, decimal_places=2, default=0)
+    certificate_cost = DecimalField(max_digits=18, decimal_places=2, default=0)
+    laboratory_cost = DecimalField(max_digits=18, decimal_places=2, default=0)
 
     class Meta:
         ordering = ['name']

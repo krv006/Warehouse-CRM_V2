@@ -9,8 +9,8 @@
 | Sales | `sales` | Zakaz shakllantiradi, configurator qiladi, client qo'shadi, sotuv narxini ko'radi |
 | Buyurtmachi | `buyurtmachi` | Omborda yetishmayotgan mahsulotlarni to'ldiradi: ta'minotchidan narx, logistika xarajati, yetkazib berish kuzatuvi |
 | Engineer | `engineer` | **Configurator tahriri to'liq unda**: sales'dan matnli zayavka oladi, konfiguratsiyani tayyorlaydi, **ACT kiritib yakunlaydi** va salesga topshiradi (§11.1) |
-| Logist | `logist` | 24-to'plam: import tannarx varaqasining B-bo'limi — umumiy logistika (yetkazish) summasini kiritadi |
-| Deklarant | `deklarant` | 24-to'plam: import tannarx varaqasining C-bo'limi — TN VED, boj, QQS bazasi va bojxona xarajatlarini kiritib hisobni yopadi |
+| Logist | `logist` | 28-to'plam (24-§ o'rnini bosadi): narx so'rovi qatorining logistika qismi — jami yetkazish narxi + chegaragacha qismi; tovar narxi, bojxona, tannarx ko'rinmaydi |
+| Deklarant | `deklarant` | 28-to'plam (24-§ o'rnini bosadi): narx so'rovi qatorining bojxona qismi — TN VED, boj STAVKASI, aksiz, sertifikat/laboratoriya/yig'im; tovar narxi, logistika, tannarx ko'rinmaydi. Kod+stavka eslab qolingan bo'lsa bosqich o'tkazib yuboriladi |
 
 `is_superuser = True` bo'lgan foydalanuvchi ham admin sifatida qaraladi
 (`User.is_admin` property — `apps/accounts/models/user.py`).
@@ -37,7 +37,8 @@
 | `ProductPricingAccess` | barcha login qilganlar | **admin, bugalter, buyurtmachi** — katalog narx siyosati: `PATCH /products/{id}/` (`sale_price`, `cost_price`, `reorder_level`, `is_active`); buyurtmachi YANGI-OQIM B2 narx so'roviga javoban tannarx kiritadi (§6-B: sotuv narxi yo'q bo'lsa tannarx + `markup_percent` ustama) |
 | `ConfigurationRequestAccess` | barcha login qilganlar | admin, sales, engineer |
 | `ContractTemplateAccess` | barcha login qilganlar (bugalter ham — matnni qaysi shablondan kelganini bilishi kerak) | admin, sales — 21-§3.1 |
-| `ImportCostAccess` | **logist, deklarant, bugalter, buyurtmachi** | **logist, deklarant** — 24-to'plam; aniq bo'limni kim to'ldirishini servis (`fill_goods_section`/`fill_logistics_section`/`fill_customs_section`) tekshiradi |
+| `ImportCostAccess` | **logist, deklarant, bugalter, buyurtmachi** | **logist, deklarant** — 24-to'plam (endi mustaqil ochilmaydi, §28); aniq bo'limni kim to'ldirishini servis (`fill_goods_section`/`fill_logistics_section`/`fill_customs_section`) tekshiradi |
+| `PriceRequestAccess` | **logist, deklarant, bugalter, buyurtmachi** | **logist, deklarant, buyurtmachi** — 28-to'plam; aniq maydonni kim yozishi servis (`fill_price_request_logistics`/`fill_price_request_customs`/`answer_price_request_line`/...) tekshiradi, izolyatsiya esa `PriceRequestLineSerializer.to_representation`da |
 
 Hammasi `RoleAccess` asosida: `read_roles` / `write_roles` ro'yxatlari, admin esa doim o'tadi.
 Qalin yozilgan qatorlar — **sales umuman ko'ra olmaydigan** bo'limlar (TZ 8.3).

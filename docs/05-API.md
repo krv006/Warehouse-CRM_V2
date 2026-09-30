@@ -265,12 +265,12 @@ keyin kelgani keyingi ish kuni oxirigacha (`/company/` da `sla_cutoff_hour`,
 | PUT/PATCH/DELETE | `/configurations/{id}/` | faqat `draft` holatida — `ready`/`sold` 400 qaytaradi |
 | GET | `/configurations/{id}/stock-check/` | omborda bor/yo'qligi |
 | GET | `/configurations/{id}/changes/` | zavod tarkibiga nisbatan farq (modify rejimi uchun) |
-| POST | `/configurations/{id}/submit/` | #4: engineer texnik yechimni **sales ko'rigiga** yuboradi (`pending_sales`); zayavka egasiga xabar; YANGI-OQIM B2: **narxsiz qator bo'lsa 400** (nol qatorlar avval ombordan qayta o'qiladi) |
+| POST | `/configurations/{id}/submit/` | #4: engineer texnik yechimni **sales ko'rigiga** yuboradi (`pending_sales`); zayavka egasiga xabar; YANGI-OQIM B2: **narxsiz qator bo'lsa 400** (nol qatorlar avval ombordan qayta o'qiladi); 26-§1: **`order`da modelning o'z narxi yo'q bo'lsa ham 400** — shartnoma so'ralmagan narx bilan ochilmasin |
 | POST | `/configurations/{id}/approve/` | #4: **sales** (admin) texnik yechimni tasdiqlaydi (`approved`), zayavka `done`; tarix — `approvals[]`; YANGI-OQIM B1: **shu yerda draft SHT avtomatik ochiladi** (egasi — zayavka sales'i, javobdagi `contract` maydonida); mijoz aniqlanmasa **400** (B10). 12-§2 (C2): tanada ixtiyoriy `contract` (id) — berilsa yangi shartnoma ochilmaydi, mavjud **qoralamaga** yangi model qatori qo'shiladi (bitta savdo, bir nechta model); shartlar: `draft`, bir xil mijoz, bir xil egasi (yoki admin) — aks holda 400. 14-§3: `contract` berilmasa ham — savdoda (`ConfigurationRequestLine`) boshqa modelning ochiq shartnomasi bo'lsa, avtomatik o'sha **qoralamaga** qo'shiladi; topilgan shartnoma `draft` emas bo'lsa **400** (`{"detail": "...", "contract": id, "contract_status": "..."}` — eski yozuv/admin aralashuvi); tanada `separate_contract: true` — bu avtomatikani o'chirib, har doim **yangi** shartnoma ochadi |
 | POST | `/configurations/{id}/reject/` | #4: sales izoh bilan qaytaradi (`draft`ga) — engineer xabar oladi, izoh tarixda |
-| POST | `/configurations/{id}/finalize/` | #4: shartlari `approved` + yig'ilgan (`assembled_at`, **25-§6: `order`da shart emas**) + ACT (tanada `{"act": 2}`); YANGI-OQIM: shartnoma bu yerda OCHILMAYDI (u `approve`da ochilgan) — qatordagi bazaviy model **yig'ilgan variantga ko'chadi** (B6, son/narx tegilmaydi), CFG `ready` (shartnoma `active` bo'lsa `sold`), bron shartnomaga o'tadi. `order` rejimida qatorlar (spetsifikatsiya) `Product.specs`ga ko'chiriladi — model endi oddiy katalog modeli. 14-§7: ACT berilmasa — savdodagi boshqa (sibling) modelda ACT bo'lsa, **shu avtomatik biriktiriladi** (ikkinchi model uchun ACT qayta so'ralmaydi); topilmasa hamon **400 "ACT biriktirilishi shart"** |
+| POST | `/configurations/{id}/finalize/` | #4: shartlari `approved` + yig'ilgan (`assembled_at`, **25-§6: `order`da shart emas**) + ACT (tanada `{"act": 2}`) + 26-§1: **`order`da modelning o'z narxi bo'lishi shart** (aks holda 400); YANGI-OQIM: shartnoma bu yerda OCHILMAYDI (u `approve`da ochilgan) — qatordagi bazaviy model **yig'ilgan variantga ko'chadi** (B6, son/narx tegilmaydi), CFG `ready` (shartnoma `active` bo'lsa `sold`), bron shartnomaga o'tadi. `order` rejimida qatorlar (spetsifikatsiya) `Product.specs`ga ko'chiriladi — model endi oddiy katalog modeli. 14-§7: ACT berilmasa — savdodagi boshqa (sibling) modelda ACT bo'lsa, **shu avtomatik biriktiriladi** (ikkinchi model uchun ACT qayta so'ralmaydi); topilmasa hamon **400 "ACT biriktirilishi shart"** |
 | POST | `/configurations/{id}/assemble/` | #4/§10.1: yig'ish — faqat `approved` yechim; **B4: shartnoma `active`/`completed` bo'lishi shart** (400: "Boshlang'ich to'lov kutilmoqda — SHT-…"; rad etilgan/bekor qilinganida boshqa matn); build: butlovchilar chiqadi, variant kiradi; modify: tayyor mahsulot fizik o'zgartiriladi (tana: `{"removals": {...}}`); **order (25-§6): shart emas** — chaqirilsa ham xavfsiz muvaffaqiyat (hech narsa chiqmaydi); yetmasa 400 (nomlar bilan) — mol TLD orqali kelgach qayta bosiladi; javobda `act_suggestion` (#4D) |
-| POST | `/configurations/{id}/request-prices/` | YANGI-OQIM B2 + 10-§1/2: narx so'rovi — **TLD emas**; eslatma endi **mahsulotga** ishora qiladi (`entity=Product`, har bir narxsiz mahsulotga alohida — buyurtmachi CFG'ni ko'ra olmaydi, mahsulot kartasi esa ochiq); takrorida yangilanadi (kalit user+Product); faqat `draft`/`pending_clarification`/`pending_sales` da (keyin 400 — narx shartnomaga kirib bo'lgan); narx kelgach mahsulot eslatmasi yopiladi va **sales** xabar oladi |
+| POST | `/configurations/{id}/request-prices/` | 28-to'plam (YANGI-OQIM B2 + 10-§1/2 ustiga): narx so'rovi — **TLD emas**; endi bitta `PriceRequest` hujjati ochadi/to'ldiradi, javob `{"requested": [...], "price_request": id}`; `order` rejimida modelning O'ZI so'raladi (26-§1); import bo'lsa logist/deklarant bosqichlaridan o'tadi (pastga, "Narx so'rovi" bo'limi); faqat `draft`/`pending_clarification`/`pending_sales` da (keyin 400 — narx shartnomaga kirib bo'lgan); narx kelgach **sales** xabar oladi |
 | POST | `/configurations/{id}/request-procurement/` | **engineer** — yetishmaganlardan TLD ochadi; #4: faqat `approved` konfiguratsiyada; **B4: faqat to'langan zanjirda** (shartnoma `active`) — mol pulga bog'lanadi; hammasi omborda bo'lsa 400 ("Hammasi omborda yetarli"); bitta modelli zanjirda ochiq TLD bor bo'lsa ham 400 — 11-§1: tekshiruv **butun zanjir** bo'yicha (shartnoma eshigidan ochilgani ham hisobga kiradi). 14-§6: ko'p modelli savdoda **BITTA** TLD — savdodagi barcha tasdiqlangan modellarning yetishmovchiligi shu bitta hisobga tushadi (`ReplenishmentItem.configuration` — qaysi model), ochiq hisob hali `draft`/`pending_sales`/`pending_bugalter`/`rejected` bo'lsa yangi qator **o'sha hisobga qo'shiladi** (takroriy so'rov — o'zgarishsiz o'sha hisob qaytadi); `pending_admin`+ bo'lsa mavjudi tegilmaydi va **yangi TLD ochishga ruxsat beriladi** (eski raqam jimgina o'zgarib qolmasin). **19-§1**: allaqachon YIG'ILGAN model hisobga kirmaydi (`missing_items` yig'ilgandan keyin ham nolga tushmaydi — butlovchilar ombordan allaqachon chiqqan) — barcha kerakli model yig'ilgan bo'lsa 400 ("Yig'ilmagan model yo'q"), bajarilib bo'lgan ish qaytadan buyurtma qilinmaydi |
 | POST | `/configurations/{id}/change-quantity/` | 4-to'plam §2 + 6-to'plam §4: partiya sonini o'zgartirish — **sales** (admin; u mijoz bilan kelishadi, engineer emas), tana `{"quantity": 100, "comment": "..."}`; `draft`/`pending_sales`/`approved` da; bron qayta hisoblanadi, zayavka soni ergashadi, `approved` bo'lsa **`pending_sales`ga qaytadi** (narx-muddat qayta kelishiladi); yig'ilgan (`assembled_at`) yoki chernovikdan o'tgan ochiq TLD bo'lsa 400 (TLD raqami bilan); chernovik TLD to'smaydi; **B13: to'lov kelgach 400 — hech narsa o'zgarmaydi**; pul kelmagan draft SHT esa songa ergashadi (qator miqdori va jami qayta yig'iladi) |
 | GET | `/configurations/{id}/export-excel/` | `.xlsx` fayl |
@@ -682,7 +682,7 @@ Kirim javobida hujjatlar `documents[]` bo'lib keladi. Sales bu bo'limni ko'rmayd
 | GET/POST | `/contract-templates/` | 21-§3.1: sotuv shabloni — **yozish sales/admin, o'qish hammaga** (bugalter ham); `body` ichida `{{ key }}`, noma'lum kalit saqlashda 400; `is_default` bittadan ko'p bo'lmaydi (ikkinchisi qo'yilsa birinchisi avtomatik `false`) |
 | GET/PATCH/DELETE | `/contract-templates/{id}/` | xuddi shu ruxsat |
 | GET | `/contracts/deadlines/` | hamma |
-| GET/POST | `/contract-items/` | admin, sales; javobda `configuration_number` (QOLGAN-ISHLAR #4) — bitta shartnomada bir nechta model bo'lsa qatorni ajratish uchun, alohida so'rovsiz |
+| GET/POST | `/contract-items/` | admin, sales; javobda `configuration_number` (QOLGAN-ISHLAR #4) — bitta shartnomada bir nechta model bo'lsa qatorni ajratish uchun, alohida so'rovsiz; 27-to'plam: `margin_state`/`min_price`/`cost` (rolga qarab kesiladi — quyida) |
 | GET/POST | `/contract-payments/` | admin, bugalter; POST `confirm-payment` bilan bir xil yo'ldan o'tadi: `paid_at` ixtiyoriy (default: hozir), kassaga kirim, balans yopilsa `completed`; §3: summa qoldiqdan oshsa yoki ≤0 bo'lsa `400` |
 | GET | `/contract-approvals/` | faqat o'qish |
 
@@ -721,6 +721,23 @@ yuborsa bo'ladi. `unit_price` — **QQS'siz sof narx**. Javobda hisoblab berilad
 
 `items_total` — Yetkazish jami (QQS'siz), `vat_total` — QQS jami,
 `items_total_with_vat` — Jami (chop etishdagi pastki qator).
+
+**Marja nazorati (27-to'plam):** har bir qatorda `margin_state`
+(`unknown`/`below_cost`/`below_min`/`ok`) va `min_price` (eng kam ruxsat
+etilgan `subtotal`); shartnomaning o'zida jamlanma `margin_state` (eng
+yomon qator bo'yicha). Qat'iy taqiq emas — shartnoma baribir tuziladi,
+bu faqat ogohlantirish. Kim nimani ko'radi:
+
+| Rol | `margin_state` | `min_price` | `cost` |
+|---|---|---|---|
+| Admin | ✅ | ✅ | ✅ |
+| Sales | ✅ | ✅ | ❌ |
+| Bugalter | ✅ | ❌ | ❌ |
+
+`CompanyProfile.min_margin_percent` (0 — faqat "tannarxdan past" ishlaydi)
+`GET/PATCH /company/` orqali sozlanadi — `markup_percent` bilan birga
+(27-§5 case 16: birini qo'yib ikkinchisini unutish har bir avtomatik
+shartnomani qizil qilib qo'yadi).
 
 **Chop etish shakli** — rasmiy shartnoma modalini chizish uchun hamma narsa
 bitta javobda (bajaruvchi `/company/` dan, buyurtmachi — mijoz):
@@ -899,13 +916,15 @@ POST /api/replenishment-items/
   kiritiladi; javobda `vat_amount` va `total_with_vat` hisoblab beriladi
 | GET | `/replenishment-approvals/`, `/replenishment-events/` | faqat o'qish |
 
-## Import tannarx varaqasi — Logist/Deklarant (24-to'plam)
+## Import tannarx varaqasi — Logist/Deklarant (24-to'plam, mustaqil endpoint)
+
+> **28-to'plamdan keyin `request-prices` bu varaqani ENDI OCHMAYDI** —
+> yangi importlar pastdagi "Narx so'rovi" bo'limi orqali yuradi. Bu
+> endpointlar qo'lda ochish/audit uchun ishlab turadi.
 
 Zanjir: `CFG/TLD → SHT: buyurtmachi (A) → logist (B) → deklarant (C)`, qat'iy
 ketma-ket. Generic PATCH/PUT/DELETE yo'q — har bo'lim faqat o'z amali orqali
-to'ldiriladi. `Product.is_imported=True` bo'lsa (yoki `request-prices`ga
-`imported_products` ro'yxati berilsa), narx so'rovi buyurtmachiga oddiy
-eslatma o'rniga shu varaqani ochadi (§6.2/§8.1).
+to'ldiriladi.
 
 | Metod | Manzil | Kim |
 |---|---|---|
@@ -921,6 +940,36 @@ eslatma o'rniga shu varaqani ochadi (§6.2/§8.1).
 Javobda hisoblangan maydonlar ham keladi (bazada saqlanmaydi, har o'qishda
 qayta chiqadi): `goods_uzs`, `customs_value`, `duty`, `vat`, `vat_in_cost`,
 `customs_total`, `landed_total`, `unit_cost`.
+
+## Narx so'rovi — bitta hujjat, uch rol (28-to'plam)
+
+`POST /configurations/{id}/request-prices/` (engineer) endi bitta
+`PriceRequest` hujjati ochadi/to'ldiradi — javob:
+`{"requested": ["Chip", ...], "price_request": 7}`. Import bo'lsa (yoki
+`imported_products` ro'yxati bilan shu chaqiruvda belgilansa) qator logist
+→ (kod+stavka eslab qolinmagan bo'lsa) deklarant → buyurtmachi ketma-ketligidan
+o'tadi; mahalliy qator to'g'ridan buyurtmachiga tushadi. Uch rol
+bir-birining raqamini ko'rmaydi (pastga qarang).
+
+| Metod | Manzil | Kim |
+|---|---|---|
+| GET | `/price-requests/`, `/price-requests/{id}/` | logist, deklarant, bugalter, buyurtmachi (rol bo'ylab); **engineer ro'yxatda yo'q** |
+| POST | `/price-requests/{id}/cancel/` | ochgan odam, admin; `{"reason": "..."}` |
+| GET | `/price-request-lines/{id}/` | yuqoridagi bilan bir xil — javob rolga qarab kesilgan (pastga qarang) |
+| POST | `/price-request-lines/{id}/fill-logistics/` | logist; `{"logistics_total": "1000000", "freight_to_border": "800000", "note": "..."}`; `freight_to_border` berilmasa sukut — jami summaning o'zi |
+| POST | `/price-request-lines/{id}/fill-customs/` | deklarant; `{"tnved_code": "...", "duty_percent"/"duty_amount", "excise_amount", "customs_fee", "certificate_cost", "laboratory_cost", "declarant_fee", "note"}`; logistdan OLDIN — 400 |
+| POST | `/price-request-lines/{id}/send-to-customs/` | buyurtmachi; avtomatik o'tkazilgan qatorni qaytadan deklarant navbatiga qaytaradi |
+| POST | `/price-request-lines/{id}/mark-imported/` | buyurtmachi; qatorni import deb belgilaydi (`Product.is_imported` ham yoziladi) |
+| POST | `/price-request-lines/{id}/answer/` | buyurtmachi; mahalliy qatorda faqat `{"cost_price": "..."}`; import qatorda `{"currency", "goods_price", "exchange_rate"}` + ixtiyoriy `cost_price` (berilmasa tizim hisobi — `suggested_cost` — ishlatiladi) |
+
+**Izolyatsiya** (`PriceRequestLineSerializer`) — qator javobida rolga
+qarab kesiladi:
+
+| Rol | Ko'rmaydigan maydonlar |
+|---|---|
+| Logist | tovar narxi/valyuta/kurs/tannarx, bojxona (TN VED, boj, sertifikat, ...), hisoblangan summalar (`landed_total`, ...) |
+| Deklarant | tovar narxi/valyuta/kurs/tannarx, logistika (`logistics_total`, `freight_to_border`), hisoblangan summalar |
+| Buyurtmachi, bugalter, admin | hammasi ko'rinadi |
 
 **Yetishmayotganlar ro'yxati:**
 ```json
