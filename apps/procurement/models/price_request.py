@@ -89,6 +89,11 @@ class PriceRequestLine(TimeStampedModel):
     freight_to_border = DecimalField(max_digits=18, decimal_places=2, default=Decimal('0'))
     logistics_note = TextField(blank=True)
     logistics_filled_at = DateTimeField(null=True, blank=True)
+    # 29-§5: yo'l xaritasida qadam kimda turgani ko'rinsin (24-to'plamdagi
+    # ImportCostSheet.logistics_filled_by/customs_filled_by bilan bir xil)
+    logistics_filled_by = ForeignKey(
+        'accounts.User', SET_NULL, null=True, blank=True, related_name='+',
+    )
 
     # --- Deklarant (summa emas, STAVKA — 28-§2b) ---
     tnved_code = CharField('TN VED', max_length=20, blank=True)
@@ -104,6 +109,9 @@ class PriceRequestLine(TimeStampedModel):
     # 28-§3: kod+stavka Product'dan avtomatik ko'chirilgan bo'lsa True —
     # buyurtmachi shubhalansa "Deklarantga yuborish" shu bayroqni tozalaydi
     customs_auto_filled = BooleanField(default=False)
+    customs_filled_by = ForeignKey(
+        'accounts.User', SET_NULL, null=True, blank=True, related_name='+',
+    )
 
     # --- Buyurtmachi (tovar va yakun) ---
     currency = CharField(max_length=3, default='USD')

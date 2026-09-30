@@ -153,6 +153,21 @@ class ContractSerializer(ModelSerializer):
             'didox_number', 'didox_sent_at', 'didox_accepted_at',
         ]
 
+    def to_representation(self, instance):
+        """29-§2: shartnoma darajasidagi `margin_state` ham qator bilan bir
+        xil qoida bo'yicha kesilsin. Buyurtmachi ba'zi shartnomalarni
+        ko'radi (o'zi yetkazgan/o'zi TLD ochgan, `apps/sales/views.py`
+        `get_queryset`) — lekin u bizga TANNARXNI BERADIGAN tomon,
+        ustamamiz haqida bilishi shart emas (27-§4)."""
+        data = super().to_representation(instance)
+        request = self.context.get('request')
+        user = getattr(request, 'user', None)
+        if not (user and user.is_authenticated):
+            return data
+        if not (user.is_admin or user.is_sales or user.is_bugalter):
+            data.pop('margin_state', None)
+        return data
+
     def validate(self, attrs):
         # 8-to'plam §3: bitta konfiguratsiyaga BITTA shartnoma — qo'lda POST
         # bilan ikkinchisi ochilsa roadmap adashadi, bron ikki marta qo'yiladi

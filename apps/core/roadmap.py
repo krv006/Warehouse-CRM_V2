@@ -166,9 +166,12 @@ def _import_sheet_actor_ids(import_sheet):
 
 def _price_request_actor_ids(price_request):
     """28-to'plam: `ImportCostSheet`ning o'rnini bosgan hujjat — logist va
-    deklarant endi qatorning ICHIDA ishlaydi, alohida `filled_by` maydoni
-    yo'q, shuning uchun bu yerda faqat ochgan odam aniq."""
-    return {price_request.created_by_id}
+    deklarant qatorning ICHIDA ishlaydi (29-§5: `logistics_filled_by`/
+    `customs_filled_by` har bir qatorda alohida)."""
+    ids = {price_request.created_by_id}
+    for line in price_request.lines.all():
+        ids |= {line.logistics_filled_by_id, line.customs_filled_by_id}
+    return ids
 
 
 def chain_actor_ids(request_obj, configuration, contract):
@@ -549,8 +552,14 @@ def build_roadmap(document, user):
         and configuration.status in {'pending_sales'} | cfg_done_states
     )
     # §1: so'ralmagan va narxsiz qator ham yo'q — bu qadam bu zanjirda
-    # ANIQ bo'lmaydi; so'ralmasdan o'tib ketilgan bo'lsa ham skipped
-    has_priceless = bool(configuration and configuration.items_without_price)
+    # ANIQ bo'lmaydi; so'ralmasdan o'tib ketilgan bo'lsa ham skipped.
+    # 29-§1: `order` rejimida narx QATORDA emas, modelning o'zida so'raladi
+    # — `items_without_price` bu yerda doim bo'sh (25-§6), shuning uchun
+    # `needs_base_price` ham hisobga olinmasa bu qadam yolg'on "skipped"
+    # bo'lib chizilardi (submit esa baribir 400 bilan to'sardi — 26-§1).
+    has_priceless = bool(configuration and (
+        configuration.items_without_price or configuration.needs_base_price
+    ))
     # 28-to'plam (24-§6.6 o'rnini bosadi): narx IMPORT orqali kutilayotgan
     # bo'lsa (`PriceRequest.status` — eng orqadagi qator — logist/deklarant
     # bosqichida), ish endi ularda — "joriy" bayrog'i logistics_quote/
@@ -577,14 +586,20 @@ def build_roadmap(document, user):
     # 28-to'plam: ikkita shartli qadam — import bo'lmagan (yoki hali
     # boshlanmagan) zanjirda `skipped`, boshlangan bo'lsa o'z bosqichini
     # ko'rsatadi. `import_line` yo'qligi "import emas" yoki "hali
-    # so'ralmagan" degani — ikkalasida ham chizilmaydi. §3: kod eslab
-    # qolingan bo'lsa `customs_auto_filled` — qadam "o'tkazildi" holida.
+    # so'ralmagan" degani — ikkalasida ham chizilmaydi.
+    # 29-§5: kod+stavka eslab qolingani uchun avtomatik to'ldirilgan bo'lsa
+    # (`customs_auto_filled`), qadam "bajarilgan" emas — deklarant unga
+    # umuman qaramagan, shuning uchun `done=False`/`skipped=True`
+    # ("o'tkazildi"), aks holda kodni tekshirmasdan o'qigan odam deklarant
+    # ishlagan deb o'ylab qolardi.
     logistics_done = bool(import_line and import_line.logistics_filled_at)
-    customs_done = bool(import_line and import_line.customs_filled_at)
+    customs_done = bool(
+        import_line and import_line.customs_filled_at and not import_line.customs_auto_filled
+    )
     data['logistics_quote'] = dict(
         done=logistics_done,
         at=import_line.logistics_filled_at if import_line else None,
-        who=None,
+        who=import_line.logistics_filled_by if import_line else None,
         doc=('price_request', price_request) if import_line else ('configuration', configuration),
         skipped=import_line is None,
         current_override=bool(
@@ -595,9 +610,9 @@ def build_roadmap(document, user):
     data['customs_clearance'] = dict(
         done=customs_done,
         at=import_line.customs_filled_at if import_line else None,
-        who=None,
+        who=import_line.customs_filled_by if import_line else None,
         doc=('price_request', price_request) if import_line else ('configuration', configuration),
-        skipped=import_line is None,
+        skipped=import_line is None or import_line.customs_auto_filled,
         current_override=bool(
             import_line and import_line.status == PriceRequest.Status.WAITING_CUSTOMS,
         ),

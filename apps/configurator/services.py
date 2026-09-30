@@ -77,6 +77,24 @@ def _owning_request(configuration, **filters):
     return line.request if line else None
 
 
+def _cancel_price_requests_for_configurations(configurations, user, reason):
+    """29-§4(c): konfiguratsiya(lar) bekor bo'lganda ochiq narx so'rovi ham
+    yopilsin — aks holda logist/deklarant/buyurtmachida o'lik zanjirga
+    eslatma osilib qolaveradi. `cancel_chain`, `detach_configuration`
+    (`target=cancel`) va `release_request` — hammasi shu yerdan o'tadi."""
+    configurations = [c for c in configurations if c is not None]
+    if not configurations:
+        return
+    from apps.procurement.models import PriceRequest
+    from apps.procurement.services import _cancel_price_request
+
+    open_price_requests = PriceRequest.objects.filter(
+        configuration__in=configurations,
+    ).exclude(status__in=(PriceRequest.Status.ANSWERED, PriceRequest.Status.CANCELLED))
+    for price_request in open_price_requests:
+        _cancel_price_request(price_request, user, reason=reason)
+
+
 def deal_has_multiple_models(request_obj):
     """14-§1: "bitta shart" — hamma yangi mantiq shunga bog'liq.
 
@@ -364,6 +382,9 @@ def detach_configuration(configuration, user, reason, target='cancel'):
             from apps.inventory.services import release_reservations
 
             release_reservations(configuration=configuration, user=user, note=reason)
+            _cancel_price_requests_for_configurations(
+                [configuration], user, f'{configuration.number} savdodan chiqarildi: {reason}',
+            )
         else:
             client = _configuration_client(configuration)
             from apps.sales.services import create_contract_from_configuration
@@ -1236,6 +1257,11 @@ def change_quantity(configuration, user, *, quantity, comment='', via_request=Fa
     sync_configuration_reservations(configuration)
     # Zayavka soni ergashadi — ikki hujjatda ikki xil son qolmasin
     configuration.requests.update(quantity=quantity)
+
+    # 29-§4(b): ochiq narx so'rovi qatorlari ham yangi partiyaga ergashadi
+    from apps.procurement.services import sync_price_request_line_quantities
+
+    sync_price_request_line_quantities(configuration, quantity)
 
     # YANGI-OQIM B1 oqibati: shartnoma allaqachon ochilgan (pul hali yo'q —
     # draft/rejected) — qatordagi son va jami ham ergashadi. 12-§2 C: qator
@@ -2650,6 +2676,7 @@ def release_request(request_obj, user, comment):
         line.configuration for line in request_obj.lines.select_related('configuration')
         if line.configuration_id
     ]
+    newly_cancelled = []
     for configuration in configurations:
         if configuration.status not in {
             Configuration.Status.CANCELLED, Configuration.Status.SOLD,
@@ -2661,6 +2688,10 @@ def release_request(request_obj, user, comment):
                 configuration=configuration, user=user,
                 note=f'{request_obj.number} hovuzga qaytarildi: {comment}',
             )
+            newly_cancelled.append(configuration)
+    _cancel_price_requests_for_configurations(
+        newly_cancelled, user, f'{request_obj.number} hovuzga qaytarildi: {comment}',
+    )
 
     request_obj.lines.filter(configuration__isnull=False).update(configuration=None)
     request_obj.status = ConfigurationRequest.Status.NEW
@@ -2807,6 +2838,11 @@ def cancel_chain(document, user, reason):
             release_reservations(configuration=configuration, user=user, note=reason)
             cancelled['configuration'] = configuration.number
 
+        # 29-§4(c): birga bekor bo'lgan har bir konfiguratsiyaning ochiq
+        # narx so'rovi ham yopilsin — aks holda logist/deklarant/
+        # buyurtmachida o'lik zanjirga eslatma osilib qolaveradi
+        cancelled_configs = [configuration] if configuration is not None else []
+
         # 12-§2 (B): qo'shimcha MODEL qatorlarining chernoviklari ham —
         # butun zanjir to'xtaganda ular egasiz yarim tarkib bo'lib qolmasin
         if request_obj is not None:
@@ -2818,6 +2854,11 @@ def cancel_chain(document, user, reason):
                 extra_config.cancel_reason = reason
                 extra_config.save()
                 release_reservations(configuration=extra_config, user=user, note=reason)
+                cancelled_configs.append(extra_config)
+
+        _cancel_price_requests_for_configurations(
+            cancelled_configs, user, f'Zanjir bekor qilindi: {reason}',
+        )
 
         if request_obj is not None and request_obj.status != ConfigurationRequest.Status.CANCELLED:
             request_obj.status = ConfigurationRequest.Status.CANCELLED

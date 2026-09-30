@@ -485,8 +485,8 @@ import bo'lsa `logistics_filled_at` yo'q → `waiting_logistics`,
 | `quantity` | Decimal(18,2) |
 | `is_imported` | Bool — buyurtmachi belgilaydi (yoki `Product.is_imported`dan meros); QARORNING NATIJASI |
 | `vat_recoverable` | Bool — ochilganda `CompanyProfile.vat_recoverable`dan nusxalanadi |
-| **Logist** | `logistics_total`, `freight_to_border` (28-§2a: ENDI shu yerda — deklarant logistika raqamini ko'rmaydi), `logistics_note`, `logistics_filled_at` |
-| **Deklarant** | `tnved_code`, `duty_percent`/`duty_amount` (STAVKA — summa emas, 28-§2b), `excise_amount`, `customs_fee`, `certificate_cost`, `laboratory_cost`, `declarant_fee`, `customs_note`, `customs_filled_at`, `customs_auto_filled` (28-§3: kod+stavka Product'dan avtomatik ko'chirilgan — deklarant o'tkazib yuborilgan) |
+| **Logist** | `logistics_total`, `freight_to_border` (28-§2a: ENDI shu yerda — deklarant logistika raqamini ko'rmaydi), `logistics_note`, `logistics_filled_at`, `logistics_filled_by` (29-§5: kim to'ldirgani — yo'l xaritasida ko'rinadi) |
+| **Deklarant** | `tnved_code`, `duty_percent`/`duty_amount` (STAVKA — summa emas, 28-§2b), `excise_amount`, `customs_fee`, `certificate_cost`, `laboratory_cost`, `declarant_fee`, `customs_note`, `customs_filled_at`, `customs_auto_filled` (28-§3: kod+stavka Product'dan avtomatik ko'chirilgan — deklarant o'tkazib yuborilgan; 29-§5: yo'l xaritasida bu holat "bajarilgan" emas, "o'tkazildi" deb chiziladi), `customs_filled_by` |
 | **Buyurtmachi** | `currency`, `goods_price`, `exchange_rate`, `cost_price` (yakuniy — taklifni tasdiqlash yoki ustidan yozish), `answered_at` |
 
 Hisoblangan property'lar (`ImportCostSheet` bilan bir xil formula, manba

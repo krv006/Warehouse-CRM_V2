@@ -916,11 +916,13 @@ POST /api/replenishment-items/
   kiritiladi; javobda `vat_amount` va `total_with_vat` hisoblab beriladi
 | GET | `/replenishment-approvals/`, `/replenishment-events/` | faqat o'qish |
 
-## Import tannarx varaqasi — Logist/Deklarant (24-to'plam, mustaqil endpoint)
+## Import tannarx varaqasi — Logist/Deklarant (24-to'plam, arxiv/nazorat)
 
 > **28-to'plamdan keyin `request-prices` bu varaqani ENDI OCHMAYDI** —
-> yangi importlar pastdagi "Narx so'rovi" bo'limi orqali yuradi. Bu
-> endpointlar qo'lda ochish/audit uchun ishlab turadi.
+> yangi importlar pastdagi "Narx so'rovi" bo'limi orqali yuradi.
+> **29-§6: `POST /import-cost-sheets/open/` OLIB TASHLANDI** (`404`) — qo'lda
+> ochish yo'li ham yopildi. Qolgan endpointlar faqat eski (allaqachon ochiq)
+> varaqalarni yopib qo'yish va arxivni ko'rish uchun qoladi.
 
 Zanjir: `CFG/TLD → SHT: buyurtmachi (A) → logist (B) → deklarant (C)`, qat'iy
 ketma-ket. Generic PATCH/PUT/DELETE yo'q — har bo'lim faqat o'z amali orqali
@@ -928,7 +930,6 @@ to'ldiriladi.
 
 | Metod | Manzil | Kim |
 |---|---|---|
-| POST | `/import-cost-sheets/open/` | buyurtmachi, engineer, admin; `{"product": id, "quantity": "10", "configuration": id}` — bitta mahsulotga ikkinchi OCHIQ varaqa yo'q, mavjudi qaytadi |
 | GET | `/import-cost-sheets/`, `/import-cost-sheets/{id}/` | logist, deklarant, bugalter, buyurtmachi (rol bo'ylab — egasi emas); **engineer 403** |
 | POST | `/import-cost-sheets/{id}/fill-goods/` | buyurtmachi; `{"currency": "USD", "goods_price": "1000", "exchange_rate": "12500", "origin_country": "China"}`; faqat `draft`; `exchange_rate`/`goods_price` 0 dan katta bo'lishi shart |
 | POST | `/import-cost-sheets/{id}/fill-logistics/` | logist; `{"logistics_total": "1000000", "note": "..."}`; faqat `waiting_logistics` |
@@ -961,6 +962,7 @@ bir-birining raqamini ko'rmaydi (pastga qarang).
 | POST | `/price-request-lines/{id}/send-to-customs/` | buyurtmachi; avtomatik o'tkazilgan qatorni qaytadan deklarant navbatiga qaytaradi |
 | POST | `/price-request-lines/{id}/mark-imported/` | buyurtmachi; qatorni import deb belgilaydi (`Product.is_imported` ham yoziladi) |
 | POST | `/price-request-lines/{id}/answer/` | buyurtmachi; mahalliy qatorda faqat `{"cost_price": "..."}`; import qatorda `{"currency", "goods_price", "exchange_rate"}` + ixtiyoriy `cost_price` (berilmasa tizim hisobi — `suggested_cost` — ishlatiladi) |
+| POST | `/price-request-lines/{id}/return/` | 29-§4(a): logist yoki deklarant — `{"comment": "..."}` majburiy; qator mahalliyga aylanadi (`is_imported=false`), buyurtmachiga "kim qaytardi va nega" eslatmasi ketadi |
 
 **Izolyatsiya** (`PriceRequestLineSerializer`) — qator javobida rolga
 qarab kesiladi:

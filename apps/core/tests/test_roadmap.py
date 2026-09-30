@@ -530,3 +530,121 @@ class MigrateToContractFirstTests(APITestCase):
         self.assertEqual(contract.configuration, configuration)
         self.assertEqual(contract.status, Contract.Status.DRAFT)
         self.assertFalse(orphan.contracts.exists())
+
+
+class OrderModeRoadmapTests(APITestCase):
+    """29-§1: `order` rejimida yo'l xaritasi `submit` bilan bir xil
+    manbadan (`needs_base_price`) gapirishi kerak — `items_without_price`
+    o'zi bu rejimda doim bo'sh (25-§6), shuning uchun yolg'iz o'zi
+    "narx kerak emas" deb chizib qo'yardi."""
+
+    def setUp(self):
+        self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
+        self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
+        self.admin = User.objects.create_user('adm', password='p', role=User.Role.ADMIN)
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
+
+    def _take_new_model(self):
+        self.client.force_authenticate(self.sales)
+        request_id = self.client.post('/api/configuration-requests/', {
+            'text': 'yangi model', 'client': self.mijoz.id, 'quantity': 1,
+        }, format='json').data['id']
+        self.client.force_authenticate(self.engineer)
+        response = self.client.post(
+            f'/api/configuration-requests/{request_id}/take/',
+            {'new_base_product_name': 'Yangi Model X'}, format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        configuration = Configuration.objects.get(pk=response.data['configuration'])
+        self.assertEqual(configuration.mode, Configuration.Mode.ORDER)
+        from apps.configurator.models import ConfigurationItem
+
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=self.ram_component(), label='RAM', quantity=1,
+        )
+        return request_id, configuration
+
+    def ram_component(self):
+        if not hasattr(self, '_ram'):
+            self._ram = Product.objects.create(
+                sku='RAM-ROADMAP', name='RAM', kind=Product.Kind.COMPONENT,
+            )
+        return self._ram
+
+    def test_price_request_step_is_not_skipped_when_base_price_missing(self):
+        request_id, configuration = self._take_new_model()
+        self.assertTrue(configuration.needs_base_price)
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertNotEqual(steps['price_request']['state'], 'skipped')
+        self.assertEqual(steps['price_request']['state'], 'pending')
+        self.assertEqual(steps['price_request']['actor']['role'], 'buyurtmachi')
+
+    def test_submit_and_roadmap_agree_it_is_400(self):
+        """`submit` 400 qaytarayotgan paytda yo'l xaritasi ham shu bosqichni
+        "hali kerak" deb ko'rsatishi shart — ikkalasi bir xil manbadan."""
+        request_id, configuration = self._take_new_model()
+        self.client.force_authenticate(self.engineer)
+        response = self.client.post(f'/api/configurations/{configuration.id}/submit/')
+        self.assertEqual(response.status_code, 400, response.data)
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertIn(steps['price_request']['state'], ('pending', 'current'))
+
+    def test_price_request_step_skipped_when_model_already_priced(self):
+        priced_base = Product.objects.create(
+            sku='HP-PRICED', name='HP Priced', kind=Product.Kind.MACHINE,
+            sale_price=Decimal('12000000'),
+        )
+        self.client.force_authenticate(self.sales)
+        request_id = self.client.post('/api/configuration-requests/', {
+            'text': '1 ta', 'base_product': priced_base.id,
+            'client': self.mijoz.id, 'quantity': 1,
+        }, format='json').data['id']
+        self.client.force_authenticate(self.engineer)
+        take_response = self.client.post(
+            f'/api/configuration-requests/{request_id}/take/', {'mode': 'order'}, format='json',
+        )
+        configuration = Configuration.objects.get(pk=take_response.data['configuration'])
+        self.assertFalse(configuration.needs_base_price)
+        from apps.configurator.models import ConfigurationItem
+
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=self.ram_component(), label='RAM', quantity=1,
+        )
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['price_request']['state'], 'skipped')
+
+    def test_build_mode_regression_unaffected(self):
+        base = Product.objects.create(sku='HP-BUILD', name='HP Build', kind=Product.Kind.MACHINE)
+        ram = Product.objects.create(sku='RAM-BUILD', name='RAM Build', kind=Product.Kind.COMPONENT)
+        self.client.force_authenticate(self.sales)
+        request_id = self.client.post('/api/configuration-requests/', {
+            'text': '1 ta', 'base_product': base.id,
+            'client': self.mijoz.id, 'quantity': 1,
+        }, format='json').data['id']
+        self.client.force_authenticate(self.engineer)
+        take_response = self.client.post(
+            f'/api/configuration-requests/{request_id}/take/', {'mode': 'build'}, format='json',
+        )
+        configuration = Configuration.objects.get(pk=take_response.data['configuration'])
+        from apps.configurator.models import ConfigurationItem
+
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=ram, label='RAM', quantity=1,
+        )
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertNotEqual(steps['price_request']['state'], 'skipped')

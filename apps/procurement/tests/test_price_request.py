@@ -1,10 +1,12 @@
 from decimal import Decimal
 
+from rest_framework.exceptions import PermissionDenied, ValidationError
 from rest_framework.test import APITestCase
 
 from apps.accounts.models import User
 from apps.clients.models import Client
 from apps.configurator.models import Configuration, ConfigurationItem, ConfigurationRequest
+from apps.core.models import Notification
 from apps.inventory.models import Product
 from apps.procurement.models import PriceRequest, PriceRequestLine
 from apps.procurement.services import (
@@ -13,6 +15,7 @@ from apps.procurement.services import (
     fill_price_request_logistics,
     mark_price_request_line_imported,
     open_price_request,
+    return_price_request_line,
     send_price_request_line_to_customs,
 )
 
@@ -377,3 +380,287 @@ class PriceRequestOrderModeTests(APITestCase):
         configuration.refresh_from_db()
         self.assertFalse(configuration.needs_base_price)
         self.assertEqual(configuration.total_price, Decimal('18000000'))
+
+
+class PriceRequestReturnTests(APITestCase):
+    """29-§4(a): logist/deklarant izoh bilan buyurtmachiga qaytaradi."""
+
+    def setUp(self):
+        self.logist = User.objects.create_user('log', password='p', role=User.Role.LOGIST)
+        self.declarant = User.objects.create_user('dek', password='p', role=User.Role.DECLARANT)
+        self.buyurtmachi = User.objects.create_user('buy', password='p', role=User.Role.SUPPLIER)
+        self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
+        base = Product.objects.create(sku='HP-R1', name='HP R1', kind=Product.Kind.MACHINE)
+        self.product = Product.objects.create(
+            sku='CHIP-R1', name='ChipR1', kind=Product.Kind.COMPONENT, is_imported=True,
+        )
+        configuration = Configuration.objects.create(
+            base_product=base, created_by=self.engineer, mode=Configuration.Mode.BUILD,
+        )
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=self.product, label='Chip', quantity=1,
+        )
+        self.price_request = open_price_request(
+            configuration, self.engineer, lines=[(self.product, Decimal('1'))],
+        )
+        self.line = self.price_request.lines.get()
+
+    def test_logist_returns_with_comment(self):
+        line = return_price_request_line(self.line, self.logist, 'Yukni tashiy olmayman')
+        self.assertEqual(line.status, PriceRequest.Status.WAITING_SUPPLIER)
+        self.assertIsNone(line.logistics_filled_at)
+        self.assertFalse(line.is_imported)
+        note = Notification.objects.get(
+            user=self.buyurtmachi, entity='PriceRequest', object_id=str(self.price_request.id),
+        )
+        self.assertIn('qaytarildi', note.title)
+        self.assertIn('Logist', note.message)
+
+    def test_return_without_comment_is_rejected(self):
+        with self.assertRaises(ValidationError):
+            return_price_request_line(self.line, self.logist, '')
+
+    def test_declarant_returns_after_logistics_filled(self):
+        fill_price_request_logistics(self.line, self.logist, logistics_total=Decimal('50000'))
+        self.line.refresh_from_db()
+        line = return_price_request_line(self.line, self.declarant, "Ma'lumot yetarli emas")
+        self.assertIsNone(line.customs_filled_at)
+        self.assertFalse(line.is_imported)
+        note = Notification.objects.get(
+            user=self.buyurtmachi, entity='PriceRequest', object_id=str(self.price_request.id),
+        )
+        self.assertIn('Deklarant', note.message)
+
+    def test_supplier_cannot_return(self):
+        with self.assertRaises(PermissionDenied):
+            return_price_request_line(self.line, self.buyurtmachi, 'nega')
+
+    def test_answered_line_cannot_be_returned(self):
+        self.line.is_imported = False
+        self.line.save()
+        answer_price_request_line(self.line, self.buyurtmachi, cost_price=Decimal('1000'))
+        self.line.refresh_from_db()
+        with self.assertRaises(ValidationError):
+            return_price_request_line(self.line, self.logist, 'kech qoldim')
+
+
+class PriceRequestQuantityChangeTests(APITestCase):
+    """29-§4(b): partiya o'zgarsa ochiq so'rov qatorlari ham ergashadi."""
+
+    def setUp(self):
+        self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
+        self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
+        self.logist = User.objects.create_user('log', password='p', role=User.Role.LOGIST)
+        self.buyurtmachi = User.objects.create_user('buy', password='p', role=User.Role.SUPPLIER)
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
+        self.base = Product.objects.create(sku='HP-Q1', name='HP Q1', kind=Product.Kind.MACHINE)
+        self.imported_part = Product.objects.create(
+            sku='CHIP-Q1', name='ChipQ1', kind=Product.Kind.COMPONENT, is_imported=True,
+        )
+        self.local_part = Product.objects.create(sku='LOCAL-Q1', name='LocalQ1', kind=Product.Kind.COMPONENT)
+
+        self.client.force_authenticate(self.sales)
+        request_id = self.client.post('/api/configuration-requests/', {
+            'text': '10 ta HP Q1', 'base_product': self.base.id,
+            'client': self.mijoz.id, 'quantity': 10,
+        }, format='json').data['id']
+        self.client.force_authenticate(self.engineer)
+        take_response = self.client.post(
+            f'/api/configuration-requests/{request_id}/take/', {'mode': 'build'}, format='json',
+        )
+        self.configuration = Configuration.objects.get(pk=take_response.data['configuration'])
+        ConfigurationItem.objects.create(
+            configuration=self.configuration, component=self.imported_part, label='Chip', quantity=1,
+        )
+        ConfigurationItem.objects.create(
+            configuration=self.configuration, component=self.local_part, label='Local', quantity=1,
+        )
+        response = self.client.post(f'/api/configurations/{self.configuration.id}/request-prices/')
+        self.price_request = PriceRequest.objects.get(pk=response.data['price_request'])
+        self.import_line = self.price_request.lines.get(product=self.imported_part)
+        self.local_line = self.price_request.lines.get(product=self.local_part)
+        declarant = User.objects.create_user('dek2', password='p', role=User.Role.DECLARANT)
+        fill_price_request_logistics(self.import_line, self.logist, logistics_total=Decimal('50000'))
+        fill_price_request_customs(
+            self.import_line, declarant, tnved_code='1234', duty_percent=Decimal('10'),
+        )
+
+    def test_quantity_change_resets_logistics_but_keeps_customs(self):
+        self.client.force_authenticate(self.sales)
+        response = self.client.post(
+            f'/api/configurations/{self.configuration.id}/change-quantity/',
+            {'quantity': 100}, format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+
+        self.import_line.refresh_from_db()
+        self.assertEqual(self.import_line.quantity, Decimal('100'))
+        self.assertIsNone(self.import_line.logistics_filled_at)
+        self.assertEqual(self.import_line.status, PriceRequest.Status.WAITING_LOGISTICS)
+        # Bojxona qismi saqlanadi
+        self.assertEqual(self.import_line.tnved_code, '1234')
+        self.assertEqual(self.import_line.duty_percent, Decimal('10.00'))
+
+        note = Notification.objects.filter(
+            user=self.logist, entity='PriceRequest', title__contains='qayta kerak',
+        )
+        self.assertTrue(note.exists())
+
+    def test_local_line_quantity_follows_without_state_change(self):
+        self.client.force_authenticate(self.sales)
+        response = self.client.post(
+            f'/api/configurations/{self.configuration.id}/change-quantity/',
+            {'quantity': 100}, format='json',
+        )
+        self.assertEqual(response.status_code, 200, response.data)
+        self.local_line.refresh_from_db()
+        self.assertEqual(self.local_line.quantity, Decimal('100'))
+        self.assertEqual(self.local_line.status, PriceRequest.Status.WAITING_SUPPLIER)
+
+
+class PriceRequestCancelChainTests(APITestCase):
+    """29-§4(c): zanjir bekor bo'lsa ochiq narx so'rovi ham bekor bo'ladi."""
+
+    def setUp(self):
+        self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
+        self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
+        self.logist = User.objects.create_user('log', password='p', role=User.Role.LOGIST)
+        self.declarant = User.objects.create_user('dek', password='p', role=User.Role.DECLARANT)
+        self.buyurtmachi = User.objects.create_user('buy', password='p', role=User.Role.SUPPLIER)
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
+        self.base = Product.objects.create(sku='HP-C1', name='HP C1', kind=Product.Kind.MACHINE)
+        self.part = Product.objects.create(sku='PART-C1', name='PartC1', kind=Product.Kind.COMPONENT)
+
+        self.client.force_authenticate(self.sales)
+        self.request_id = self.client.post('/api/configuration-requests/', {
+            'text': '1 ta', 'base_product': self.base.id,
+            'client': self.mijoz.id, 'quantity': 1,
+        }, format='json').data['id']
+        self.client.force_authenticate(self.engineer)
+        take_response = self.client.post(
+            f'/api/configuration-requests/{self.request_id}/take/', {'mode': 'build'}, format='json',
+        )
+        self.configuration = Configuration.objects.get(pk=take_response.data['configuration'])
+        ConfigurationItem.objects.create(
+            configuration=self.configuration, component=self.part, label='Part', quantity=1,
+        )
+        response = self.client.post(f'/api/configurations/{self.configuration.id}/request-prices/')
+        self.price_request = PriceRequest.objects.get(pk=response.data['price_request'])
+
+    def test_cancel_chain_cancels_open_price_request(self):
+        from apps.configurator.services import cancel_chain
+
+        request_obj = ConfigurationRequest.objects.get(pk=self.request_id)
+        cancel_chain(request_obj, self.sales, 'Mijoz voz kechdi')
+
+        self.price_request.refresh_from_db()
+        self.assertEqual(self.price_request.status, PriceRequest.Status.CANCELLED)
+        self.assertFalse(
+            Notification.objects.filter(
+                user=self.buyurtmachi, entity='PriceRequest',
+                object_id=str(self.price_request.id), is_read=False,
+            ).exists(),
+        )
+
+    def test_answered_request_untouched_by_cancel_chain(self):
+        from apps.configurator.services import cancel_chain
+
+        line = self.price_request.lines.get()
+        answer_price_request_line(line, self.buyurtmachi, cost_price=Decimal('1000'))
+        self.price_request.refresh_from_db()
+        self.assertEqual(self.price_request.status, PriceRequest.Status.ANSWERED)
+
+        request_obj = ConfigurationRequest.objects.get(pk=self.request_id)
+        cancel_chain(request_obj, self.sales, 'Kech qolindi')
+        self.price_request.refresh_from_db()
+        self.assertEqual(self.price_request.status, PriceRequest.Status.ANSWERED)
+
+
+class PriceRequestRoadmapAutoFillTests(APITestCase):
+    """29-§5: kod eslab qolingani uchun avtomatik to'ldirilgan customs bosqichi
+    "bajarilgan" emas, "o'tkazildi" bo'lib chizilsin; kim to'ldirgani ko'rinsin."""
+
+    def setUp(self):
+        self.sales = User.objects.create_user('sal', password='p', role=User.Role.SALES)
+        self.engineer = User.objects.create_user('eng', password='p', role=User.Role.ENGINEER)
+        self.logist = User.objects.create_user('log', password='p', role=User.Role.LOGIST)
+        self.declarant = User.objects.create_user('dek', password='p', role=User.Role.DECLARANT)
+        self.admin = User.objects.create_user('adm', password='p', role=User.Role.ADMIN)
+        self.mijoz = Client.objects.create(
+            type=Client.Type.INDIVIDUAL, full_name='Ali Valiyev',
+            passport='AA1112223', jshshir='11112222333344', phone='+998900000001',
+        )
+        self.base = Product.objects.create(sku='HP-A1', name='HP A1', kind=Product.Kind.MACHINE)
+
+    def _take_and_request(self, imported_part):
+        self.client.force_authenticate(self.sales)
+        request_id = self.client.post('/api/configuration-requests/', {
+            'text': '1 ta', 'base_product': self.base.id,
+            'client': self.mijoz.id, 'quantity': 1,
+        }, format='json').data['id']
+        self.client.force_authenticate(self.engineer)
+        take_response = self.client.post(
+            f'/api/configuration-requests/{request_id}/take/', {'mode': 'build'}, format='json',
+        )
+        configuration = Configuration.objects.get(pk=take_response.data['configuration'])
+        ConfigurationItem.objects.create(
+            configuration=configuration, component=imported_part, label='Chip', quantity=1,
+        )
+        self.client.post(f'/api/configurations/{configuration.id}/request-prices/')
+        return request_id, configuration
+
+    def test_auto_filled_customs_step_is_skipped_not_done(self):
+        imported_part = Product.objects.create(
+            sku='CHIP-A1', name='ChipA1', kind=Product.Kind.COMPONENT, is_imported=True,
+            tnved_code='8471.30', duty_percent=Decimal('10'),
+        )
+        request_id, configuration = self._take_and_request(imported_part)
+        line = PriceRequestLine.objects.get(product=imported_part)
+        self.assertTrue(line.customs_auto_filled)
+        fill_price_request_logistics(line, self.logist, logistics_total=Decimal('50000'))
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['customs_clearance']['state'], 'skipped')
+
+    def test_manually_filled_customs_step_is_done_with_actor(self):
+        imported_part = Product.objects.create(
+            sku='CHIP-A2', name='ChipA2', kind=Product.Kind.COMPONENT, is_imported=True,
+        )
+        request_id, configuration = self._take_and_request(imported_part)
+        line = PriceRequestLine.objects.get(product=imported_part)
+        fill_price_request_logistics(line, self.logist, logistics_total=Decimal('50000'))
+        line.refresh_from_db()
+        fill_price_request_customs(line, self.declarant, tnved_code='1', duty_percent=0)
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['customs_clearance']['state'], 'done')
+        self.assertEqual(steps['customs_clearance']['actor']['full_name'], self.declarant.display_name)
+        self.assertEqual(steps['logistics_quote']['actor']['full_name'], self.logist.display_name)
+
+    def test_send_to_customs_reopens_the_step(self):
+        imported_part = Product.objects.create(
+            sku='CHIP-A3', name='ChipA3', kind=Product.Kind.COMPONENT, is_imported=True,
+            tnved_code='8471.30', duty_percent=Decimal('10'),
+        )
+        request_id, configuration = self._take_and_request(imported_part)
+        line = PriceRequestLine.objects.get(product=imported_part)
+        fill_price_request_logistics(line, self.logist, logistics_total=Decimal('50000'))
+        line.refresh_from_db()
+
+        buyurtmachi = User.objects.create_user('buy', password='p', role=User.Role.SUPPLIER)
+        send_price_request_line_to_customs(line, buyurtmachi)
+
+        self.client.force_authenticate(self.admin)
+        response = self.client.get(f'/api/configuration-requests/{request_id}/roadmap/')
+        steps = {s['key']: s for s in response.data['steps']}
+        self.assertEqual(steps['customs_clearance']['state'], 'current')

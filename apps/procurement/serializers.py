@@ -274,6 +274,10 @@ class PriceRequestLineSerializer(ModelSerializer):
     product_name = ReadOnlyField(source='product.name')
     status = ReadOnlyField()
     status_display = SerializerMethodField()
+    # 29-§5: qadam kimda turganini aytsin (tooltip uchun) — pul emas, shuning
+    # uchun uch rol izolyatsiyasiga kirmaydi
+    logistics_filled_by_name = ReadOnlyField(source='logistics_filled_by.display_name')
+    customs_filled_by_name = ReadOnlyField(source='customs_filled_by.display_name')
     goods_uzs = ReadOnlyField()
     customs_value = ReadOnlyField()
     duty = ReadOnlyField()
@@ -288,9 +292,10 @@ class PriceRequestLineSerializer(ModelSerializer):
             'id', 'request', 'product', 'product_name', 'quantity',
             'is_imported', 'status', 'status_display',
             'logistics_total', 'freight_to_border', 'logistics_note', 'logistics_filled_at',
+            'logistics_filled_by', 'logistics_filled_by_name',
             'tnved_code', 'duty_percent', 'duty_amount', 'excise_amount', 'customs_fee',
             'certificate_cost', 'laboratory_cost', 'declarant_fee', 'customs_note',
-            'customs_filled_at', 'customs_auto_filled',
+            'customs_filled_at', 'customs_auto_filled', 'customs_filled_by', 'customs_filled_by_name',
             'currency', 'goods_price', 'exchange_rate', 'cost_price', 'answered_at',
             'goods_uzs', 'customs_value', 'duty', 'vat', 'customs_total', 'landed_total',
             'suggested_cost', 'created_at',

@@ -1,4 +1,5 @@
 from decimal import Decimal
+from functools import cached_property
 
 from django.db.models import (
     CASCADE,
@@ -54,6 +55,23 @@ class ContractItem(TimeStampedModel):
         """Qator jami — QQS bilan (chop etishdagi "Jami" ustuni)."""
         return self.subtotal + self.vat_amount
 
+    @cached_property
+    def _unit_cost(self):
+        """Bitta donaning tannarxi — `quantity`ga hali ko'paytirilmagan.
+
+        29-§3: `cached_property` — bitta qatorning `cost`/`cost_known`/
+        `min_price`i navbatma-navbat chaqirilganda `Configuration.
+        cost_total`/`changes` bir necha marta qayta hisoblanardi. Bu yerda
+        `quantity`GA BOG'LIQ EMAS qismi keshlanadi — `quantity` o'zi
+        DOIM `self.quantity`dan, keshlanmagan holda o'qiladi (`cost`
+        propertysida), aks holda miqdor o'zgargan joyda (masalan
+        `change_configuration_quantity`) SHU OBYEKT ustida eskirgan
+        qiymat qolib ketardi.
+        """
+        if self.configuration_id:
+            return self.configuration.cost_total
+        return self.product.cost_price
+
     @property
     def cost(self):
         """Qator TANNARXI (27-§2) — `subtotal` bilan solishtirish uchun.
@@ -62,23 +80,26 @@ class ContractItem(TimeStampedModel):
         qator `Product.cost_price`dan — ikkalasi ham shu qatorning
         `quantity`siga ko'payadi.
         """
-        if self.configuration_id:
-            return self.configuration.cost_total * self.quantity
-        return self.product.cost_price * self.quantity
+        return self._unit_cost * self.quantity
 
-    @property
+    @cached_property
     def cost_known(self):
         """27-§2: tannarx kiritilganmi — `cost_price=0` "hali kiritilmagan" degani."""
         if self.configuration_id:
             return self.configuration.cost_known
         return bool(self.product.cost_price)
 
+    @cached_property
+    def _min_margin_percent(self):
+        """`quantity`ga bog'liq emas — kesh xavfsiz (`_unit_cost`ga qarang)."""
+        from apps.core.models import CompanyProfile
+
+        return CompanyProfile.load().min_margin_percent
+
     @property
     def min_price(self):
         """Eng kam ruxsat etilgan SUBTOTAL: tannarx × (1 + eng kam ustama%) (27-§3)."""
-        from apps.core.models import CompanyProfile
-
-        percent = CompanyProfile.load().min_margin_percent
+        percent = self._min_margin_percent
         return (self.cost * (Decimal('100') + percent) / Decimal('100')).quantize(Decimal('0.01'))
 
     @property

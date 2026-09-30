@@ -5,10 +5,18 @@ from rest_framework.test import APITestCase
 from apps.accounts.models import User
 from apps.inventory.models import Product
 from apps.procurement.models import ImportCostSheet
+from apps.procurement.services import open_import_sheet
 
 
 class ImportCostFlowTests(APITestCase):
-    """24-§9.2: oqim va ruxsat."""
+    """24-§9.2: oqim va ruxsat.
+
+    29-§6: `POST /import-cost-sheets/open/` olib tashlandi — `request_prices`
+    (28-to'plam) bu varaqani endi ochmaydi, hujjat arxiv/nazorat sifatida
+    qoladi. Shu fayldagi testlar servis funksiyasini (`open_import_sheet`)
+    to'g'ridan chaqirib ochadi — ular fill-goods/fill-logistics/fill-customs
+    OQIMINI tekshiradi, ochish yo'lini emas.
+    """
 
     def setUp(self):
         self.buyurtmachi = User.objects.create_user('buy', password='p', role=User.Role.SUPPLIER)
@@ -20,12 +28,29 @@ class ImportCostFlowTests(APITestCase):
         self.product = Product.objects.create(sku='IMP-1', name='Import mahsulot', kind=Product.Kind.COMPONENT)
 
     def _open_sheet(self, quantity=10):
+        # Har chaqiruvda BAZADAN qayta o'qiladi (eski `open/` endpointi ham
+        # shunday qilardi) — aks holda `self.product` avvalgi chaqiruvlarda
+        # bazada yangilangan maydonlarni (masalan `tnved_code`) ko'rmay,
+        # eskirgan Python obyekt bo'lib qolardi.
+        product = Product.objects.get(pk=self.product.pk)
+        return open_import_sheet(product, self.engineer, quantity=Decimal(quantity))
+
+    def test_open_endpoint_removed(self):
+        """29-§6: qo'lda ochish endpointi olib tashlandi."""
         self.client.force_authenticate(self.engineer)
         response = self.client.post('/api/import-cost-sheets/open/', {
-            'product': self.product.id, 'quantity': quantity,
+            'product': self.product.id, 'quantity': 10,
         }, format='json')
-        self.assertEqual(response.status_code, 201, response.data)
-        return ImportCostSheet.objects.get(pk=response.data['id'])
+        self.assertIn(response.status_code, (404, 405))
+
+    def test_list_and_detail_still_readable(self):
+        """29-§6: ro'yxat va detail arxiv/nazorat sifatida qoladi."""
+        sheet = self._open_sheet()
+        self.client.force_authenticate(self.bugalter)
+        response = self.client.get('/api/import-cost-sheets/')
+        self.assertEqual(response.status_code, 200, response.data)
+        response = self.client.get(f'/api/import-cost-sheets/{sheet.id}/')
+        self.assertEqual(response.status_code, 200, response.data)
 
     def _fill_goods(self, sheet):
         self.client.force_authenticate(self.buyurtmachi)

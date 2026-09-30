@@ -1,4 +1,5 @@
 from decimal import Decimal
+from functools import cached_property
 
 from django.db.models import (
     PROTECT,
@@ -142,18 +143,34 @@ class Configuration(StatusTrackedModel):
         """26-§1(b): `order` — modelning o'z narxi yo'q, buyurtmachidan so'ralishi kerak."""
         return self.mode == self.Mode.ORDER and not self.base_product.stock_price
 
-    @property
+    @cached_property
     def changes(self):
-        """Zavod tarkibiga nisbatan farq: qo'shilganlar va yechib olinganlar."""
+        """Zavod tarkibiga nisbatan farq: qo'shilganlar va yechib olinganlar.
+
+        29-§3: `cached_property` — `cost_total`/`cost_known` ikkalasi ham
+        buni chaqiradi, ular esa bitta `ContractItem`ning `cost`/
+        `cost_known`/`margin_state` chizig'ida barchasi ishlaydi. Xavfsiz:
+        bu obyekt faqat KO'RSATISH uchun o'qiladi (izoh — `ContractItem.
+        cost`da, bir xil mulohaza).
+
+        `base_product.specs` avval IKKI marta o'qilardi (spec_map
+        uchun, so'ng components uchun) — bitta ro'yxatga yig'ib, ikkalasi
+        ham o'sha python ro'yxatdan olinadi (bitta so'rov). `.select_related(
+        'component')` ataylab QO'YILMAYDI: u chaqirilganda har doim YANGI
+        so'rov yaratadi va chaqiruvchining `prefetch_related` keshini chetlab
+        o'tadi (N+1) — `.all()` esa kesh bo'lsa undan, bo'lmasa oddiy
+        so'rovdan o'qiydi.
+        """
+        specs = list(self.base_product.specs.all())
         spec_map = {}
-        for spec in self.base_product.specs.select_related('component'):
+        for spec in specs:
             spec_map[spec.component_id] = spec_map.get(spec.component_id, 0) + spec.quantity
 
         item_map, components = {}, {}
-        for item in self.items.select_related('component'):
+        for item in self.items.all():
             item_map[item.component_id] = item_map.get(item.component_id, 0) + item.quantity
             components[item.component_id] = item.component
-        for spec in self.base_product.specs.select_related('component'):
+        for spec in specs:
             components.setdefault(spec.component_id, spec.component)
 
         added, removed = [], []
@@ -299,9 +316,11 @@ class Configuration(StatusTrackedModel):
             return []
         return [item for item in self.items.all() if item.needs_price]
 
-    @property
+    @cached_property
     def cost_total(self):
         """Bitta donaning TANNARXI — sotuv narxi emas (27-§2).
+
+        29-§3: `cached_property` (`cost_known` bilan bir xil mulohaza).
 
         `items_total` bunga yaramaydi: u `ConfigurationItem.unit_price`
         larning yig'indisi, ular esa `stock_price` (sotuv) dan to'ladi.
@@ -328,7 +347,7 @@ class Configuration(StatusTrackedModel):
             Decimal('0'),
         )
 
-    @property
+    @cached_property
     def cost_known(self):
         """27-§2: tannarx TO'LIQ hisoblangan-hisoblanmaganini bildiradi.
 

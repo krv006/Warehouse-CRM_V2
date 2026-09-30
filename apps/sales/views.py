@@ -78,7 +78,14 @@ class ContractViewSet(BaseModelViewSet):
     queryset = (
         Contract.objects
         .select_related('client', 'configuration', 'created_by')
-        .prefetch_related('items__product', 'payments', 'approvals__decided_by')
+        .prefetch_related(
+            'items__product', 'payments', 'approvals__decided_by',
+            # 29-§3: qator marjasi (`cost`/`margin_state`) konfiguratsiya
+            # tarkibi va zavod spetsifikatsiyasiga tayanadi — prefetch
+            # bo'lmasa har qator o'z so'rovini yuboraveradi (N+1)
+            'items__configuration__items__component',
+            'items__configuration__base_product__specs__component',
+        )
         .all()
     )
     serializer_class = ContractSerializer

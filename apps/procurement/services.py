@@ -1076,6 +1076,60 @@ def _sync_price_request_status(price_request):
     _sync_price_request_notifications(price_request)
 
 
+def sync_price_request_line_quantities(configuration, new_quantity):
+    """29-§4(b): partiya o'zgarganda ochiq so'rov qatorlari ham ergashadi.
+
+    24-§7 case 6 dagi qoida bilan bir xil: miqdor o'zgarsa import
+    qatorning LOGISTIKA raqami eskiradi (`waiting_logistics`ga qaytadi) —
+    boj STAVKASI (bojxona qismi) esa miqdorga bog'liq emas, saqlanadi.
+    Javob allaqachon berilgan qatorlarga tegilmaydi.
+    """
+    open_requests = list(
+        PriceRequest.objects.filter(
+            configuration=configuration,
+        ).exclude(status__in=(PriceRequest.Status.ANSWERED, PriceRequest.Status.CANCELLED))
+    )
+    if not open_requests:
+        return
+
+    item_quantities = {
+        item.component_id: item.quantity for item in configuration.items.all()
+    }
+    is_order_mode = configuration.mode == configuration.Mode.ORDER
+
+    for price_request in open_requests:
+        logistics_reset = False
+        for line in price_request.lines.filter(answered_at__isnull=True):
+            if is_order_mode and line.product_id == configuration.base_product_id:
+                new_line_quantity = Decimal(new_quantity)
+            elif line.product_id in item_quantities:
+                new_line_quantity = item_quantities[line.product_id] * new_quantity
+            else:
+                continue
+            if line.quantity == new_line_quantity:
+                continue
+            line.quantity = new_line_quantity
+            if line.is_imported and line.logistics_filled_at:
+                line.logistics_filled_at = None
+                logistics_reset = True
+            line.save()
+        _sync_price_request_status(price_request)
+        if logistics_reset:
+            from apps.accounts.models import User
+
+            for logist in User.objects.filter(role=User.Role.LOGIST, is_active=True):
+                Notification.objects.create(
+                    user=logist,
+                    title=f'{price_request.number}: miqdor o\'zgardi — logistika narxi qayta kerak',
+                    message=(
+                        f'{configuration.number}: yangi partiya {new_quantity}. '
+                        'Yetkazish narxini qayta tasdiqlang.'
+                    ),
+                    level=Notification.Level.WARNING,
+                    entity='PriceRequest', object_id=str(price_request.pk),
+                )
+
+
 def open_price_request(configuration, user, *, lines, imported_products=None):
     """28-§1: engineer so'ragan narxlarni BITTA hujjatga yig'adi.
 
@@ -1169,6 +1223,7 @@ def fill_price_request_logistics(line, user, *, logistics_total, freight_to_bord
     line.freight_to_border = parsed_border if parsed_border is not None else logistics_total
     line.logistics_note = note
     line.logistics_filled_at = now()
+    line.logistics_filled_by = user
     line.save()
     _sync_price_request_status(line.request)
     return line
@@ -1209,6 +1264,7 @@ def fill_price_request_customs(
     line.customs_note = note
     line.customs_filled_at = now()
     line.customs_auto_filled = False
+    line.customs_filled_by = user
     line.save()
 
     # 28-§3: keyingi importda eslab qolinsin — deklarant o'tkazib yuboriladi
@@ -1237,6 +1293,7 @@ def send_price_request_line_to_customs(line, user):
 
     line.customs_filled_at = None
     line.customs_auto_filled = False
+    line.customs_filled_by = None
     line.save()
     _sync_price_request_status(line.request)
     return line
@@ -1267,6 +1324,48 @@ def mark_price_request_line_imported(line, user):
         line.customs_auto_filled = True
     line.save()
     _sync_price_request_status(line.request)
+    return line
+
+
+@atomic
+def return_price_request_line(line, user, comment):
+    """29-§4(a): logist yuk tashiy olmasa yoki deklarant ma'lumot yetmasa —
+    izoh bilan buyurtmachiga qaytaradi (24-to'plamdagi `return_import_sheet`
+    bilan bir xil naqsh: orqaga yo'l bo'lmasa hujjat abadiy osilib qolardi).
+
+    Import deb belgilash ham bekor qilinadi — bu urinish muvaffaqiyatsiz
+    tugadi, buyurtmachi qaytadan hal qiladi (boshqa yo'l bilan import
+    qiladimi, mahalliy qoladimi)."""
+    _require(user, logist=True, declarant=True)
+    if not (comment or '').strip():
+        raise ValidationError({'comment': 'Izoh majburiy.'})
+    if line.answered_at:
+        raise ValidationError({'detail': "Bu qator allaqachon javob olgan."})
+    if line.status not in (PriceRequest.Status.WAITING_LOGISTICS, PriceRequest.Status.WAITING_CUSTOMS):
+        raise ValidationError({'detail': "Bu qator hozir qaytarib bo'lmaydigan bosqichda."})
+
+    line.is_imported = False
+    line.logistics_filled_at = None
+    line.logistics_filled_by = None
+    line.customs_filled_at = None
+    line.customs_auto_filled = False
+    line.customs_filled_by = None
+    line.save()
+    _sync_price_request_status(line.request)
+
+    from apps.accounts.models import User
+
+    role_label = 'Logist' if user.is_logist else ('Deklarant' if user.is_declarant else 'Admin')
+    for supplier in User.objects.filter(role=User.Role.SUPPLIER, is_active=True):
+        Notification.objects.update_or_create(
+            user=supplier, entity='PriceRequest',
+            object_id=str(line.request_id), is_read=False,
+            defaults={
+                'title': f'{line.request.number}: qaytarildi — {line.product.name}',
+                'message': f'{role_label}: {comment}',
+                'level': Notification.Level.WARNING,
+            },
+        )
     return line
 
 
@@ -1328,12 +1427,13 @@ def answer_price_request_line(
 
 
 @atomic
-def cancel_price_request(price_request, user, reason=''):
-    """Admin yoki ochgan odam — ochiq so'rovni bekor qiladi (§6 case 12)."""
-    if not (user.is_admin or user.id == price_request.created_by_id):
-        raise PermissionDenied("Bu so'rovni faqat admin yoki ochgan odam bekor qiladi.")
+def _cancel_price_request(price_request, user, reason=''):
+    """Ruxsatni tekshirmaydigan yadro — `cancel_price_request` (odam
+    chaqiradi) va `configurator.cancel_chain` (butun zanjirni bekor
+    qilish — 29-§4(c), ruxsat allaqachon tashqi funksiyada tekshirilgan)
+    ikkalasi ham shu yerdan o'tadi."""
     if price_request.status in (PriceRequest.Status.ANSWERED, PriceRequest.Status.CANCELLED):
-        raise ValidationError({'detail': "Bu so'rov allaqachon yakunlangan yoki bekor qilingan."})
+        return price_request
 
     price_request.status = PriceRequest.Status.CANCELLED
     price_request.save()
@@ -1352,3 +1452,12 @@ def cancel_price_request(price_request, user, reason=''):
         object_id=str(price_request.pk), description=reason or f'{price_request.number} bekor qilindi',
     )
     return price_request
+
+
+def cancel_price_request(price_request, user, reason=''):
+    """Admin yoki ochgan odam — ochiq so'rovni bekor qiladi (§6 case 12)."""
+    if not (user.is_admin or user.id == price_request.created_by_id):
+        raise PermissionDenied("Bu so'rovni faqat admin yoki ochgan odam bekor qiladi.")
+    if price_request.status in (PriceRequest.Status.ANSWERED, PriceRequest.Status.CANCELLED):
+        raise ValidationError({'detail': "Bu so'rov allaqachon yakunlangan yoki bekor qilingan."})
+    return _cancel_price_request(price_request, user, reason)

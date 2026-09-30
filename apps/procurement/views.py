@@ -12,7 +12,7 @@ from apps.accounts.permissions import (
 )
 from apps.core.mixins import BaseModelViewSet
 from apps.core.models import ActivityLog
-from apps.inventory.models import Product, Warehouse
+from apps.inventory.models import Warehouse
 from apps.procurement.models import (
     ImportCostSheet,
     PriceRequest,
@@ -46,11 +46,11 @@ from apps.procurement.services import (
     fill_price_request_logistics,
     low_stock_products,
     mark_price_request_line_imported,
-    open_import_sheet,
     pay,
     receive,
     reject,
     return_import_sheet,
+    return_price_request_line,
     send_price_request_line_to_customs,
     submit,
 )
@@ -293,10 +293,12 @@ class ReplenishmentEventViewSet(BaseModelViewSet):
 
 # 24-to'plam: bo'lim ichida kim qaysi maydonni yozishi servis darajasida
 # tekshiriladi (§6.3) — bu amallar uchun ViewSet faqat autentifikatsiyani
-# talab qiladi, aniq rolni `fill_*`/`open`/`return_sheet`/`cancel`/
+# talab qiladi, aniq rolni `fill_*`/`return_sheet`/`cancel`/
 # `change_quantity` servis funksiyalarining o'zi tekshiradi.
+# 29-§6: `open` OLIB TASHLANDI — `request_prices` (28-to'plam) bu varaqani
+# endi ochmaydi, qo'lda ochish yo'li ham yopildi (hujjat arxiv/nazorat).
 IMPORT_SHEET_SERVICE_ACTIONS = {
-    'open', 'fill_goods', 'fill_logistics', 'fill_customs',
+    'fill_goods', 'fill_logistics', 'fill_customs',
     'return_sheet', 'cancel', 'change_quantity',
 }
 
@@ -324,26 +326,6 @@ class ImportCostSheetViewSet(BaseModelViewSet):
         if self.action in IMPORT_SHEET_SERVICE_ACTIONS:
             return [IsAuthenticated()]
         return super().get_permissions()
-
-    def open(self, request):
-        """POST /import-cost-sheets/open/ — §6.4: Engineer/buyurtmachi/admin."""
-        product = Product.objects.filter(pk=request.data.get('product')).first()
-        if product is None:
-            raise ValidationError({'product': 'Mahsulot topilmadi.'})
-        configuration = None
-        if request.data.get('configuration'):
-            from apps.configurator.models import Configuration
-
-            configuration = Configuration.objects.filter(
-                pk=request.data['configuration'],
-            ).first()
-        sheet = open_import_sheet(
-            product, request.user,
-            quantity=request.data.get('quantity', 1),
-            configuration=configuration,
-        )
-        self.log_action(ActivityLog.Action.CREATE, sheet, f'{sheet.number} ochildi')
-        return Response(self.get_serializer(sheet).data, status=201)
 
     def fill_goods(self, request, pk=None):
         """POST /import-cost-sheets/{id}/fill-goods/ — A. Buyurtmachi."""
@@ -433,6 +415,7 @@ class PriceRequestViewSet(BaseModelViewSet):
 # ViewSet bu amallar uchun faqat autentifikatsiyani talab qiladi.
 PRICE_REQUEST_LINE_SERVICE_ACTIONS = {
     'fill_logistics', 'fill_customs', 'send_to_customs', 'mark_imported', 'answer',
+    'return_line',
 }
 
 
@@ -440,7 +423,9 @@ class PriceRequestLineViewSet(BaseModelViewSet):
     """28-§1/§2: bitta mahsulot — logist/deklarant/buyurtmachi shu yerda
     o'z qismini bajaradi, bir-birining raqamini ko'rmaydi (serializer)."""
 
-    queryset = PriceRequestLine.objects.select_related('request', 'product').all()
+    queryset = PriceRequestLine.objects.select_related(
+        'request', 'product', 'logistics_filled_by', 'customs_filled_by',
+    ).all()
     serializer_class = PriceRequestLineSerializer
     permission_classes = [PriceRequestAccess]
 
@@ -501,4 +486,12 @@ class PriceRequestLineViewSet(BaseModelViewSet):
             exchange_rate=data.get('exchange_rate'),
         )
         self.log_action(ActivityLog.Action.UPDATE, line, f'{line.request.number}: tannarx berildi')
+        return Response(self.get_serializer(line).data)
+
+    def return_line(self, request, pk=None):
+        """POST /price-request-lines/{id}/return/ — 29-§4(a): logist/deklarant izoh bilan qaytaradi."""
+        line = return_price_request_line(
+            self.get_object(), request.user, request.data.get('comment', ''),
+        )
+        self.log_action(ActivityLog.Action.UPDATE, line, f'{line.request.number}: qaytarildi')
         return Response(self.get_serializer(line).data)

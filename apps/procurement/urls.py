@@ -54,11 +54,9 @@ urlpatterns = [
     path('replenishment-events/<int:pk>/', ReplenishmentEventViewSet.as_view(READ_DETAIL), name='replenishmentevent-detail'),
 
     # 24-to'plam: import tannarx varaqasi — generic POST/PATCH yo'q, har
-    # bo'lim o'z amali orqali (§6.3)
+    # bo'lim o'z amali orqali (§6.3). 29-§6: `open` OLIB TASHLANDI —
+    # `request_prices` (28-to'plam) bu varaqani endi ochmaydi.
     path('import-cost-sheets/', ImportCostSheetViewSet.as_view(READ_LIST), name='importcostsheet-list'),
-    path('import-cost-sheets/open/', ImportCostSheetViewSet.as_view({
-        'post': 'open',
-    }), name='importcostsheet-open'),
     path('import-cost-sheets/<int:pk>/', ImportCostSheetViewSet.as_view(READ_DETAIL), name='importcostsheet-detail'),
     path('import-cost-sheets/<int:pk>/fill-goods/', ImportCostSheetViewSet.as_view({
         'post': 'fill_goods',
@@ -102,4 +100,7 @@ urlpatterns = [
     path('price-request-lines/<int:pk>/answer/', PriceRequestLineViewSet.as_view({
         'post': 'answer',
     }), name='pricerequestline-answer'),
+    path('price-request-lines/<int:pk>/return/', PriceRequestLineViewSet.as_view({
+        'post': 'return_line',
+    }), name='pricerequestline-return'),
 ]

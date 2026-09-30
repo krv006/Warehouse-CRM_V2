@@ -246,7 +246,15 @@ jamlanma `ok`).
 | Admin | ✅ | ✅ | ✅ |
 | Sales | ✅ | ✅ | ❌ (tannarxni hech qachon ko'rmaydi) |
 | Bugalter | ✅ | ❌ | ❌ |
-| Boshqalar | ❌ | ❌ | ❌ |
+| Boshqalar (shu jumladan buyurtmachi) | ❌ | ❌ | ❌ |
+
+> 29-§2: qator darajasidagi qirqish (`ContractItemSerializer`) boshidanoq
+> to'g'ri ishlagan; shartnoma darajasidagi jamlanma (`ContractSerializer.
+> margin_state`) esa avval umuman qirqilmagan edi — buyurtmachi ba'zi
+> shartnomalarni ko'radi (o'zi yetkazgan/o'zi TLD ochgan,
+> `apps/sales/views.py` `get_queryset`), va aynan u bizga tannarxni
+> beradigan tomon bo'lgani uchun bu haqiqiy teshik edi. Ikkalasi ham endi
+> bir xil qoidaga bo'ysunadi.
 
 ---
 
@@ -330,6 +338,11 @@ beruvchi mashinani butun holda, boshqa pulga beradi. Shuning uchun:
   zanjirni davom ettiradi — xuddi oddiy butlovchi narxi kelganidek.
 - Import model bo'lsa (24-to'plam) `ImportCostSheet` o'rniga endi shu
   yo'lning o'zi ishlaydi — alohida so'rov shart emas.
+- 29-§1: yo'l xaritasidagi `price_request` qadami ham `needs_base_price`ni
+  bilishi kerak (`items_without_price` `order`da doim bo'sh — 25-§6 — u
+  yolg'iz o'zi "narx kerak emas" deb yolg'on "o'tkazib yuborilgan"
+  ko'rsatardi, `submit` esa baribir 400 qaytarardi). Ikkalasi endi bir
+  xil manbadan gapiradi.
 
 Configurator **barcha rollarga** ochiq (TZ 6.5).
 
@@ -634,13 +647,36 @@ Taklif etilgan tannarx = Jami tannarx / miqdor   (2 xonaga yaxlitlanadi, taklif 
 
 Buyurtmachi `answer`da javob berganda: `Product.cost_price` yangilanadi,
 `price_arrived` zanjirni davom ettiradi (narxsiz qator/`needs_base_price`
-o'chsa CFG sales'ga qaytadi) — bir xil yo'l import va mahalliy uchun.
+o'chsa CFG sales'ga qaytadi) — bir xil yo'l import va mahalliy uchun
+(shu jumladan narx **to'g'ridan `PATCH /products/{id}/` orqali** kelsa
+ham — `close_local_price_request_lines_for_product` mahalliy qatorni
+avtomatik yopadi, 29-§4a bilan bog'liq emas, lekin shu yo'l bilan bir xil
+tamoyil: narx qayerdan kelmasin, kutayotgan hamma joy yopiladi).
 Deklarant kod/stavka kiritganda `Product.tnved_code`/`duty_percent`/
 `certificate_cost`/`laboratory_cost` ham yangilanadi — keyingi import
 uchun eslab qolinadi.
 
+**29-§4: qolgan uchta holat.**
+
+- **Rad etish** (`POST /price-request-lines/{id}/return/`, faqat logist/
+  deklarant, `comment` majburiy): "yuk tashiy olmayman" yoki "ma'lumot
+  yetmaydi" — qator **mahalliyga aylanadi** (`is_imported=false`,
+  tegishli `*_filled_at` tozalanadi), buyurtmachiga "kim va nega
+  qaytardi" eslatmasi ketadi. Import yo'lini davom ettirish kerak bo'lsa
+  buyurtmachi qaytadan `mark-imported` bosadi.
+- **Miqdor o'zgarishi**: `change-quantity` ochiq so'rov qatorlarini ham
+  yangilaydi — `quantity` ergashadi, import qatorning **logistika**
+  raqami eskiradi (`waiting_logistics`ga qaytadi, logistga eslatma),
+  **bojxona STAVKASI saqlanadi** (miqdorga bog'liq emas).
+- **Zanjir bekor bo'lishi** (`cancel_chain`, savdodan chiqarish,
+  hovuzga qaytarish): ochiq narx so'rovi ham `cancelled` bo'ladi,
+  uchala roldagi eslatmalar yopiladi; javob berilgan (`answered`)
+  so'rovga tegilmaydi.
+
 > **`ImportCostSheet` (24-to'plam) o'zi saqlanadi** — modeli, hisob-kitobi
 > va o'z testlari qoladi, lekin `request_prices` endi uni ochmaydi.
+> **29-§6: qo'lda ochish (`POST /import-cost-sheets/open/`) ham olib
+> tashlandi** — ro'yxat/detail arxiv/nazorat sifatida qoladi.
 > `/api/import-cost-sheets/...` mustaqil endpoint sifatida ishlayveradi
 > (masalan qo'lda ochish uchun), yangi importlar esa `PriceRequest`
 > orqali yuradi.
