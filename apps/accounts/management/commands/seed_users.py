@@ -60,6 +60,22 @@ DEMO_USERS = [
         'phone': '+998901110004',
         'role': User.Role.SALES,
     },
+    {
+        'username': 'logist',
+        'first_name': 'Sardor',
+        'last_name': 'Karimov',
+        'email': 'logist@thesofmebel.uz',
+        'phone': '+998901110007',
+        'role': User.Role.LOGIST,
+    },
+    {
+        'username': 'deklarant',
+        'first_name': 'Madina',
+        'last_name': 'Aliyeva',
+        'email': 'deklarant@thesofmebel.uz',
+        'phone': '+998901110008',
+        'role': User.Role.DECLARANT,
+    },
 ]
 
 
